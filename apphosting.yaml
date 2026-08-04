@@ -27,18 +27,19 @@ env:
     availability:
       - RUNTIME
 
-  - variable: PLAID_CLIENT_ID
-    secret: PLAID_CLIENT_ID
-    availability:
-      - RUNTIME
-
-  - variable: PLAID_SECRET
-    secret: PLAID_SECRET
-    availability:
-      - RUNTIME
+  # Plaid secrets - add these when you're ready to use Plaid
+  # - variable: PLAID_CLIENT_ID
+  #   secret: PLAID_CLIENT_ID
+  #   availability:
+  #     - RUNTIME
+  #
+  # - variable: PLAID_SECRET
+  #   secret: PLAID_SECRET
+  #   availability:
+  #     - RUNTIME
 
   - variable: PLAID_ENV
-    value: "sandbox" # sandbox | development | production
+    value: "sandbox"
     availability:
       - RUNTIME
 
