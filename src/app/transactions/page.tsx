@@ -21,9 +21,7 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
-
-  // Extended mock data for better demo
-  const extendedTransactions = [
+  const [transactions, setTransactions] = useState([
     ...mockRecentTransactions,
     {
       id: '6',
@@ -39,7 +37,20 @@ export default function TransactionsPage() {
       amount: -50.00,
       date: new Date(2024, 5, 22),
     },
-  ];
+  ]);
+
+  const handleEdit = (id: string) => {
+    alert(`Edit functionality for transaction ${id} coming soon!`);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+      setTransactions(transactions.filter((tx) => tx.id !== id));
+    }
+  };
+
+  // Extended mock data for better demo
+  const extendedTransactions = transactions;
 
   const filteredTransactions = extendedTransactions
     .filter((tx) => {
@@ -157,10 +168,18 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-right">
                         <div className="flex justify-end gap-2">
-                          <button className="p-2 hover:bg-muted/30 rounded transition-colors">
+                          <button
+                            onClick={() => handleEdit(tx.id)}
+                            className="p-2 hover:bg-muted/30 rounded transition-colors"
+                            title="Edit transaction"
+                          >
                             <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                           </button>
-                          <button className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors">
+                          <button
+                            onClick={() => handleDelete(tx.id)}
+                            className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                            title="Delete transaction"
+                          >
                             <Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-600" />
                           </button>
                         </div>

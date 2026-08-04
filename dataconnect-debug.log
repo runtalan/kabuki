@@ -1,0 +1,10 @@
+I0804 12:07:31.732366    6478 load.go:31] Reloading schema and connectors...
+I0804 12:07:31.735462    6478 control.go:100] [projects/emulator/locations/emulator/services/my-buttons-f6c4a-service 9eb0] UpdateResources(): done
+Main schema: sources: schema/schema.gql [0B] 
+Connector "example": sources: 
+E0804 12:07:31.755841    6478 load.go:95] Errors generating SDK: [connector "example"]: invalid Data Connect Connector no query found in connector
+I0804 12:07:31.757320    6478 collector.go:107] schema extensions wrote into "/Users/runtalan/Dev/Kabuki/dataconnect/.dataconnect/schema"
+Generated sources: prelude.gql [84995B] 
+I0804 12:07:31.757348    6478 load.go:109] Finished reloading
+I0804 12:07:31.763564    6478 dev.go:101] Listening on address (HTTP + gRPC): 127.0.0.1:50002
+I0804 12:07:31.931687    6478 engine.go:209] [projects/emulator/locations/emulator/services/my-buttons-f6c4a-service 9eb0] ExecuteGraphqlRead query IntrospectionQuery: succeeded. 

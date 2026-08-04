@@ -1,14 +1,21 @@
-import { TrendingUp, Calendar, Filter } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { Calendar, Filter } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
-import { SpendingPieChart } from '@/components/charts/spending-pie-chart';
+import { SpendingBarChart } from '@/components/charts/spending-bar-chart';
 import { CashFlowChart } from '@/components/charts/cash-flow-chart';
 import { NetWorthChart } from '@/components/charts/net-worth-chart';
-import { getReportsData } from '@/components/dashboard-data';
+import { mockSpendingByCategory, mockCashFlowData, mockNetWorthTrend } from '@/lib/mock-data';
 
-export const dynamic = 'force-dynamic';
+export default function ReportsPage() {
+  const [dateRange, setDateRange] = useState('this-month');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
 
-export default async function ReportsPage() {
-  const { spendingByCategory, cashFlowData, netWorthTrend } = await getReportsData();
+  const spendingByCategory = mockSpendingByCategory;
+  const cashFlowData = mockCashFlowData;
+  const netWorthTrend = mockNetWorthTrend;
 
   const totalSpending = spendingByCategory.reduce((sum, cat) => sum + cat.value, 0);
   const currentMonth = cashFlowData[cashFlowData.length - 1];
@@ -25,11 +32,19 @@ export default async function ReportsPage() {
             <p className="text-muted-foreground">Comprehensive financial analysis and insights</p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+            <button
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/30 transition-colors"
+              title="Select date range"
+            >
               <Calendar className="w-4 h-4" />
-              <span className="text-sm">Date Range</span>
+              <span className="text-sm">{dateRange === 'this-month' ? 'This Month' : 'Custom Range'}</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+            <button
+              onClick={() => setShowFilter(!showFilter)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/30 transition-colors"
+              title="Apply filters"
+            >
               <Filter className="w-4 h-4" />
               <span className="text-sm">Filter</span>
             </button>
@@ -61,11 +76,11 @@ export default async function ReportsPage() {
         </div>
 
         {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-{/* Spending Distribution */}
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          {/* Spending by Category */}
           <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Spending Distribution</h2>
-            <SpendingPieChart data={spendingByCategory} />
+            <h2 className="text-lg font-semibold text-foreground mb-4">Spending by Category</h2>
+            <SpendingBarChart data={spendingByCategory} />
           </div>
 
           {/* Category Breakdown Table */}

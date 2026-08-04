@@ -23,20 +23,20 @@ env:
       - RUNTIME
 
   - variable: AUTH_URL
-    value: "https://mybuttons.casa"
+    value: "https://kabuki--buttons-abc4d.us-east4.hosted.app"
     availability:
       - RUNTIME
 
-  # Plaid secrets - add these when you're ready to use Plaid
-  # - variable: PLAID_CLIENT_ID
-  #   secret: PLAID_CLIENT_ID
-  #   availability:
-  #     - RUNTIME
-  #
-  # - variable: PLAID_SECRET
-  #   secret: PLAID_SECRET
-  #   availability:
-  #     - RUNTIME
+  # Plaid secrets
+  - variable: PLAID_CLIENT_ID
+    secret: PLAID_CLIENT_ID
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_SECRET
+    secret: PLAID_SECRET
+    availability:
+      - RUNTIME
 
   - variable: PLAID_ENV
     value: "sandbox"

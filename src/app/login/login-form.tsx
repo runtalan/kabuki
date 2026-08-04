@@ -10,7 +10,7 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,13 +22,13 @@ export function LoginForm() {
 
     try {
       const result = await signIn('credentials', {
-        email,
+        username,
         password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        setError('Invalid username or password');
       } else if (result?.ok) {
         router.push(callbackUrl);
       }
@@ -47,17 +47,17 @@ export function LoginForm() {
         </div>
       )}
 
-      {/* Email */}
+      {/* Username */}
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-          Email
+        <label htmlFor="username" className="block text-sm font-medium text-foreground mb-2">
+          Username
         </label>
         <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@example.com"
+          id="username"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Enter your username"
           required
           className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
@@ -92,13 +92,10 @@ export function LoginForm() {
       {/* Demo Credentials */}
       <div className="mt-8 pt-6 border-t border-border">
         <p className="text-xs text-muted-foreground mb-3">
-          Demo credentials (set in .env.local):
+          Demo credentials:
         </p>
-        <code className="block text-xs bg-muted/30 p-3 rounded mb-2 text-foreground">
-          user1@example.com / password
-        </code>
         <code className="block text-xs bg-muted/30 p-3 rounded text-foreground">
-          user2@example.com / password
+          renato / password
         </code>
       </div>
     </form>

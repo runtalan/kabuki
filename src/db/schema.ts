@@ -24,12 +24,12 @@ export const users = pgTable(
   "users",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    email: varchar("email", { length: 255 }).notNull().unique(),
+    username: varchar("username", { length: 255 }).notNull().unique(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("idx_users_email").on(table.email)]
+  (table) => [uniqueIndex("idx_users_username").on(table.username)]
 );
 
 // Plaid items (one per user; tracks item_id and access token)

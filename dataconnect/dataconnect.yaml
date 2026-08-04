@@ -1,0 +1,13 @@
+specVersion: "v1"
+serviceId: "my-buttons-f6c4a-service"
+location: "us-east4"
+schemas:
+  - source: "./schema"
+    datasource:
+      postgresql:
+        database: "my-buttons-f6c4a-database"
+        cloudSql:
+          instanceId: "my-buttons-f6c4a-instance"
+          # schemaValidation: "STRICT"     # STRICT mode makes Postgres schema match Data Connect exactly.
+          # schemaValidation: "COMPATIBLE" # COMPATIBLE mode makes Postgres schema compatible with Data Connect.
+connectorDirs: ["./example"]

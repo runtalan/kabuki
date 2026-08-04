@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
-  BarChart3,
-  TrendingUp,
+  Home,
+  ArrowUpRight,
+  BarChart2,
   Settings,
   LogOut,
-  PieChart,
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
-  { href: '/transactions', label: 'Transactions', icon: TrendingUp },
-  { href: '/reports', label: 'Reports', icon: PieChart },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/transactions', label: 'Transactions', icon: ArrowUpRight },
+  { href: '/reports', label: 'Reports', icon: BarChart2 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -25,11 +25,14 @@ export function Sidebar() {
     <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0">
       {/* Header */}
       <div className="px-6 py-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <BarChart3 className="w-6 h-6 text-primary" />
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+            <span className="text-lg font-bold text-sidebar-primary-foreground">B</span>
           </div>
-          <h1 className="text-xl font-bold text-sidebar-foreground">Kabuki</h1>
+          <div>
+            <h1 className="text-lg font-bold text-sidebar-foreground leading-tight">Buttons</h1>
+            <p className="text-xs text-sidebar-accent-foreground font-medium">For Kabuki</p>
+          </div>
         </div>
       </div>
 

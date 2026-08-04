@@ -16,7 +16,7 @@ const defaultCategories = [
   { name: 'Transfer', color: '#6b7280', icon: 'ArrowLeftRight' },
 ];
 
-export async function seed() {
+async function seed() {
   console.log('🌱 Seeding database...');
 
   // Hash passwords
@@ -46,7 +46,7 @@ export async function seed() {
     ]);
     console.log('✓ Users created');
   } catch (error) {
-    console.log('⚠ Users already exist or error occurred');
+    console.error('Error creating users:', error);
   }
 
   // Create categories
@@ -63,8 +63,14 @@ export async function seed() {
     );
     console.log('✓ Categories created');
   } catch (error) {
-    console.log('⚠ Categories already exist or error occurred');
+    console.error('Error creating categories:', error);
   }
 
   console.log('✅ Seed complete!');
+  process.exit(0);
 }
+
+seed().catch((error) => {
+  console.error('Seed failed:', error);
+  process.exit(1);
+});
