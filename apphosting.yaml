@@ -1,0 +1,53 @@
+# Firebase App Hosting configuration for Kabuki.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  minInstances: 0
+  maxInstances: 1
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+# Secrets are managed in Google Cloud Secret Manager. Create each secret with
+# `firebase apphosting:secrets:set <NAME>` before the first deploy, then grant
+# the backend access with `firebase apphosting:secrets:grantaccess <NAME>`.
+env:
+  - variable: DATABASE_URL
+    secret: DATABASE_URL
+    availability:
+      - RUNTIME
+
+  - variable: AUTH_SECRET
+    secret: AUTH_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: AUTH_URL
+    value: "https://mybuttons.casa"
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_CLIENT_ID
+    secret: PLAID_CLIENT_ID
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_SECRET
+    secret: PLAID_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_ENV
+    value: "sandbox" # sandbox | development | production
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_PRODUCTS
+    value: "transactions"
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_COUNTRY_CODES
+    value: "US"
+    availability:
+      - RUNTIME

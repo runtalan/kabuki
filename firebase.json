@@ -1,0 +1,13 @@
+{
+  "apphosting": {
+    "backendId": "kabuki",
+    "rootDir": "/",
+    "ignore": [
+      "node_modules",
+      ".git",
+      ".next",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  }
+}
