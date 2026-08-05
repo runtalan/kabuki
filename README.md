@@ -12,18 +12,32 @@ Self-hosted personal finance app for a two-user household (Monarch Money clone),
 - Recharts (reporting)
 - Firebase App Hosting (serverless SSR)
 
+## ⚠️ Environment Setup (READ FIRST)
+
+**Before running locally or deploying to production, read [ENVIRONMENTS.md](./ENVIRONMENTS.md).**
+
+This project has three environments (sandbox/production-limited/production) with separate Plaid credentials and databases. The rules are:
+- **Local dev**: Always use `sandbox` (fake data, safe)
+- **Firebase production**: Always use `production` (real bank data)
+
+Start a dev session:
+```bash
+npm run env:sandbox
+npm run dev
+```
+
 ## Getting started
 
-1. Copy the env template and fill in real values:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-2. Install dependencies (already done if you just ran setup):
+1. Install dependencies:
 
    ```bash
    npm install
+   ```
+
+2. Ensure you're in sandbox environment (see [ENVIRONMENTS.md](./ENVIRONMENTS.md)):
+
+   ```bash
+   npm run env:sandbox
    ```
 
 3. Run the dev server:
@@ -32,7 +46,9 @@ Self-hosted personal finance app for a two-user household (Monarch Money clone),
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000).
+   Open [http://localhost:3000](http://localhost:3000) and log in with:
+   - Username: `renato` or `claudia`
+   - Password: `password`
 
 ## Database (Drizzle)
 
@@ -47,17 +63,28 @@ npm run db:studio     # browse data in Drizzle Studio
 
 ## Deploying to Firebase App Hosting
 
-1. Install the Firebase CLI (bundled as a dev dependency, or `npm i -g firebase-tools`).
-2. Log in and set your project: `npx firebase login`, then edit `.firebaserc` with your project ID (or run `npx firebase use --add`).
-3. Create the backend once: `npx firebase apphosting:backends:create`.
-4. Set secrets referenced in `apphosting.yaml` (`DATABASE_URL`, `AUTH_SECRET`, `PLAID_CLIENT_ID`, `PLAID_SECRET`):
+**See [ENVIRONMENTS.md](./ENVIRONMENTS.md) for complete deployment instructions and production secret setup.**
 
+Quick summary:
+1. **Set production secrets** in Firebase (one-time):
    ```bash
-   npx firebase apphosting:secrets:set DATABASE_URL
-   npx firebase apphosting:secrets:grantaccess DATABASE_URL --backend kabuki
+   npx firebase apphosting:secrets:set DATABASE_URL --backend kabuki
+   npx firebase apphosting:secrets:set AUTH_SECRET --backend kabuki
+   npx firebase apphosting:secrets:set PLAID_SECRET --backend kabuki
+   # ... (see ENVIRONMENTS.md for all secrets)
    ```
 
-5. Connect the backend to your GitHub repo's main branch in the Firebase console (or via CLI) so pushes to `main` trigger automatic builds/deploys. Runtime config (instance sizing, env vars) lives in `apphosting.yaml`.
+2. **Push to main branch** (triggers automatic build and deploy):
+   ```bash
+   git push origin main
+   ```
+
+3. **Monitor the build:**
+   ```bash
+   npx firebase apphosting:builds:list --backend kabuki
+   ```
+
+Every push to `main` triggers a Firebase deploy of the `production` environment to https://mybuttons.casa.
 
 ## Project structure
 
