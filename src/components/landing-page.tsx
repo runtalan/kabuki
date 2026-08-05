@@ -3,20 +3,19 @@ import { Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
-function LaurelBranch({ flip = false }: { flip?: boolean }) {
-  // A single laurel branch: stem sweeps from bottom-outside up and around to
-  // top-center in a deep arc, with a handful of large, evenly-sized leaves.
-  const leaves = [0.08, 0.24, 0.42, 0.6, 0.78, 0.93];
+function LaurelBranch() {
+  // Classic laurel crescent: stem bulges outward through the middle and
+  // curves back inward at both ends, lined with flat, pointed leaves.
+  const leaves = Array.from({ length: 13 }, (_, i) => 0.04 + i * (0.92 / 12));
 
-  // Deeper, rounder curve than a simple diagonal.
-  const stemPath = 'M 6 100 Q -6 55 14 30 Q 30 10 50 0';
+  const stemPath = 'M 22 102 Q -14 70 -2 40 Q 8 12 46 -2';
 
   const pointAt = (t: number) => {
     const seg1 = t <= 0.5;
     const lt = seg1 ? t / 0.5 : (t - 0.5) / 0.5;
-    const p0 = seg1 ? { x: 6, y: 100 } : { x: 14, y: 30 };
-    const p1 = seg1 ? { x: -6, y: 55 } : { x: 30, y: 10 };
-    const p2 = seg1 ? { x: 14, y: 30 } : { x: 50, y: 0 };
+    const p0 = seg1 ? { x: 22, y: 102 } : { x: -2, y: 40 };
+    const p1 = seg1 ? { x: -14, y: 70 } : { x: 8, y: 12 };
+    const p2 = seg1 ? { x: -2, y: 40 } : { x: 46, y: -2 };
     const x = (1 - lt) ** 2 * p0.x + 2 * (1 - lt) * lt * p1.x + lt ** 2 * p2.x;
     const y = (1 - lt) ** 2 * p0.y + 2 * (1 - lt) * lt * p1.y + lt ** 2 * p2.y;
     const dx = 2 * (1 - lt) * (p1.x - p0.x) + 2 * lt * (p2.x - p0.x);
@@ -25,32 +24,36 @@ function LaurelBranch({ flip = false }: { flip?: boolean }) {
     return { x, y, angle };
   };
 
-  const leafLen = 20;
-  const leafWidth = 8;
+  // Flat, blade-like leaf: thin relative to its length, pointed at both ends.
+  const leafLen = 17;
+  const leafWidth = 3.4;
 
   return (
-    <g transform={flip ? 'translate(58,0) scale(-1,1)' : undefined}>
-      <path d={stemPath} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+    <>
+      <path d={stemPath} stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
       {leaves.map((t, i) => {
         const { x, y, angle } = pointAt(t);
-        const outward = angle - 60;
+        const outward = angle - 62;
         return (
           <g key={i} transform={`translate(${x} ${y}) rotate(${outward})`}>
             <path
-              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.35} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.35} 0 0 Z`}
+              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.5} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.5} 0 0 Z`}
               fill="currentColor"
             />
           </g>
         );
       })}
-    </g>
+    </>
   );
 }
 
 function LaurelWreath({ flip = false }: { flip?: boolean }) {
   return (
-    <svg viewBox="0 0 58 104" className="w-14 h-24 shrink-0 text-gray-300 dark:text-gray-700">
-      <LaurelBranch flip={flip} />
+    <svg
+      viewBox="-20 -6 78 114"
+      className={`w-14 h-24 shrink-0 text-gray-300 dark:text-gray-700 ${flip ? 'scale-x-[-1]' : ''}`}
+    >
+      <LaurelBranch />
     </svg>
   );
 }
