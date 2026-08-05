@@ -75,6 +75,8 @@ export const accounts = pgTable(
     subtype: varchar("subtype", { length: 50 }), // "checking", "savings", "credit card", etc.
     kind: varchar("kind", { length: 10 }).default("asset").notNull(), // "asset" | "liability" — sign for net worth
     liabilityType: varchar("liability_type", { length: 30 }), // "credit_card" | "student_loan" | "mortgage" | "personal_loan" | "other"
+    assetType: varchar("asset_type", { length: 30 }), // "car" | "property" | "other" — manual assets only
+    address: varchar("address", { length: 500 }), // manual property assets only
     isManual: boolean("is_manual").default(false).notNull(),
     currentBalance: numeric("current_balance", { precision: 16, scale: 2 }).notNull(),
     availableBalance: numeric("available_balance", { precision: 16, scale: 2 }),
@@ -117,6 +119,8 @@ export const categories = pgTable(
     color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
     icon: varchar("icon", { length: 50 }).default("folder").notNull(),
     isCustom: boolean("is_custom").default(false).notNull(),
+    // Monthly budget limit for this category; null = no budget set
+    monthlyBudget: numeric("monthly_budget", { precision: 12, scale: 2 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("idx_categories_name").on(table.name)]

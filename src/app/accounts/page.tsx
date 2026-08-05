@@ -13,18 +13,24 @@ import {
   CreditCard,
   PiggyBank,
   TrendingUp,
+  Car,
+  Home as HomeIcon,
   Plus,
   X,
   Landmark,
-  GraduationCap,
-  Home as HomeIcon,
   LayoutGrid,
   List,
+  Loader,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PlaidLinkButton } from '@/components/plaid-link-button';
-import { OWNERS } from '@/components/owner-badge';
-import { LIABILITY_TYPES, getTypeBadge } from '@/lib/account-types';
+import { OWNERS, type OwnerKey } from '@/components/owner-badge';
+
+// Display order for the collapsible owner sections on the accounts overview.
+const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
+import { LIABILITY_TYPES, ASSET_TYPES, getTypeBadge, suggestIcon } from '@/lib/account-types';
 
 interface Account {
   id: string;
@@ -37,6 +43,8 @@ interface Account {
   subtype?: string;
   kind?: 'asset' | 'liability';
   liabilityType?: string | null;
+  assetType?: string | null;
+  address?: string | null;
   isManual?: boolean;
   currentBalance: string;
   lastSyncedAt?: string;
@@ -63,6 +71,8 @@ const ICON_OPTIONS = [
   { name: 'PiggyBank', icon: PiggyBank },
   { name: 'TrendingUp', icon: TrendingUp },
   { name: 'CheckCircle', icon: CheckCircle },
+  { name: 'Car', icon: Car },
+  { name: 'Home', icon: HomeIcon },
 ];
 
 export default function AccountsPage() {
@@ -73,20 +83,35 @@ export default function AccountsPage() {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ displayName: '', icon: '', owner: 'joint', currentBalance: '' });
 
-  // Manual liability creation
+  // Manual asset/liability creation
   const [showAddLiability, setShowAddLiability] = useState(false);
   const [liabilityForm, setLiabilityForm] = useState({
     name: '',
     kind: 'liability' as 'asset' | 'liability',
     liabilityType: 'credit_card',
+    assetType: 'car',
+    address: '',
     currentBalance: '',
     owner: 'joint',
     icon: 'CreditCard',
+    iconManuallySet: false,
   });
   const [savingLiability, setSavingLiability] = useState(false);
+  const [zillowLoading, setZillowLoading] = useState(false);
+  const [zillowMessage, setZillowMessage] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [institutionNameDraft, setInstitutionNameDraft] = useState('');
+  const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set());
+
+  const toggleOwnerCollapse = (owner: string) => {
+    setCollapsedOwners((prev) => {
+      const next = new Set(prev);
+      if (next.has(owner)) next.delete(owner);
+      else next.add(owner);
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetchAccounts();
@@ -237,6 +262,58 @@ export default function AccountsPage() {
     }
   };
 
+  const resetLiabilityForm = () =>
+    setLiabilityForm({
+      name: '',
+      kind: 'liability',
+      liabilityType: 'credit_card',
+      assetType: 'car',
+      address: '',
+      currentBalance: '',
+      owner: 'joint',
+      icon: 'CreditCard',
+      iconManuallySet: false,
+    });
+
+  // Changing kind or type auto-suggests a matching icon, unless the user
+  // has already manually picked one via the icon grid.
+  const applyTypeChange = (updates: Partial<typeof liabilityForm>) => {
+    setLiabilityForm((prev) => {
+      const next = { ...prev, ...updates };
+      if (!prev.iconManuallySet) {
+        next.icon = suggestIcon(next.kind, next.kind === 'asset' ? next.assetType : next.liabilityType);
+      }
+      return next;
+    });
+  };
+
+  const handleZillowLookup = async () => {
+    if (!liabilityForm.address.trim()) {
+      setZillowMessage('Enter an address first');
+      return;
+    }
+    setZillowLoading(true);
+    setZillowMessage('');
+    try {
+      const res = await fetch('/api/zillow-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: liabilityForm.address }),
+      });
+      const data = await res.json();
+      if (res.ok && data.value) {
+        setLiabilityForm((prev) => ({ ...prev, currentBalance: data.value.toString() }));
+        setZillowMessage(`Pulled $${data.value.toLocaleString()} from Zillow`);
+      } else {
+        setZillowMessage(data.error || 'Zillow lookup unavailable');
+      }
+    } catch (error) {
+      setZillowMessage('Zillow lookup unavailable');
+    } finally {
+      setZillowLoading(false);
+    }
+  };
+
   const handleCreateLiability = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!liabilityForm.name.trim() || liabilityForm.currentBalance === '') {
@@ -252,6 +329,11 @@ export default function AccountsPage() {
           name: liabilityForm.name,
           kind: liabilityForm.kind,
           liabilityType: liabilityForm.kind === 'liability' ? liabilityForm.liabilityType : undefined,
+          assetType: liabilityForm.kind === 'asset' ? liabilityForm.assetType : undefined,
+          address:
+            liabilityForm.kind === 'asset' && liabilityForm.assetType === 'property'
+              ? liabilityForm.address
+              : undefined,
           currentBalance: parseFloat(liabilityForm.currentBalance),
           owner: liabilityForm.owner,
           icon: liabilityForm.icon,
@@ -261,14 +343,8 @@ export default function AccountsPage() {
       if (response.ok) {
         await fetchAccounts();
         setShowAddLiability(false);
-        setLiabilityForm({
-          name: '',
-          kind: 'liability',
-          liabilityType: 'credit_card',
-          currentBalance: '',
-          owner: 'joint',
-          icon: 'CreditCard',
-        });
+        setZillowMessage('');
+        resetLiabilityForm();
       } else {
         const data = await response.json();
         alert('Error: ' + (data.error || 'Failed to create account'));
@@ -349,7 +425,7 @@ export default function AccountsPage() {
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground font-semibold rounded-lg hover:bg-muted/80 border border-border transition-all"
             >
               <Plus className="w-4 h-4" />
-              Add Liability
+              Add Asset/Liability
             </button>
             <PlaidLinkButton />
           </div>
@@ -371,8 +447,71 @@ export default function AccountsPage() {
             <PlaidLinkButton />
           </div>
         ) : (
-          <div className="space-y-6">
-            {items.filter((item) => item.accounts.length > 0).map((item) => (
+          <div className="space-y-8">
+            {OWNER_ORDER.map((ownerKey) => {
+              const ownerInfo = OWNERS[ownerKey];
+              const ownerItems = items
+                .map((item) => ({
+                  ...item,
+                  accounts: item.accounts.filter((acc) => (acc.owner || 'joint') === ownerKey),
+                }))
+                .filter((item) => item.accounts.length > 0);
+              const accountCount = ownerItems.reduce((n, item) => n + item.accounts.length, 0);
+              const ownerTotal = ownerItems.reduce(
+                (sum, item) =>
+                  sum +
+                  item.accounts.reduce(
+                    (s, a) =>
+                      s + (a.kind === 'liability' ? -Number(a.currentBalance) : Number(a.currentBalance)),
+                    0
+                  ),
+                0
+              );
+              const isCollapsed = collapsedOwners.has(ownerKey);
+
+              return (
+                <div key={ownerKey}>
+                  <button
+                    onClick={() => toggleOwnerCollapse(ownerKey)}
+                    className="w-full flex items-center justify-between px-1 py-2 mb-3 group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                        style={{ backgroundColor: ownerInfo.color + '1a' }}
+                      >
+                        {ownerInfo.emoji}
+                      </span>
+                      <h2 className="text-lg font-semibold text-foreground">{ownerInfo.label}</h2>
+                      <span className="text-xs text-muted-foreground">
+                        {accountCount} account{accountCount === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-sm font-semibold ${
+                          ownerTotal < 0 ? 'text-red-500' : 'text-foreground'
+                        }`}
+                      >
+                        {ownerTotal < 0 ? '-' : ''}$
+                        {Math.abs(ownerTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                      {isCollapsed ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+
+                  {!isCollapsed && (
+                    accountCount === 0 ? (
+                      <p className="text-sm text-muted-foreground px-1 pb-2">
+                        No accounts yet for {ownerInfo.label.toLowerCase()}.
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {ownerItems.map((item) => (
               <div key={item.id} className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-shadow">
                 {/* Institution Header */}
                 <div className="flex items-center justify-between mb-6 pb-6 border-b border-border">
@@ -733,7 +872,13 @@ export default function AccountsPage() {
                   )}
                 </div>
               </div>
-            ))}
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -745,11 +890,14 @@ export default function AccountsPage() {
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setShowAddLiability(false)}
           />
-          <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
+          <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-foreground">Add Manual Account</h2>
+              <h2 className="text-lg font-semibold text-foreground">Add Asset or Liability</h2>
               <button
-                onClick={() => setShowAddLiability(false)}
+                onClick={() => {
+                  setShowAddLiability(false);
+                  setZillowMessage('');
+                }}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -757,21 +905,52 @@ export default function AccountsPage() {
             </div>
 
             <form onSubmit={handleCreateLiability} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Name (e.g. Chase Sapphire, Student Loan)"
-                value={liabilityForm.name}
-                onChange={(e) => setLiabilityForm({ ...liabilityForm, name: e.target.value })}
-                autoFocus
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground"
-              />
+              <div className="flex gap-3">
+                {/* Icon picker */}
+                <div className="relative group/icon flex-shrink-0">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center border border-border"
+                    style={{ backgroundColor: '#3b82f61a' }}
+                  >
+                    {getIconComponent(liabilityForm.icon)}
+                  </div>
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-card border border-border rounded-xl p-2 shadow-xl z-10 hidden group-hover/icon:grid grid-cols-4 gap-1.5">
+                    {ICON_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.name}
+                        type="button"
+                        onClick={() =>
+                          setLiabilityForm({ ...liabilityForm, icon: opt.name, iconManuallySet: true })
+                        }
+                        className={`p-2 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors ${
+                          liabilityForm.icon === opt.name ? 'border-primary bg-primary/10' : 'border-transparent'
+                        }`}
+                      >
+                        <opt.icon className="w-4 h-4" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Name (e.g. Toyota Camry, 123 Main St)"
+                  value={liabilityForm.name}
+                  onChange={(e) => setLiabilityForm({ ...liabilityForm, name: e.target.value })}
+                  autoFocus
+                  className="flex-1 px-4 py-2 rounded-lg border border-border bg-background text-foreground"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                Icon auto-picked from type below — hover it to choose your own
+              </p>
 
               <div className="flex gap-2">
                 {(['liability', 'asset'] as const).map((kind) => (
                   <button
                     key={kind}
                     type="button"
-                    onClick={() => setLiabilityForm({ ...liabilityForm, kind })}
+                    onClick={() => applyTypeChange({ kind })}
                     className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors capitalize ${
                       liabilityForm.kind === kind
                         ? 'border-primary bg-primary/10 text-foreground'
@@ -783,10 +962,10 @@ export default function AccountsPage() {
                 ))}
               </div>
 
-              {liabilityForm.kind === 'liability' && (
+              {liabilityForm.kind === 'liability' ? (
                 <select
                   value={liabilityForm.liabilityType}
-                  onChange={(e) => setLiabilityForm({ ...liabilityForm, liabilityType: e.target.value })}
+                  onChange={(e) => applyTypeChange({ liabilityType: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground"
                 >
                   {LIABILITY_TYPES.map((t) => (
@@ -795,6 +974,42 @@ export default function AccountsPage() {
                     </option>
                   ))}
                 </select>
+              ) : (
+                <select
+                  value={liabilityForm.assetType}
+                  onChange={(e) => applyTypeChange({ assetType: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground"
+                >
+                  {ASSET_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {liabilityForm.kind === 'asset' && liabilityForm.assetType === 'property' && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Property address"
+                    value={liabilityForm.address}
+                    onChange={(e) => setLiabilityForm({ ...liabilityForm, address: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground mb-1.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleZillowLookup}
+                    disabled={zillowLoading}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {zillowLoading ? <Loader className="w-3 h-3 animate-spin" /> : null}
+                    Pull value from Zillow
+                  </button>
+                  {zillowMessage && (
+                    <p className="text-[11px] text-muted-foreground mt-1">{zillowMessage}</p>
+                  )}
+                </div>
               )}
 
               <input
@@ -837,7 +1052,10 @@ export default function AccountsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddLiability(false)}
+                  onClick={() => {
+                    setShowAddLiability(false);
+                    setZillowMessage('');
+                  }}
                   className="px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
                 >
                   Cancel

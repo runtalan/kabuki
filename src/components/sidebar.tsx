@@ -7,7 +7,6 @@ import { signOut } from 'next-auth/react';
 import {
   Home,
   Landmark,
-  ArrowLeftRight,
   BarChart2,
   Shapes,
   Wand2,
@@ -26,15 +25,12 @@ const USER_AVATARS: Record<string, string> = {
 
 const navSections = [
   {
-    label: 'Overview',
-    items: [{ href: '/dashboard', label: 'Dashboard', icon: Home }],
-  },
-  {
-    label: 'Money',
+    label: 'Track',
     items: [
+      { href: '/home', label: 'Home', icon: Home },
+      { href: '/spending', label: 'Spending', icon: BarChart2 },
+      { href: '/spending/transactions', label: 'Transactions', icon: BarChart2 },
       { href: '/accounts', label: 'Accounts', icon: Landmark },
-      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-      { href: '/reports', label: 'Reports', icon: BarChart2 },
     ],
   },
   {

@@ -1,14 +1,31 @@
 'use client';
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatNumber } from '@/lib/format';
 import { ChartTooltip } from './chart-tooltip';
 import { EmptyChartState } from './empty-chart-state';
+import { CategoryIcon } from '../category-icon';
 
 interface SpendingData {
   name: string;
   value: number;
   color: string;
+  icon?: string | null;
+}
+
+// Custom Y-axis label: category icon + name, right-aligned against the bars.
+function CategoryTick({ x, y, payload, items }: any) {
+  const item: SpendingData | undefined = items.find((d: SpendingData) => d.name === payload.value);
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <foreignObject x={-150} y={-11} width={144} height={22}>
+        <div className="flex items-center justify-end gap-1.5 h-full">
+          <CategoryIcon icon={item?.icon} className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-xs text-foreground truncate">{payload.value}</span>
+        </div>
+      </foreignObject>
+    </g>
+  );
 }
 
 export function SpendingBarChart({ data }: { data: SpendingData[] }) {
@@ -22,32 +39,37 @@ export function SpendingBarChart({ data }: { data: SpendingData[] }) {
     );
   }
 
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const chartHeight = Math.max(240, sorted.length * 44);
+
   return (
-    <div className="w-full h-80">
+    <div className="w-full" style={{ height: chartHeight }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
-          data={data}
-          margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          data={sorted}
+          layout="vertical"
+          margin={{ top: 5, right: 30, left: 8, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
           <XAxis
-            dataKey="name"
-            tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-            angle={-45}
-            textAnchor="end"
-            height={100}
-          />
-          <YAxis
+            type="number"
             tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
             tickFormatter={(value) => `$${formatNumber(value)}`}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={150}
+            tickLine={false}
+            axisLine={false}
+            tick={(props) => <CategoryTick {...props} items={sorted} />}
           />
           <Tooltip
             cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
             content={<ChartTooltip />}
           />
-          <Legend />
-          <Bar dataKey="value" fill="#8884d8" name="Spending" radius={[8, 8, 0, 0]}>
-            {data.map((entry, index) => (
+          <Bar dataKey="value" name="Spending" radius={[0, 6, 6, 0]} barSize={22}>
+            {sorted.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Bar>

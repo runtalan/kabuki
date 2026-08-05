@@ -5,7 +5,7 @@ import { LandingPage } from '@/components/landing-page';
 export default async function Home() {
   const session = await auth();
   if (session) {
-    redirect('/dashboard');
+    redirect('/home');
   }
   return <LandingPage />;
 }

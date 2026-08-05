@@ -1,7 +1,7 @@
 import { getUser } from '@/lib/auth';
 import { db } from '@/db';
 import { plaidItems, accounts, transactions, transactionTags } from '@/db/schema';
-import { eq, inArray, and, or, ilike, asc, desc } from 'drizzle-orm';
+import { eq, inArray, and, or, ilike, asc, desc, isNull } from 'drizzle-orm';
 
 export async function GET(request: Request) {
   try {
@@ -52,7 +52,9 @@ export async function GET(request: Request) {
         or(ilike(transactions.name, `%${q}%`), ilike(transactions.merchant, `%${q}%`))!
       );
     }
-    if (categoryId) {
+    if (categoryId === 'uncategorized') {
+      conditions.push(isNull(transactions.categoryId));
+    } else if (categoryId) {
       conditions.push(eq(transactions.categoryId, categoryId));
     }
     if (type === 'debit' || type === 'credit') {

@@ -14,7 +14,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const { name, color, icon } = await request.json();
+    const { name, color, icon, monthlyBudget } = await request.json();
 
     const existing = await db.query.categories.findFirst({
       where: eq(categories.id, id),
@@ -30,6 +30,13 @@ export async function PUT(
         name: name?.trim() || existing.name,
         color: color || existing.color,
         icon: icon || existing.icon,
+        // Budget: undefined = untouched, null/0 = cleared, number = set
+        ...(monthlyBudget !== undefined && {
+          monthlyBudget:
+            monthlyBudget === null || Number(monthlyBudget) <= 0
+              ? null
+              : Number(monthlyBudget).toString(),
+        }),
       })
       .where(eq(categories.id, id))
       .returning();

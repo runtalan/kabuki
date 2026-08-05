@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2, ChevronUp, ChevronDown } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { LUCIDE_ICONS } from '@/lib/icons';
 import { CategoryIcon } from '@/components/category-icon';
@@ -36,6 +36,8 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'table'>('table');
+  const [sortBy, setSortBy] = useState<'name' | 'type'>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Create / edit form state (editingId === null means creating)
   const [formOpen, setFormOpen] = useState(false);
@@ -62,6 +64,23 @@ export default function CategoriesPage() {
     setViewMode(mode);
     localStorage.setItem('categories-view-mode', mode);
   };
+
+  const toggleSort = (col: 'name' | 'type') => {
+    if (sortBy === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedCategories = [...categories].sort((a, b) => {
+    let cmp =
+      sortBy === 'name'
+        ? a.name.localeCompare(b.name)
+        : Number(a.isCustom) - Number(b.isCustom) || a.name.localeCompare(b.name);
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   const fetchCategories = async () => {
     try {
@@ -214,16 +233,61 @@ export default function CategoriesPage() {
           </div>
         </div>
 
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-muted-foreground">Sort by</span>
+          {(['name', 'type'] as const).map((col) => (
+            <button
+              key={col}
+              onClick={() => toggleSort(col)}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                sortBy === col
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {col === 'name' ? 'Category' : 'Type'}
+              {sortBy === col &&
+                (sortDir === 'asc' ? (
+                  <ChevronUp className="w-3 h-3" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" />
+                ))}
+            </button>
+          ))}
+        </div>
+
         {viewMode === 'table' ? (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Category
+                    <button
+                      onClick={() => toggleSort('name')}
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      Category
+                      {sortBy === 'name' &&
+                        (sortDir === 'asc' ? (
+                          <ChevronUp className="w-3 h-3" />
+                        ) : (
+                          <ChevronDown className="w-3 h-3" />
+                        ))}
+                    </button>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Type
+                    <button
+                      onClick={() => toggleSort('type')}
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      Type
+                      {sortBy === 'type' &&
+                        (sortDir === 'asc' ? (
+                          <ChevronUp className="w-3 h-3" />
+                        ) : (
+                          <ChevronDown className="w-3 h-3" />
+                        ))}
+                    </button>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     Color
@@ -232,7 +296,7 @@ export default function CategoriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {categories.map((cat) => (
+                {sortedCategories.map((cat) => (
                   <tr
                     key={cat.id}
                     onClick={() => openTransactions(cat)}
@@ -290,7 +354,7 @@ export default function CategoriesPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {categories.map((cat) => (
+            {sortedCategories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => openTransactions(cat)}

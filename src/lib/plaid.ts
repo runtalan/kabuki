@@ -3,7 +3,7 @@ import { PlaidApi, Configuration, Products, CountryCode } from "plaid";
 const baseUrl = {
   sandbox: "https://sandbox.plaid.com",
   development: "https://development.plaid.com",
-  production: "https://api.plaid.com",
+  production: "https://production.plaid.com",
 }[process.env.PLAID_ENV || "sandbox"];
 
 const configuration = new Configuration({

@@ -20,24 +20,31 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// Bucket a day's spend relative to the period's max into a 0-4 intensity
-// level, driving the heatmap shade.
-function intensityLevel(amount: number, max: number) {
-  if (amount <= 0 || max <= 0) return 0;
-  const ratio = amount / max;
-  if (ratio > 0.75) return 4;
-  if (ratio > 0.5) return 3;
-  if (ratio > 0.25) return 2;
-  return 1;
-}
-
-const INTENSITY_CLASSES = [
-  'bg-muted/40 text-muted-foreground',
-  'bg-primary/20 text-foreground',
-  'bg-primary/40 text-foreground',
-  'bg-primary/65 text-white',
-  'bg-primary text-white',
+// Heat map coloring: green for net-positive days (more money in than out),
+// red for net-negative days, shade intensity scaled by magnitude relative to
+// the month's largest swing in either direction.
+const NEUTRAL_CLASSES = 'bg-muted/40 text-muted-foreground';
+const GREEN_CLASSES = [
+  '',
+  'bg-emerald-500/15 text-foreground',
+  'bg-emerald-500/35 text-foreground',
+  'bg-emerald-500/60 text-white',
+  'bg-emerald-500 text-white',
 ];
+const RED_CLASSES = [
+  '',
+  'bg-red-500/15 text-foreground',
+  'bg-red-500/35 text-foreground',
+  'bg-red-500/60 text-white',
+  'bg-red-500 text-white',
+];
+
+function heatClasses(net: number, maxMagnitude: number) {
+  if (net === 0 || maxMagnitude <= 0) return NEUTRAL_CLASSES;
+  const ratio = Math.abs(net) / maxMagnitude;
+  const level = ratio > 0.75 ? 4 : ratio > 0.5 ? 3 : ratio > 0.25 ? 2 : 1;
+  return (net > 0 ? GREEN_CLASSES : RED_CLASSES)[level];
+}
 
 export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -87,6 +94,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
     [transactions, ownerFilter]
   );
 
+  // Spend-only totals — drives the "Spent in {month}" headline number.
   const dailyTotals = useMemo(() => {
     const map = new Map<number, number>();
     for (const tx of filtered) {
@@ -99,14 +107,26 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
     return map;
   }, [filtered, year, month]);
 
+  // Net totals (income minus spend) — drives the heat map coloring.
+  const dailyNet = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const tx of filtered) {
+      const d = new Date(tx.date);
+      if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+      const day = d.getDate();
+      map.set(day, (map.get(day) || 0) + parseFloat(tx.amount));
+    }
+    return map;
+  }, [filtered, year, month]);
+
   const monthTotal = useMemo(
     () => Array.from(dailyTotals.values()).reduce((sum, v) => sum + v, 0),
     [dailyTotals]
   );
 
-  const maxDaily = useMemo(
-    () => Math.max(0, ...Array.from(dailyTotals.values())),
-    [dailyTotals]
+  const maxNetMagnitude = useMemo(
+    () => Math.max(0, ...Array.from(dailyNet.values()).map((v) => Math.abs(v))),
+    [dailyNet]
   );
 
   const allDays = Array.from({ length: totalDays }, (_, i) => i + 1);
@@ -221,23 +241,22 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
         {visibleWeeks.map((week, wi) => (
           <div key={wi} className={`grid grid-cols-7 ${bare ? 'gap-1' : 'gap-2'}`}>
             {week.map((day) => {
-              const amount = dailyTotals.get(day) || 0;
-              const hasData = dailyTotals.has(day);
-              const level = intensityLevel(amount, maxDaily);
+              const net = dailyNet.get(day) || 0;
+              const hasData = dailyNet.has(day);
               const isToday = isCurrentMonth && today.getDate() === day;
               const isSelected = selectedDay === day;
               return (
                 <button
                   key={day}
                   onClick={() => setSelectedDay(isSelected ? null : day)}
-                  className={`aspect-square rounded-lg ${bare ? 'p-1' : 'p-2'} text-left transition-all ${INTENSITY_CLASSES[level]} ${
+                  className={`aspect-square rounded-lg ${bare ? 'p-1' : 'p-2'} text-left transition-all ${heatClasses(net, maxNetMagnitude)} ${
                     isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
                   } ${isSelected ? 'ring-2 ring-accent ring-offset-2 ring-offset-card' : ''} hover:opacity-90`}
                 >
                   <p className="text-[10px] font-semibold leading-none mb-0.5">{day}</p>
                   {!bare && (
                     <p className="text-[10px] leading-none opacity-90">
-                      {hasData ? formatCurrency(amount) : '–'}
+                      {hasData ? `${net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(net))}` : '–'}
                     </p>
                   )}
                 </button>
@@ -249,6 +268,17 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
               Array.from({ length: 7 - week.length }).map((_, i) => <div key={`pad-${i}`} />)}
           </div>
         ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-3 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Spent
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Made
+        </span>
+        <span className="text-muted-foreground/60">· darker = bigger swing</span>
       </div>
 
       {/* Selected day detail */}

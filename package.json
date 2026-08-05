@@ -15,7 +15,10 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "db:inject": "tsx src/db/inject-user.ts"
+    "db:inject": "tsx src/db/inject-user.ts",
+    "env:sandbox": "bash scripts/switch-env.sh sandbox",
+    "env:production-limited": "bash scripts/switch-env.sh production-limited",
+    "env:production": "bash scripts/switch-env.sh production"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

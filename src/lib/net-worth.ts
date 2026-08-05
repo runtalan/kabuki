@@ -72,14 +72,21 @@ export async function getNetWorthSeries(userId: string, range: NetWorthRange) {
   const pointers = new Map<string, number>();
   for (const id of accountIds) pointers.set(id, -1);
 
-  const series: { date: string; netWorth: number }[] = [];
+  const series: {
+    date: string;
+    iso: string;
+    netWorth: number;
+    assets: number;
+    liabilities: number;
+  }[] = [];
   const cursor = new Date(startDate);
 
   while (cursor <= today) {
     const dayEnd = new Date(cursor);
     dayEnd.setHours(23, 59, 59, 999);
 
-    let net = 0;
+    let assetTotal = 0;
+    let liabilityTotal = 0;
     for (const accId of accountIds) {
       const snaps = byAccount.get(accId) || [];
       let idx = pointers.get(accId)!;
@@ -88,13 +95,19 @@ export async function getNetWorthSeries(userId: string, range: NetWorthRange) {
       }
       pointers.set(accId, idx);
       if (idx === -1) continue; // account has no snapshot yet as of this day
-      const kind = kindByAccount.get(accId);
-      net += kind === 'liability' ? -snaps[idx].balance : snaps[idx].balance;
+      if (kindByAccount.get(accId) === 'liability') {
+        liabilityTotal += snaps[idx].balance;
+      } else {
+        assetTotal += snaps[idx].balance;
+      }
     }
 
     series.push({
       date: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      netWorth: Math.round(net),
+      iso: cursor.toISOString().slice(0, 10),
+      netWorth: Math.round(assetTotal - liabilityTotal),
+      assets: Math.round(assetTotal),
+      liabilities: Math.round(liabilityTotal),
     });
     cursor.setDate(cursor.getDate() + 1);
   }

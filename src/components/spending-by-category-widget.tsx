@@ -8,6 +8,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
+  icon: string;
 }
 
 interface Transaction {
@@ -63,7 +64,7 @@ export function SpendingByCategoryWidget() {
       totals.set(tx.categoryId, (totals.get(tx.categoryId) || 0) + Math.abs(parseFloat(tx.amount)));
     }
     return categories
-      .map((cat) => ({ name: cat.name, value: totals.get(cat.id) || 0, color: cat.color }))
+      .map((cat) => ({ name: cat.name, value: totals.get(cat.id) || 0, color: cat.color, icon: cat.icon }))
       .filter((c) => c.value > 0)
       .sort((a, b) => b.value - a.value);
   }, [transactions, categories, year, month]);

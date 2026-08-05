@@ -174,7 +174,7 @@ export default function MerchantDetailPage({ params }: { params: Promise<{ name:
     <AppLayout>
       <div className="p-4 md:p-8 max-w-6xl mx-auto">
         <Link
-          href="/transactions"
+          href="/spending/transactions"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

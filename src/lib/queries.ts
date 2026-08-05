@@ -5,7 +5,7 @@ import {
   categories,
   plaidItems,
 } from '@/db/schema';
-import { eq, and, desc, gte, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lt, inArray } from 'drizzle-orm';
 
 // Get all accounts for a user
 export async function getUserAccounts(userId: string) {
@@ -22,8 +22,8 @@ export async function getUserAccounts(userId: string) {
   });
 }
 
-// Get spending by category for the current month
-export async function getSpendingByCategory(userId: string) {
+// Get spending by category for a given month (defaults to the current month)
+export async function getSpendingByCategory(userId: string, refDate: Date = new Date()) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -31,8 +31,8 @@ export async function getSpendingByCategory(userId: string) {
   const itemIds = userItems.map((item) => item.id);
   if (itemIds.length === 0) return [];
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+  const monthEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1);
 
   const userAccounts = await db.query.accounts.findMany({
     where: inArray(accounts.plaidItemId, itemIds),
@@ -47,6 +47,7 @@ export async function getSpendingByCategory(userId: string) {
     .where(
       and(
         gte(transactions.date, monthStart),
+        lt(transactions.date, monthEnd),
         inArray(transactions.accountId, accountIds)
       )
     );
@@ -57,24 +58,29 @@ export async function getSpendingByCategory(userId: string) {
 
   const spending: Record<
     string,
-    { name: string; value: number; color: string }
+    { id: string; name: string; value: number; color: string; icon: string }
   > = {};
 
   for (const tx of monthTransactions) {
     if (Number(tx.amount) <= 0) {
-      // Only count expenses
-      const categoryId = tx.categoryId || 'Uncategorized';
-      const category = categoryId === 'Uncategorized'
-        ? { name: 'Uncategorized', color: '#6b7280' }
-        : categoryMap.get(categoryId);
+      // Only count expenses. 'uncategorized' is a sentinel id (no real
+      // category row) — the transactions API knows to treat it as "no
+      // category assigned" rather than a literal id lookup.
+      const categoryId = tx.categoryId || 'uncategorized';
+      const category =
+        categoryId === 'uncategorized'
+          ? { id: 'uncategorized', name: 'Uncategorized', color: '#6b7280', icon: 'folder' }
+          : categoryMap.get(categoryId);
 
       if (category) {
         const key = category.name;
         if (!spending[key]) {
           spending[key] = {
+            id: category.id,
             name: category.name,
             value: 0,
             color: category.color,
+            icon: category.icon,
           };
         }
         spending[key].value += Math.abs(Number(tx.amount));

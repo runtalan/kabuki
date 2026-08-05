@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, kind, liabilityType, currentBalance, owner, icon } = await request.json();
+    const { name, kind, liabilityType, assetType, address, currentBalance, owner, icon } =
+      await request.json();
 
     if (!name || typeof currentBalance !== 'number' || Number.isNaN(currentBalance)) {
       return Response.json({ error: 'Name and a numeric balance are required' }, { status: 400 });
@@ -36,9 +37,11 @@ export async function POST(request: Request) {
       icon: icon || null,
       owner: finalOwner,
       type: 'manual',
-      subtype: finalKind === 'liability' ? liabilityType || 'other' : null,
+      subtype: finalKind === 'liability' ? liabilityType || 'other' : assetType || 'other',
       kind: finalKind,
       liabilityType: finalKind === 'liability' ? liabilityType || 'other' : null,
+      assetType: finalKind === 'asset' ? assetType || 'other' : null,
+      address: finalKind === 'asset' && assetType === 'property' ? address || null : null,
       isManual: true,
       currentBalance: balanceStr,
       currency: 'USD',
