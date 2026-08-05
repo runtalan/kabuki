@@ -3,25 +3,28 @@ import { Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
-function LaurelBranch() {
-  // Central spine sweeping outward then curving back in — same crescent
-  // as an award badge — with slender, pointed leaves in mirrored pairs
-  // along both sides, evenly spaced base to tip.
-  const stemPath = 'M 22 102 Q -14 70 -2 40 Q 8 12 46 -2';
+// A single true circular arc, radius 90, passing through a near-vertical
+// base point and a top point close to center — the classic badge sweep:
+// expanding outward through the middle, tapering back in toward the tip,
+// with no bezier-segment joint to kink the curve.
+const ARC_RADIUS = 90;
+const ARC_CENTER = { x: 82.61, y: 35.7 };
+const ARC_THETA_START = 130.6; // degrees, at the base
+const ARC_THETA_END = 203.38; // degrees, at the tip
 
-  const pointAt = (t: number) => {
-    const seg1 = t <= 0.5;
-    const lt = seg1 ? t / 0.5 : (t - 0.5) / 0.5;
-    const p0 = seg1 ? { x: 22, y: 102 } : { x: -2, y: 40 };
-    const p1 = seg1 ? { x: -14, y: 70 } : { x: 8, y: 12 };
-    const p2 = seg1 ? { x: -2, y: 40 } : { x: 46, y: -2 };
-    const x = (1 - lt) ** 2 * p0.x + 2 * (1 - lt) * lt * p1.x + lt ** 2 * p2.x;
-    const y = (1 - lt) ** 2 * p0.y + 2 * (1 - lt) * lt * p1.y + lt ** 2 * p2.y;
-    const dx = 2 * (1 - lt) * (p1.x - p0.x) + 2 * lt * (p2.x - p0.x);
-    const dy = 2 * (1 - lt) * (p1.y - p0.y) + 2 * lt * (p2.y - p0.y);
-    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return { x, y, angle };
-  };
+function pointOnArc(t: number) {
+  const theta = ARC_THETA_START + t * (ARC_THETA_END - ARC_THETA_START);
+  const rad = (theta * Math.PI) / 180;
+  const x = ARC_CENTER.x + ARC_RADIUS * Math.cos(rad);
+  const y = ARC_CENTER.y + ARC_RADIUS * Math.sin(rad);
+  const angle = theta + 90;
+  return { x, y, angle };
+}
+
+function LaurelBranch() {
+  // Base point (t=0) and tip point (t=1), both on the arc above.
+  const stemPath = `M 24 104 A ${ARC_RADIUS} ${ARC_RADIUS} 0 0 1 0 0`;
+  const pointAt = pointOnArc;
 
   // Thicker, pointed leaf blade — fuller body while still tapering to a tip.
   const leafLen = 19;
