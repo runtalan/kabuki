@@ -5,22 +5,23 @@ import { InteractiveAppDemo } from './interactive-app-demo';
 
 function LaurelWreath() {
   return (
-    <svg viewBox="0 0 60 100" className="w-12 h-16 opacity-60">
+    <svg viewBox="0 0 120 120" className="w-16 h-16 opacity-70">
       <g>
-        {/* Left wreath */}
-        <path d="M 30 10 Q 20 20 15 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        <path d="M 30 10 Q 20 20 15 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        <ellipse cx="18" cy="18" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="16" cy="24" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="15" cy="30" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="15" cy="36" rx="2" ry="3" fill="currentColor" />
+        {/* Left laurel branch */}
+        <path d="M 60 20 Q 40 30 30 50" stroke="currentColor" strokeWidth="2" fill="none" />
+        {/* Left leaves */}
+        <ellipse cx="52" cy="28" rx="2.5" ry="4" fill="currentColor" transform="rotate(-20 52 28)" />
+        <ellipse cx="46" cy="35" rx="2.5" ry="4" fill="currentColor" transform="rotate(-15 46 35)" />
+        <ellipse cx="40" cy="42" rx="2.5" ry="4" fill="currentColor" transform="rotate(-10 40 42)" />
+        <ellipse cx="34" cy="48" rx="2.5" ry="4" fill="currentColor" transform="rotate(-5 34 48)" />
 
-        {/* Right wreath */}
-        <path d="M 30 10 Q 40 20 45 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        <ellipse cx="42" cy="18" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="44" cy="24" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="45" cy="30" rx="2" ry="3" fill="currentColor" />
-        <ellipse cx="45" cy="36" rx="2" ry="3" fill="currentColor" />
+        {/* Right laurel branch */}
+        <path d="M 60 20 Q 80 30 90 50" stroke="currentColor" strokeWidth="2" fill="none" />
+        {/* Right leaves */}
+        <ellipse cx="68" cy="28" rx="2.5" ry="4" fill="currentColor" transform="rotate(20 68 28)" />
+        <ellipse cx="74" cy="35" rx="2.5" ry="4" fill="currentColor" transform="rotate(15 74 35)" />
+        <ellipse cx="80" cy="42" rx="2.5" ry="4" fill="currentColor" transform="rotate(10 80 42)" />
+        <ellipse cx="86" cy="48" rx="2.5" ry="4" fill="currentColor" transform="rotate(5 86 48)" />
       </g>
     </svg>
   );
