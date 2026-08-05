@@ -89,11 +89,19 @@ Every push to `main` triggers a Firebase deploy of the `production` environment 
 
 ```
 src/
-  app/          Next.js App Router routes
+  app/          Next.js App Router routes (app/error.tsx and app/not-found.tsx
+                are the app-wide error boundary and 404 page)
   components/   Shared React components (shadcn/ui in components/ui)
   db/           Drizzle schema + client
+  hooks/        Shared React hooks (e.g. useEscapeKey)
   lib/          Utilities
 apphosting.yaml Firebase App Hosting runtime config
 firebase.json   Firebase CLI / backend config
 drizzle.config.ts
 ```
+
+## Error handling
+
+- `src/app/error.tsx` is the App Router error boundary — catches render-time exceptions anywhere in the app (no nested `error.tsx` files exist) and shows a retry/home screen instead of a blank crash.
+- `src/app/not-found.tsx` handles unmatched routes.
+- Client pages that fetch their own data on mount (Accounts, Categories, Rules, Transactions) use `src/components/fetch-error-banner.tsx` to surface a failed initial load with a Retry button, rather than silently rendering an empty state indistinguishable from "no data."
