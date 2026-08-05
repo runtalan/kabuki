@@ -22,6 +22,7 @@ import { OwnerBadge, getOwner, OWNERS } from '@/components/owner-badge';
 import { AccountBadge } from '@/components/account-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { formatCurrency } from '@/lib/format';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Category {
   id: string;
@@ -127,6 +128,12 @@ export default function TransactionsPage() {
   });
   const [savingRule, setSavingRule] = useState(false);
   const [smartTagging, setSmartTagging] = useState(false);
+
+  // The slide-over owns its own Escape handling; these are the page's own overlays.
+  useEscapeKey(() => {
+    if (showDatePicker) return setShowDatePicker(false);
+    if (ruleModalTx) return setRuleModalTx(null);
+  }, showDatePicker || !!ruleModalTx);
 
   const fetchTransactions = useCallback(
     async (opts: { silent?: boolean; loadMore?: boolean; pageNum?: number } = {}) => {

@@ -1,15 +1,39 @@
 'use client';
 
-import { CalendarClock, RefreshCcw, TrendingUp } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  List,
+  Plus,
+  Sparkles,
+  Trash2,
+  TrendingUp,
+  X,
+  Check,
+  Pencil,
+  MoreVertical,
+} from 'lucide-react';
 import { CategoryIcon } from '@/components/category-icon';
-import type { RecurringItem } from '@/lib/spending-insights';
+import { useEscapeKey } from '@/hooks/use-escape-key';
+import {
+  FREQUENCY_LABELS,
+  occurrencesInMonth,
+  type Frequency,
+  type RecurringEntry,
+} from '@/lib/recurring-shared';
 
-const FREQUENCY_LABELS: Record<RecurringItem['frequency'], string> = {
-  weekly: 'Weekly',
-  biweekly: 'Biweekly',
-  monthly: 'Monthly',
-  yearly: 'Yearly',
-};
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+const FREQUENCIES: Frequency[] = ['weekly', 'biweekly', 'monthly', 'yearly'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function money(value: number, decimals = 2) {
   return `$${Math.abs(value).toLocaleString('en-US', {
@@ -18,8 +42,20 @@ function money(value: number, decimals = 2) {
   })}`;
 }
 
+// Compact form for calendar cells, where space is tight: $1.2K, $69.84, $9.
+function compactMoney(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1000) return `$${(abs / 1000).toFixed(2).replace(/\.?0+$/, '')}K`;
+  return `$${abs.toFixed(2).replace(/\.00$/, '')}`;
+}
+
+function parseDay(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function dueLabel(isoDate: string) {
-  const next = new Date(isoDate + 'T00:00:00');
+  const next = parseDay(isoDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round((next.getTime() - today.getTime()) / 86_400_000);
@@ -30,149 +66,787 @@ function dueLabel(isoDate: string) {
   return `On ${next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
-export function RecurringView({ items }: { items: RecurringItem[] }) {
-  const bills = items.filter((i) => !i.isIncome);
-  const income = items.filter((i) => i.isIncome);
-  const monthlyOutflow = bills.reduce((s, i) => s + i.monthlyCost, 0);
-  const priceIncreases = bills.filter((i) => i.priceIncreased);
+function MerchantAvatar({
+  entry,
+  size = 'md',
+}: {
+  entry: RecurringEntry;
+  size?: 'sm' | 'md';
+}) {
+  const dim = size === 'sm' ? 'w-5 h-5' : 'w-8 h-8';
+  const icon = size === 'sm' ? 'w-2.5 h-2.5' : 'w-4 h-4';
+  return (
+    <div
+      className={`${dim} rounded-full flex items-center justify-center flex-shrink-0 ring-2 ring-card`}
+      style={{ backgroundColor: (entry.categoryColor || '#6b7280') + '2b' }}
+      title={entry.merchant}
+    >
+      <CategoryIcon
+        icon={entry.categoryIcon}
+        color={entry.categoryColor || '#6b7280'}
+        className={icon}
+      />
+    </div>
+  );
+}
+
+export function RecurringView({
+  entries: initialEntries,
+  categories,
+}: {
+  entries: RecurringEntry[];
+  categories: Category[];
+}) {
+  const router = useRouter();
+  const [entries, setEntries] = useState(initialEntries);
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [cursor, setCursor] = useState(() => new Date());
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<RecurringEntry | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  useEscapeKey(() => {
+    if (addOpen) return setAddOpen(false);
+    if (editing) return setEditing(null);
+    if (menuOpenId) return setMenuOpenId(null);
+  }, addOpen || !!editing || !!menuOpenId);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long' });
+
+  const occurrences = useMemo(
+    () => occurrencesInMonth(entries, year, month),
+    [entries, year, month]
+  );
+
+  const byDay = useMemo(() => {
+    const map = new Map<number, typeof occurrences>();
+    for (const occ of occurrences) {
+      const day = parseDay(occ.date).getDate();
+      const arr = map.get(day) || [];
+      arr.push(occ);
+      map.set(day, arr);
+    }
+    return map;
+  }, [occurrences]);
+
+  const reviewQueue = entries.filter((e) => e.needsReview);
+  const reviewItem = reviewQueue[Math.min(reviewIndex, reviewQueue.length - 1)] || null;
+
+  const bills = entries.filter((e) => !e.isIncome);
+  const income = entries.filter((e) => e.isIncome);
+  const monthlyOutflow = bills.reduce((s, e) => s + e.monthlyCost, 0);
+  const monthlyInflow = income.reduce((s, e) => s + e.monthlyCost, 0);
+
+  // "Upcoming this month" — only what's still ahead of today.
+  const upcoming = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return occurrences
+      .filter((o) => parseDay(o.date) >= today)
+      .slice(0, 8);
+  }, [occurrences]);
+
+  const refresh = useCallback(async () => {
+    const res = await fetch('/api/recurring');
+    if (res.ok) {
+      const data = await res.json();
+      setEntries(data.entries || []);
+    }
+    router.refresh();
+  }, [router]);
+
+  const review = async (entry: RecurringEntry, status: 'confirmed' | 'dismissed') => {
+    setBusy(true);
+    // Optimistic: clear it from the queue (or drop it entirely if dismissed)
+    // so the panel advances immediately instead of waiting on the round-trip.
+    setEntries((prev) =>
+      status === 'dismissed'
+        ? prev.filter((e) => e.merchantKey !== entry.merchantKey)
+        : prev.map((e) =>
+            e.merchantKey === entry.merchantKey ? { ...e, needsReview: false } : e
+          )
+    );
+    try {
+      await fetch('/api/recurring/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantKey: entry.merchantKey,
+          merchantName: entry.merchant,
+          status,
+        }),
+      });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (entry: RecurringEntry) => {
+    setMenuOpenId(null);
+    if (!confirm(`Remove "${entry.merchant}" from recurring?`)) return;
+    setEntries((prev) => prev.filter((e) => e.merchantKey !== entry.merchantKey));
+    if (entry.id) {
+      await fetch(`/api/recurring/${entry.id}`, { method: 'DELETE' });
+    } else {
+      // Detected but never reviewed — dismissing is the same as answering "No".
+      await fetch('/api/recurring/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantKey: entry.merchantKey,
+          merchantName: entry.merchant,
+          status: 'dismissed',
+        }),
+      });
+    }
+    await refresh();
+  };
+
+  const changeMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
+
+  // Calendar grid: pad the first row so day 1 lands on its real weekday.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingBlanks = new Date(year, month, 1).getDay();
+  const cells: (number | null)[] = [
+    ...Array.from({ length: leadingBlanks }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
 
   return (
-    <div className="space-y-6">
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-3">
-            Projected Monthly Outflow
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 items-start">
+      {/* Main panel */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-border">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Recurring Transactions
           </p>
-          <p className="text-3xl font-bold text-foreground">{money(monthlyOutflow, 0)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Across {bills.length} recurring {bills.length === 1 ? 'bill' : 'bills'} (yearly charges
-            pro-rated)
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-3">
-            Recurring Income
-          </p>
-          <p className="text-3xl font-bold text-emerald-500">
-            +{money(income.reduce((s, i) => s + i.monthlyCost, 0), 0)}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {income.length > 0
-              ? `${income.length} detected ${income.length === 1 ? 'source' : 'sources'} per month`
-              : 'No recurring deposits detected yet'}
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-3">
-            Price Changes
-          </p>
-          <p className={`text-3xl font-bold ${priceIncreases.length > 0 ? 'text-amber-500' : 'text-foreground'}`}>
-            {priceIncreases.length}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {priceIncreases.length > 0
-              ? 'Subscriptions charged more than last cycle'
-              : 'No recent price increases detected'}
-          </p>
-        </div>
-      </div>
-
-      {/* Bills & subscriptions */}
-      <div className="bg-card border border-border rounded-2xl p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
-          Subscriptions & Bills
-        </p>
-        {bills.length > 0 ? (
-          <div className="divide-y divide-border">
-            {bills.map((item) => (
-              <div
-                key={`${item.merchant}-${item.frequency}`}
-                className="flex items-center justify-between py-3 gap-3"
+          <div className="flex items-center gap-2">
+            <div className="inline-flex p-0.5 rounded-lg bg-muted border border-border">
+              <button
+                onClick={() => setView('calendar')}
+                className={`p-1.5 rounded-md transition-colors ${
+                  view === 'calendar'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Calendar view"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <CalendarDays className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView('list')}
+                className={`p-1.5 rounded-md transition-colors ${
+                  view === 'list'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-sm font-medium text-foreground hover:bg-muted/70 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add
+            </button>
+          </div>
+        </div>
+
+        {view === 'calendar' ? (
+          <div className="p-6">
+            {/* Month navigator */}
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-semibold text-foreground">
+                {monthLabel} <span className="text-muted-foreground font-normal">{year}</span>
+              </h2>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => changeMonth(-1)}
+                  className="p-2 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => changeMonth(1)}
+                  className="p-2 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Weekday header */}
+            <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+              {WEEKDAYS.map((d) => (
+                <p
+                  key={d}
+                  className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-center py-1"
+                >
+                  {d}
+                </p>
+              ))}
+            </div>
+
+            {/* Day cells */}
+            <div className="grid grid-cols-7 gap-1.5">
+              {cells.map((day, i) => {
+                if (day === null) return <div key={`pad-${i}`} />;
+                const dayOccurrences = byDay.get(day) || [];
+                const isToday = isCurrentMonth && today.getDate() === day;
+                const inflow = dayOccurrences
+                  .filter((o) => o.entry.isIncome)
+                  .reduce((s, o) => s + o.entry.amount, 0);
+                const outflow = dayOccurrences
+                  .filter((o) => !o.entry.isIncome)
+                  .reduce((s, o) => s + o.entry.amount, 0);
+
+                return (
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: (item.categoryColor || '#6b7280') + '22' }}
+                    key={day}
+                    className={`min-h-[92px] rounded-lg border p-2 flex flex-col transition-colors ${
+                      isToday
+                        ? 'border-foreground/40 bg-muted/40'
+                        : dayOccurrences.length > 0
+                          ? 'border-border bg-muted/20 hover:bg-muted/40'
+                          : 'border-border/60'
+                    }`}
                   >
-                    <CategoryIcon
-                      icon={item.categoryIcon}
-                      color={item.categoryColor}
-                      className="w-4.5 h-4.5"
-                    />
+                    <p
+                      className={`text-xs mb-1 ${
+                        isToday ? 'font-bold text-foreground' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {day}
+                    </p>
+
+                    {dayOccurrences.length > 0 && (
+                      <>
+                        <div className="flex items-center -space-x-1.5 mb-1 flex-wrap">
+                          {dayOccurrences.slice(0, 3).map((o, idx) => (
+                            <MerchantAvatar key={`${o.entry.merchantKey}-${idx}`} entry={o.entry} size="sm" />
+                          ))}
+                          {dayOccurrences.length > 3 && (
+                            <span className="text-[10px] font-semibold text-muted-foreground pl-2.5">
+                              +{dayOccurrences.length - 3}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-auto space-y-0.5">
+                          {inflow > 0 && (
+                            <p className="text-[10px] font-semibold text-emerald-500 leading-tight">
+                              +{compactMoney(inflow)}
+                            </p>
+                          )}
+                          {outflow > 0 && (
+                            <p className="text-[10px] font-semibold text-foreground leading-tight">
+                              {compactMoney(outflow)}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {dayOccurrences.length === 0 && (
+                      <p className="text-[10px] text-muted-foreground/40 mt-auto">–</p>
+                    )}
                   </div>
-                  <div className="min-w-0">
+                );
+              })}
+            </div>
+
+            {/* Summary */}
+            <div className="mt-6 rounded-xl border border-primary/25 bg-primary/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+                  Summary
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {entries.length === 0
+                  ? 'No recurring transactions detected yet. Detection needs a few billing cycles of history — check back once your accounts have synced a couple of months, or add one manually.'
+                  : monthlyInflow >= monthlyOutflow
+                    ? `Your recurring income of ${money(monthlyInflow, 0)}/mo comfortably covers ${money(monthlyOutflow, 0)}/mo in recurring bills across ${bills.length} ${bills.length === 1 ? 'subscription' : 'subscriptions'}. That leaves roughly ${money(monthlyInflow - monthlyOutflow, 0)} of headroom each month.`
+                    : `Recurring bills total ${money(monthlyOutflow, 0)}/mo against ${money(monthlyInflow, 0)}/mo of detected recurring income — a shortfall of ${money(monthlyOutflow - monthlyInflow, 0)} that has to come from other income or savings.`}
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* List view */
+          <div className="divide-y divide-border">
+            {entries.length > 0 ? (
+              entries.map((entry) => (
+                <div key={entry.merchantKey} className="flex items-center gap-3 px-6 py-3.5">
+                  <MerchantAvatar entry={entry} />
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-foreground truncate">
-                        {item.merchant}
+                        {entry.merchant}
                       </p>
-                      {item.priceIncreased && item.previousAmount !== null && (
+                      {entry.priceIncreased && entry.previousAmount !== null && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-semibold flex-shrink-0">
                           <TrendingUp className="w-3 h-3" />
-                          was {money(item.previousAmount)}
+                          was {money(entry.previousAmount)}
+                        </span>
+                      )}
+                      {entry.isManual && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex-shrink-0">
+                          Manual
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <RefreshCcw className="w-3 h-3" />
-                      {FREQUENCY_LABELS[item.frequency]}
-                      <span className="text-muted-foreground/60">·</span>
-                      <CalendarClock className="w-3 h-3" />
-                      {dueLabel(item.nextDate)}
-                      {item.categoryName && (
+                    <p className="text-xs text-muted-foreground">
+                      {FREQUENCY_LABELS[entry.frequency]}
+                      <span className="mx-1.5 text-muted-foreground/50">•</span>
+                      {dueLabel(entry.nextDate)}
+                      {entry.categoryName && (
                         <>
-                          <span className="text-muted-foreground/60">·</span>
-                          {item.categoryName}
+                          <span className="mx-1.5 text-muted-foreground/50">•</span>
+                          {entry.categoryName}
                         </>
                       )}
                     </p>
                   </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-semibold text-foreground">{money(item.amount)}</p>
-                  {item.frequency !== 'monthly' && (
-                    <p className="text-xs text-muted-foreground">
-                      ≈{money(item.monthlyCost, 0)}/mo
+                  <div className="text-right flex-shrink-0">
+                    <p
+                      className={`text-sm font-semibold ${
+                        entry.isIncome ? 'text-emerald-500' : 'text-foreground'
+                      }`}
+                    >
+                      {entry.isIncome ? '+' : ''}
+                      {money(entry.amount)}
                     </p>
-                  )}
+                    {entry.frequency !== 'monthly' && (
+                      <p className="text-xs text-muted-foreground">
+                        ≈{money(entry.monthlyCost, 0)}/mo
+                      </p>
+                    )}
+                  </div>
+                  <RowMenu
+                    entry={entry}
+                    open={menuOpenId === entry.merchantKey}
+                    onToggle={() =>
+                      setMenuOpenId(menuOpenId === entry.merchantKey ? null : entry.merchantKey)
+                    }
+                    onEdit={() => {
+                      setMenuOpenId(null);
+                      setEditing(entry);
+                    }}
+                    onDelete={() => remove(entry)}
+                  />
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground py-16 text-center px-6">
+                No recurring transactions yet. Detection needs a few billing cycles of history —
+                or add one manually with “Add”.
+              </p>
+            )}
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            No recurring charges detected yet. Detection needs a few billing cycles of history —
-            check back after your accounts have synced a couple months of transactions.
-          </p>
         )}
       </div>
 
-      {/* Recurring income */}
-      {income.length > 0 && (
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
-            Recurring Income
-          </p>
-          <div className="divide-y divide-border">
-            {income.map((item) => (
-              <div
-                key={`${item.merchant}-${item.frequency}`}
-                className="flex items-center justify-between py-3 gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{item.merchant}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {FREQUENCY_LABELS[item.frequency]} · {dueLabel(item.nextDate)}
+      {/* Sidebar */}
+      <div className="space-y-5">
+        {/* Review queue */}
+        {reviewItem && (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Is this recurring?
+              </p>
+              <p className="text-[11px] font-medium text-muted-foreground">
+                {reviewQueue.length} to review
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="rounded-xl border border-border p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <MerchantAvatar entry={reviewItem} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {reviewItem.merchant}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {FREQUENCY_LABELS[reviewItem.frequency]}
+                      <span className="mx-1.5 text-muted-foreground/50">•</span>
+                      {dueLabel(reviewItem.nextDate)}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground flex-shrink-0">
+                    {money(reviewItem.amount)}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-500 flex-shrink-0">
-                  +{money(item.amount)}
-                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => review(reviewItem, 'dismissed')}
+                    disabled={busy}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/40 text-red-500 text-sm font-medium hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                  >
+                    No
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => review(reviewItem, 'confirmed')}
+                    disabled={busy}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-border bg-muted text-foreground text-sm font-medium hover:bg-muted/70 disabled:opacity-50 transition-colors"
+                  >
+                    Yes
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {reviewQueue.length > 1 && (
+                  <button
+                    onClick={() => setReviewIndex((i) => (i + 1) % reviewQueue.length)}
+                    className="w-full mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                )}
               </div>
-            ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming */}
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Upcoming this month
+            </p>
+          </div>
+          {upcoming.length > 0 ? (
+            <div className="divide-y divide-border">
+              {upcoming.map((occ, i) => (
+                <div key={`${occ.entry.merchantKey}-${i}`} className="flex items-center gap-3 px-5 py-3">
+                  <MerchantAvatar entry={occ.entry} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {occ.entry.merchant}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {FREQUENCY_LABELS[occ.entry.frequency]}
+                      <span className="mx-1.5 text-muted-foreground/50">•</span>
+                      <span className={dueLabel(occ.date).startsWith('Due in') ? 'text-amber-500' : ''}>
+                        {dueLabel(occ.date)}
+                      </span>
+                    </p>
+                  </div>
+                  <p
+                    className={`text-sm font-semibold flex-shrink-0 ${
+                      occ.entry.isIncome ? 'text-emerald-500' : 'text-foreground'
+                    }`}
+                  >
+                    {occ.entry.isIncome ? '+' : ''}
+                    {money(occ.entry.amount)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground px-5 py-8 text-center">
+              Nothing else due this month.
+            </p>
+          )}
+        </div>
+
+        {/* Totals */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+              Monthly outflow
+            </p>
+            <p className="text-2xl font-bold text-foreground">{money(monthlyOutflow, 0)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {bills.length} recurring {bills.length === 1 ? 'bill' : 'bills'}, annual charges
+              pro-rated
+            </p>
+          </div>
+          <div className="pt-4 border-t border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+              Monthly income
+            </p>
+            <p className="text-2xl font-bold text-emerald-500">+{money(monthlyInflow, 0)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {income.length > 0
+                ? `${income.length} recurring ${income.length === 1 ? 'source' : 'sources'}`
+                : 'No recurring deposits detected'}
+            </p>
           </div>
         </div>
+      </div>
+
+      {(addOpen || editing) && (
+        <RecurringFormModal
+          entry={editing}
+          categories={categories}
+          onClose={() => {
+            setAddOpen(false);
+            setEditing(null);
+          }}
+          onSaved={async () => {
+            setAddOpen(false);
+            setEditing(null);
+            await refresh();
+          }}
+        />
       )}
+    </div>
+  );
+}
+
+function RowMenu({
+  entry,
+  open,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  entry: RecurringEntry;
+  open: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={onToggle}
+        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        title="Actions"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onToggle} />
+          <div className="absolute right-0 top-9 z-20 w-44 bg-popover border border-border rounded-xl shadow-xl overflow-hidden py-1">
+            {entry.isManual && (
+              <button
+                onClick={onEdit}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
+              >
+                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                Edit
+              </button>
+            )}
+            <button
+              onClick={onDelete}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-muted transition-colors text-left"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Remove
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RecurringFormModal({
+  entry,
+  categories,
+  onClose,
+  onSaved,
+}: {
+  entry: RecurringEntry | null;
+  categories: Category[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [merchantName, setMerchantName] = useState(entry?.merchant || '');
+  const [frequency, setFrequency] = useState<Frequency>(entry?.frequency || 'monthly');
+  const [amount, setAmount] = useState(entry ? String(entry.amount) : '');
+  const [categoryId, setCategoryId] = useState(entry?.categoryId || '');
+  const [nextDate, setNextDate] = useState(
+    entry?.nextDate || new Date().toISOString().slice(0, 10)
+  );
+  const [isIncome, setIsIncome] = useState(entry?.isIncome ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEscapeKey(onClose);
+
+  const handleSave = async () => {
+    if (!merchantName.trim()) return setError('Enter a merchant name');
+    const parsed = parseFloat(amount);
+    if (!Number.isFinite(parsed) || parsed <= 0) return setError('Enter an amount above zero');
+
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        merchantName: merchantName.trim(),
+        frequency,
+        amount: parsed,
+        categoryId: categoryId || null,
+        nextDate,
+        isIncome,
+      };
+      const res = entry?.id
+        ? await fetch(`/api/recurring/${entry.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/recurring', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+      if (res.ok) {
+        onSaved();
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to save');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-foreground">
+            {entry ? 'Edit recurring' : 'Add recurring'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Merchant</label>
+            <input
+              type="text"
+              value={merchantName}
+              onChange={(e) => setMerchantName(e.target.value)}
+              placeholder="Netflix"
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Amount</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="15.99"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Frequency</label>
+              <select
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as Frequency)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm cursor-pointer"
+              >
+                {FREQUENCIES.map((f) => (
+                  <option key={f} value={f}>
+                    {FREQUENCY_LABELS[f]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Next date</label>
+              <input
+                type="date"
+                value={nextDate}
+                onChange={(e) => setNextDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Category</label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm cursor-pointer"
+              >
+                <option value="">None</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsIncome(false)}
+              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                !isIncome
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Expense
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsIncome(true)}
+              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                isIncome
+                  ? 'border-emerald-500 bg-emerald-500/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Income
+            </button>
+          </div>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving...' : entry ? 'Save changes' : 'Add recurring'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X, Loader } from 'lucide-react';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 import {
   AreaChart,
   Area,
@@ -25,6 +26,7 @@ interface AccountHistoryModalProps {
 }
 
 export function AccountHistoryModal({ accountId, onClose }: AccountHistoryModalProps) {
+  useEscapeKey(onClose);
   const [loading, setLoading] = useState(true);
   const [accountName, setAccountName] = useState('');
   const [kind, setKind] = useState<'asset' | 'liability'>('asset');

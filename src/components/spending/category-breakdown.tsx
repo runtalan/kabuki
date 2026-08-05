@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Pie, PieChart, Cell, ResponsiveContainer } from 'recharts';
 import { X, Loader } from 'lucide-react';
 import { CategoryIcon } from '@/components/category-icon';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface SpendingData {
   id?: string;
@@ -58,6 +59,8 @@ export function CategoryBreakdown({
   } | null>(null);
   const [drillTxs, setDrillTxs] = useState<DrillTransaction[]>([]);
   const [drillLoading, setDrillLoading] = useState(false);
+
+  useEscapeKey(() => setDrillCategory(null), !!drillCategory);
 
   const expenseRows = useMemo(
     () => [...spendingByCategory].sort((a, b) => b.value - a.value),

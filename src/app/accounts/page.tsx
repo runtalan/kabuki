@@ -31,6 +31,7 @@ import { OWNERS, type OwnerKey } from '@/components/owner-badge';
 // Display order for the collapsible owner sections on the accounts overview.
 const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
 import { LIABILITY_TYPES, ASSET_TYPES, getTypeBadge, suggestIcon } from '@/lib/account-types';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Account {
   id: string;
@@ -103,6 +104,8 @@ export default function AccountsPage() {
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [institutionNameDraft, setInstitutionNameDraft] = useState('');
   const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set());
+
+  useEscapeKey(() => setShowAddLiability(false), showAddLiability);
 
   const toggleOwnerCollapse = (owner: string) => {
     setCollapsedOwners((prev) => {

@@ -5,6 +5,7 @@ import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2, ChevronUp, Chev
 import { AppLayout } from '@/components/app-layout';
 import { LUCIDE_ICONS } from '@/lib/icons';
 import { CategoryIcon } from '@/components/category-icon';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Category {
   id: string;
@@ -51,6 +52,13 @@ export default function CategoriesPage() {
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
   const [categoryTxs, setCategoryTxs] = useState<Transaction[]>([]);
   const [txsLoading, setTxsLoading] = useState(false);
+
+  // Escape unwinds one layer at a time: icon picker, then the form/detail modal.
+  useEscapeKey(() => {
+    if (showIconPicker) return setShowIconPicker(false);
+    if (formOpen) return setFormOpen(false);
+    if (viewingCategory) return setViewingCategory(null);
+  }, showIconPicker || formOpen || !!viewingCategory);
 
   useEffect(() => {
     fetchCategories();

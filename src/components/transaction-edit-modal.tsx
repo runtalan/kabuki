@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS } from './owner-badge';
 import { formatCurrency } from '@/lib/format';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Category {
   id: string;
@@ -90,10 +91,18 @@ export function TransactionEditModal({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setVisible(false);
     setTimeout(onClose, 200);
-  };
+  }, [onClose]);
+
+  // Escape closes the panel, unless an inline picker is open — then it just
+  // dismisses the picker, so one Escape doesn't blow away the whole panel.
+  useEscapeKey(() => {
+    if (categoryDropdownOpen) return setCategoryDropdownOpen(false);
+    if (tagDropdownOpen) return setTagDropdownOpen(false);
+    handleClose();
+  });
 
   const selectedCategory = categories.find((c) => c.id === categoryId) || null;
   const selectedTags = allTags.filter((t) => selectedTagIds.includes(t.id));

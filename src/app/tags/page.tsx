@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Pencil, X, Tags as TagsIcon, Receipt, Loader, List, Table2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Tag {
   id: string;
@@ -38,6 +39,11 @@ export default function TagsPage() {
   const [viewingTag, setViewingTag] = useState<Tag | null>(null);
   const [tagTxs, setTagTxs] = useState<Transaction[]>([]);
   const [txsLoading, setTxsLoading] = useState(false);
+
+  useEscapeKey(() => {
+    if (formOpen) return setFormOpen(false);
+    if (viewingTag) return setViewingTag(null);
+  }, formOpen || !!viewingTag);
 
   useEffect(() => {
     fetchTags();

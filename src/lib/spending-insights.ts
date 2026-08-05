@@ -232,7 +232,9 @@ export async function getTopMerchants(
 }
 
 export interface RecurringItem {
+  merchantKey: string; // normalized merchant — stable join key for user overrides
   merchant: string;
+  categoryId: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;
@@ -259,7 +261,7 @@ const FREQUENCY_BUCKETS: {
   { label: 'yearly', min: 330, max: 400, perMonth: 1 / 12 },
 ];
 
-function normalizeMerchant(raw: string) {
+export function normalizeMerchant(raw: string) {
   return raw
     .toLowerCase()
     .replace(/[#*]\S+/g, '') // strip reference codes like "#4821"
@@ -304,7 +306,7 @@ export async function getRecurringItems(userId: string): Promise<RecurringItem[]
 
   const items: RecurringItem[] = [];
 
-  for (const [, txs] of groups) {
+  for (const [merchantKey, txs] of groups) {
     if (txs.length < 2) continue;
     txs.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -349,7 +351,9 @@ export async function getRecurringItems(userId: string): Promise<RecurringItem[]
     const category = latest.categoryId ? categoryMap.get(latest.categoryId) : null;
 
     items.push({
+      merchantKey,
       merchant: latest.merchant || latest.name,
+      categoryId: category?.id || null,
       categoryName: category?.name || null,
       categoryIcon: category?.icon || null,
       categoryColor: category?.color || null,

@@ -32,6 +32,7 @@ import { getTypeBadge, LIABILITY_TYPES } from '@/lib/account-types';
 import { formatNumber } from '@/lib/format';
 import { ChartTooltip } from '@/components/charts/chart-tooltip';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Category {
   id: string;
@@ -101,6 +102,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ displayName: '', icon: 'Wallet', owner: 'joint', currentBalance: '' });
+
+  useEscapeKey(() => setEditOpen(false), editOpen);
 
   const fetchAll = async () => {
     try {

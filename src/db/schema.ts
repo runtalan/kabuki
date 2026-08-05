@@ -246,9 +246,58 @@ export const transactionTags = pgTable(
   ]
 );
 
+// Recurring series — user decisions layered on top of heuristic detection,
+// plus fully manual entries. A detected series with no row here is active but
+// still sitting in the "is this recurring?" review queue; 'confirmed' clears it
+// from the queue, 'dismissed' hides it everywhere.
+export const recurringSeries = pgTable(
+  "recurring_series",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Normalized merchant string — the join key back to detected series.
+    merchantKey: varchar("merchant_key", { length: 255 }).notNull(),
+    merchantName: varchar("merchant_name", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).default("confirmed").notNull(), // "confirmed" | "dismissed"
+    isManual: boolean("is_manual").default(false).notNull(),
+    // Populated for manual entries; for detected series these override detection.
+    frequency: varchar("frequency", { length: 20 }), // weekly | biweekly | monthly | yearly
+    amount: numeric("amount", { precision: 16, scale: 2 }),
+    categoryId: varchar("category_id", { length: 36 }).references(
+      () => categories.id,
+      { onDelete: "set null" }
+    ),
+    nextDate: timestamp("next_date"),
+    isIncome: boolean("is_income").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_recurring_series_user_merchant").on(
+      table.userId,
+      table.merchantKey
+    ),
+    index("idx_recurring_series_user_id").on(table.userId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
+  recurringSeries: many(recurringSeries),
+}));
+
+export const recurringSeriesRelations = relations(recurringSeries, ({ one }) => ({
+  user: one(users, {
+    fields: [recurringSeries.userId],
+    references: [users.id],
+  }),
+  category: one(categories, {
+    fields: [recurringSeries.categoryId],
+    references: [categories.id],
+  }),
 }));
 
 export const plaidItemsRelations = relations(plaidItems, ({ one, many }) => ({
