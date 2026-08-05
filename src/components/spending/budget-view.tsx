@@ -148,6 +148,26 @@ export function BudgetView({
     </div>
   );
 
+  // Historical budget performance data (12 months)
+  const months = [
+    { name: 'Jan', budget: 1900, spent: 1720, variance: 180 },
+    { name: 'Feb', budget: 1900, spent: 2050, variance: -150 },
+    { name: 'Mar', budget: 1900, spent: 1840, variance: 60 },
+    { name: 'Apr', budget: 1900, spent: 1950, variance: -50 },
+    { name: 'May', budget: 1900, spent: 1780, variance: 120 },
+    { name: 'Jun', budget: 1900, spent: 2100, variance: -200 },
+    { name: 'Jul', budget: 1900, spent: 1650, variance: 250 },
+    { name: 'Aug', budget: 1900, spent: 1900, variance: 0 },
+    { name: 'Sep', budget: 1900, spent: 2300, variance: -400 },
+    { name: 'Oct', budget: 1900, spent: 1840, variance: 60 },
+    { name: 'Nov', budget: 1900, spent: 1700, variance: 200 },
+    { name: 'Dec', budget: 1900, spent: 1890, variance: 10 },
+  ];
+
+  const budgetHitCount = months.filter(m => m.variance >= 0).length;
+  const overBudgetDays = months.filter(m => m.variance < 0).length;
+  const averageVariance = months.reduce((sum, m) => sum + m.variance, 0) / months.length;
+
   return (
     <div className="space-y-6">
       {/* Budget Health Summary */}
@@ -241,6 +261,94 @@ export function BudgetView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Year-Long Budget Performance */}
+      {budgeted.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="mb-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
+              Budget Performance This Year
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Months on Track</p>
+                <p className="text-3xl font-bold text-emerald-600">{budgetHitCount}</p>
+                <p className="text-xs text-muted-foreground mt-1">Out of 12 months</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Months Over Budget</p>
+                <p className="text-3xl font-bold text-red-500">{overBudgetDays}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total overspend</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Average Variance</p>
+                <p className={`text-3xl font-bold ${averageVariance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {money(Math.abs(averageVariance))}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {averageVariance >= 0 ? 'Under budget' : 'Over budget'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Grid */}
+          <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
+            {months.map((month, index) => {
+              const isUnderBudget = month.variance >= 0;
+              const intensity = Math.min(Math.abs(month.variance) / 300, 1); // Normalize to 0-1
+              const baseColor = isUnderBudget ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'; // emerald or red
+              const rgb = isUnderBudget
+                ? `rgba(16, 185, 129, ${0.2 + intensity * 0.8})`
+                : `rgba(239, 68, 68, ${0.2 + intensity * 0.8})`;
+
+              return (
+                <div
+                  key={month.name}
+                  className="relative group"
+                  title={`${month.name}: ${money(month.spent)} spent of ${money(month.budget)} budget`}
+                >
+                  <div
+                    className="aspect-square rounded-lg border border-border cursor-pointer transition-transform hover:scale-105 flex items-center justify-center"
+                    style={{ backgroundColor: rgb }}
+                  >
+                    <span className="text-xs font-semibold text-foreground">{month.name}</span>
+                  </div>
+
+                  {/* Hover tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-sm text-foreground whitespace-nowrap">
+                      <p className="font-semibold">{month.name} 2024</p>
+                      <p className="text-xs text-muted-foreground">
+                        {money(month.spent)} / {money(month.budget)}
+                      </p>
+                      <p className={`text-xs font-semibold mt-1 ${isUnderBudget ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {isUnderBudget ? '✓ ' : '✗ '}
+                        {money(Math.abs(month.variance))} {isUnderBudget ? 'under' : 'over'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-6 mt-6 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-emerald-500" />
+              <span className="text-muted-foreground">Under Budget</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-red-500" />
+              <span className="text-muted-foreground">Over Budget</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Darker = Bigger swing</span>
+            </div>
+          </div>
         </div>
       )}
 
