@@ -20,30 +20,23 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// Heat map coloring: green for net-positive days (more money in than out),
-// red for net-negative days, shade intensity scaled by magnitude relative to
-// the month's largest swing in either direction.
+// Heat map coloring: single blue scale, shade intensity driven by the size
+// of the day's net activity (income minus spend) relative to the month's
+// largest swing — bigger days (either direction) render darker/bolder blue.
 const NEUTRAL_CLASSES = 'bg-muted/40 text-muted-foreground';
-const GREEN_CLASSES = [
+const BLUE_CLASSES = [
   '',
-  'bg-emerald-500/15 text-foreground',
-  'bg-emerald-500/35 text-foreground',
-  'bg-emerald-500/60 text-white',
-  'bg-emerald-500 text-white',
-];
-const RED_CLASSES = [
-  '',
-  'bg-red-500/15 text-foreground',
-  'bg-red-500/35 text-foreground',
-  'bg-red-500/60 text-white',
-  'bg-red-500 text-white',
+  'bg-blue-500/20 text-foreground',
+  'bg-blue-500/45 text-foreground',
+  'bg-blue-500/75 text-white',
+  'bg-blue-500 text-white',
 ];
 
 function heatClasses(net: number, maxMagnitude: number) {
   if (net === 0 || maxMagnitude <= 0) return NEUTRAL_CLASSES;
   const ratio = Math.abs(net) / maxMagnitude;
   const level = ratio > 0.75 ? 4 : ratio > 0.5 ? 3 : ratio > 0.25 ? 2 : 1;
-  return (net > 0 ? GREEN_CLASSES : RED_CLASSES)[level];
+  return BLUE_CLASSES[level];
 }
 
 export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
@@ -246,20 +239,41 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
               const isToday = isCurrentMonth && today.getDate() === day;
               const isSelected = selectedDay === day;
               return (
-                <button
-                  key={day}
-                  onClick={() => setSelectedDay(isSelected ? null : day)}
-                  className={`aspect-square rounded-lg ${bare ? 'p-1' : 'p-2'} text-left transition-all ${heatClasses(net, maxNetMagnitude)} ${
-                    isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
-                  } ${isSelected ? 'ring-2 ring-accent ring-offset-2 ring-offset-card' : ''} hover:opacity-90`}
-                >
-                  <p className="text-[10px] font-semibold leading-none mb-0.5">{day}</p>
-                  {!bare && (
-                    <p className="text-[10px] leading-none opacity-90">
-                      {hasData ? `${net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(net))}` : '–'}
-                    </p>
+                <div key={day} className="relative group">
+                  <button
+                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                    className={`w-full aspect-square rounded-lg ${bare ? 'p-1' : 'p-2'} text-left transition-all ${heatClasses(net, maxNetMagnitude)} ${
+                      isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
+                    } ${isSelected ? 'ring-2 ring-accent ring-offset-2 ring-offset-card' : ''} hover:opacity-90 hover:scale-[1.03]`}
+                  >
+                    <p className="text-[10px] font-semibold leading-none mb-0.5">{day}</p>
+                    {!bare && (
+                      <p className="text-[10px] leading-none opacity-90">
+                        {hasData ? `${net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(net))}` : '–'}
+                      </p>
+                    )}
+                  </button>
+
+                  {/* Hover tooltip */}
+                  {hasData && (
+                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
+                        <p className="text-xs font-semibold text-foreground">
+                          {monthLabel} {day}
+                        </p>
+                        <p
+                          className={`text-xs font-medium ${
+                            net >= 0 ? 'text-blue-500' : 'text-foreground'
+                          }`}
+                        >
+                          {net >= 0 ? '+' : '-'}
+                          {formatCurrency(Math.abs(net))} {net >= 0 ? 'made' : 'spent'}
+                        </p>
+                      </div>
+                      <div className="w-2 h-2 bg-popover border-r border-b border-border rotate-45 mx-auto -mt-1" />
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
             {/* pad the final week row to keep a consistent 7-col grid */}
@@ -273,12 +287,12 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
       {/* Legend */}
       <div className="flex items-center gap-3 mt-3 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Spent
+          <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/25" /> Light activity
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Made
+          <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Heavy activity
         </span>
-        <span className="text-muted-foreground/60">· darker = bigger swing</span>
+        <span className="text-muted-foreground/60">· hover a day for details</span>
       </div>
 
       {/* Selected day detail */}
@@ -294,7 +308,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
                   <span className="text-foreground truncate pr-4">{tx.name}</span>
                   <span
                     className={`font-medium whitespace-nowrap ${
-                      tx.type === 'credit' ? 'text-emerald-500' : 'text-foreground'
+                      tx.type === 'credit' ? 'text-blue-500' : 'text-foreground'
                     }`}
                   >
                     {tx.type === 'credit' ? '+' : '-'}
