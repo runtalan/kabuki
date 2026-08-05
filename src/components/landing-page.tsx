@@ -109,12 +109,13 @@ export function LandingPage() {
       <section className="max-w-5xl mx-auto px-6 pb-24">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {[
-            { label: 'Most Organized Household', sub: 'Self-Awarded, 2026' },
-            { label: 'Better Than a Shared Spreadsheet', sub: 'Ex-Spreadsheet Users' },
-            { label: '100% Approved', sub: 'By Renato & Claudia' },
-            { label: '★★★★★', sub: '2 users, 2 five-star reviews' },
+            { label: 'Most Organized Household', sub: 'Self-Awarded, 2026', icon: '🍃' },
+            { label: 'Better Than a Shared Spreadsheet', sub: 'Ex-Spreadsheet Users', icon: '🍃' },
+            { label: '100% Approved', sub: 'By Renato & Claudia', icon: '🍃' },
+            { label: '★★★★★', sub: '2 users, 2 five-star reviews', icon: '🍃' },
           ].map((badge) => (
             <div key={badge.label}>
+              <p className="text-lg mb-1">{badge.icon}</p>
               <p className="font-semibold text-foreground text-sm">{badge.label}</p>
               <p className="text-xs text-muted-foreground mt-1">{badge.sub}</p>
             </div>
