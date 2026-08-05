@@ -11,6 +11,7 @@ interface Transaction {
   amount: string;
   type: 'debit' | 'credit';
   date: string;
+  hidden?: boolean;
   account?: { owner?: string | null } | null;
 }
 
@@ -82,7 +83,9 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
   const filtered = useMemo(
     () =>
       transactions.filter(
-        (tx) => ownerFilter === 'all' || (tx.account?.owner || 'joint') === ownerFilter
+        (tx) =>
+          !tx.hidden &&
+          (ownerFilter === 'all' || (tx.account?.owner || 'joint') === ownerFilter)
       ),
     [transactions, ownerFilter]
   );

@@ -2,6 +2,8 @@ import { db } from '@/db';
 import { accounts, transactions, categories, plaidItems } from '@/db/schema';
 import { and, eq, gte, lt, inArray } from 'drizzle-orm';
 
+const NOT_HIDDEN = eq(transactions.hidden, false);
+
 async function getUserAccountIds(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
@@ -43,7 +45,8 @@ export async function getSpendingOverview(userId: string, refDate: Date = new Da
       and(
         gte(transactions.date, sixMonthsAgo),
         lt(transactions.date, windowEnd),
-        inArray(transactions.accountId, accountIds)
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
       )
     );
 
@@ -132,7 +135,11 @@ export async function getCategoryBudgetSuggestions(
     .select()
     .from(transactions)
     .where(
-      and(gte(transactions.date, threeMonthsAgo), inArray(transactions.accountId, accountIds))
+      and(
+        gte(transactions.date, threeMonthsAgo),
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
+      )
     );
 
   const allCategories = await db.query.categories.findMany();
@@ -196,7 +203,8 @@ export async function getTopMerchants(
       and(
         gte(transactions.date, monthStart),
         lt(transactions.date, monthEnd),
-        inArray(transactions.accountId, accountIds)
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
       )
     );
 
@@ -274,7 +282,11 @@ export async function getRecurringItems(userId: string): Promise<RecurringItem[]
     .select()
     .from(transactions)
     .where(
-      and(gte(transactions.date, oneYearAgo), inArray(transactions.accountId, accountIds))
+      and(
+        gte(transactions.date, oneYearAgo),
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
+      )
     );
 
   const allCategories = await db.query.categories.findMany();

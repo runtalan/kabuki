@@ -178,6 +178,9 @@ export const transactions = pgTable(
     type: transactionTypeEnum("type").notNull(),
     date: timestamp("date").notNull(),
     pending: boolean("pending").default(false).notNull(),
+    // Hidden transactions are excluded from spending totals, budgets, and
+    // reports but remain visible (dimmed) in the raw transaction list.
+    hidden: boolean("hidden").default(false).notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

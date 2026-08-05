@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Plus, Loader, Search, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS } from './owner-badge';
+import { formatCurrency } from '@/lib/format';
 
 interface Category {
   id: string;
@@ -24,9 +25,16 @@ interface Transaction {
   amount: string;
   type: 'debit' | 'credit';
   date: string;
+  pending?: boolean;
+  hidden?: boolean;
   categoryId?: string | null;
   ownerOverride?: string | null;
-  account?: { owner?: string | null } | null;
+  account?: {
+    owner?: string | null;
+    name?: string;
+    displayName?: string | null;
+    mask?: string | null;
+  } | null;
   tags?: Tag[];
 }
 
@@ -49,6 +57,7 @@ export function TransactionEditModal({
   const [date, setDate] = useState(new Date(transaction.date).toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState(transaction.categoryId || '');
   const [ownerOverride, setOwnerOverride] = useState(transaction.ownerOverride || '');
+  const [hidden, setHidden] = useState(!!transaction.hidden);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     (transaction.tags || []).map((t) => t.id)
   );
@@ -62,6 +71,9 @@ export function TransactionEditModal({
 
   const [categorySearch, setCategorySearch] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [ownerSectionOpen, setOwnerSectionOpen] = useState(false);
+  const [editingBasics, setEditingBasics] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   const tagBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categoryBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +83,17 @@ export function TransactionEditModal({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => data && setAllTags(data.tags || []));
   }, []);
+
+  // Mount closed, then slide in — gives the transform a frame to animate from.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(onClose, 200);
+  };
 
   const selectedCategory = categories.find((c) => c.id === categoryId) || null;
   const selectedTags = allTags.filter((t) => selectedTagIds.includes(t.id));
@@ -114,11 +137,7 @@ export function TransactionEditModal({
     }
   };
 
-  const handleSave = async () => {
-    if (!name.trim() || !amount || Number.isNaN(parseFloat(amount))) {
-      setError('Please enter a valid merchant and amount');
-      return;
-    }
+  const persist = async (overrides: Record<string, unknown> = {}) => {
     setSaving(true);
     setError('');
     try {
@@ -133,118 +152,214 @@ export function TransactionEditModal({
           categoryId: categoryId || null,
           ownerOverride: ownerOverride || null,
           tagIds: selectedTagIds,
+          hidden,
+          ...overrides,
         }),
       });
       if (res.ok) {
         onSaved();
-        onClose();
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Failed to save transaction');
+        return true;
       }
+      const data = await res.json();
+      setError(data.error || 'Failed to save transaction');
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSave = async () => {
+    if (!name.trim() || !amount || Number.isNaN(parseFloat(amount))) {
+      setError('Please enter a valid merchant and amount');
+      return;
+    }
+    const ok = await persist();
+    if (ok) handleClose();
+  };
+
+  const toggleHidden = async () => {
+    const next = !hidden;
+    setHidden(next);
+    await persist({ hidden: next });
+  };
+
+  const accountLabel = transaction.account
+    ? `${transaction.account.displayName || transaction.account.name || 'Account'}${
+        transaction.account.mask ? ` ...${transaction.account.mask}` : ''
+      }`
+    : null;
+
+  const rowClass =
+    'w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/40 transition-colors';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-foreground">Edit Transaction</h2>
+    <div className="fixed inset-0 z-50">
+      <div
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'opacity-0'
+        }`}
+        onClick={handleClose}
+      />
+      <div
+        className={`absolute right-0 top-0 h-full w-full max-w-md bg-card border-l border-border shadow-2xl overflow-y-auto transition-transform duration-200 ease-out ${
+          visible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10">
           <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            onClick={handleClose}
+            className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            <X className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground truncate px-2">
+            {transaction.name}
+          </p>
+          <button
+            onClick={() => setEditingBasics((v) => !v)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Edit merchant, amount, date"
+          >
+            <Pencil className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Merchant / Description</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground"
-            />
-          </div>
+        {/* Hero amount */}
+        <div className="flex flex-col items-center gap-3 py-8 px-5 border-b border-border">
+          {transaction.pending && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+              Pending
+            </span>
+          )}
+          <p className={`text-4xl font-bold ${type === 'credit' ? 'text-emerald-500' : 'text-foreground'}`}>
+            {type === 'credit' ? '+' : ''}
+            {formatCurrency(parseFloat(amount || '0'))}
+          </p>
+          {hidden && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-medium">
+              <EyeOff className="w-3 h-3" />
+              Hidden from totals
+            </span>
+          )}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
+        {/* Inline basics editor (merchant / amount / date) */}
+        {editingBasics && (
+          <div className="px-5 py-4 border-b border-border space-y-3 bg-muted/20">
             <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Amount</label>
-              <div className="flex items-center gap-2">
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as 'debit' | 'credit')}
-                  className="px-2 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
-                >
-                  <option value="debit">−</option>
-                  <option value="credit">+</option>
-                </select>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Date</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Merchant / Description
+              </label>
               <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Category</label>
-            {selectedCategory ? (
-              <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-2"
-                style={{ backgroundColor: selectedCategory.color + '1a', color: selectedCategory.color }}
-              >
-                <CategoryIcon icon={selectedCategory.icon} className="w-3.5 h-3.5" />
-                {selectedCategory.name}
-                <button
-                  type="button"
-                  onClick={() => setCategoryId('')}
-                  className="hover:opacity-70 transition-opacity"
-                  title="Clear category"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Amount</label>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value as 'debit' | 'credit')}
+                    className="px-2 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+                  >
+                    <option value="debit">−</option>
+                    <option value="credit">+</option>
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mb-2">Untagged</p>
-            )}
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Date</label>
                 <input
-                  type="text"
-                  placeholder="Search categories..."
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  onFocus={() => {
-                    if (categoryBlurTimeout.current) clearTimeout(categoryBlurTimeout.current);
-                    setCategoryDropdownOpen(true);
-                  }}
-                  onBlur={() => {
-                    categoryBlurTimeout.current = setTimeout(() => setCategoryDropdownOpen(false), 150);
-                  }}
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
                 />
               </div>
-              {categoryDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl">
+            </div>
+          </div>
+        )}
+
+        {/* Field rows */}
+        <div className="divide-y divide-border">
+          {/* Date row (read view) */}
+          <div className={rowClass}>
+            <span className="text-sm text-foreground">Date</span>
+            <span className="text-sm text-muted-foreground">
+              {new Date(date).toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
+          </div>
+
+          {/* Description row */}
+          <div className={rowClass}>
+            <span className="text-sm text-foreground">Description</span>
+            <span className="text-sm text-muted-foreground truncate max-w-[220px] text-right">
+              {name}
+            </span>
+          </div>
+
+          {/* Category */}
+          <div className="px-5 py-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-foreground">Category</span>
+              {selectedCategory ? (
+                <button
+                  type="button"
+                  onClick={() => setCategoryDropdownOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                  style={{ backgroundColor: selectedCategory.color + '1a', color: selectedCategory.color }}
+                >
+                  <CategoryIcon icon={selectedCategory.icon} className="w-3.5 h-3.5" />
+                  {selectedCategory.name}
+                  <ChevronRight className={`w-3 h-3 transition-transform ${categoryDropdownOpen ? 'rotate-90' : ''}`} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCategoryDropdownOpen((v) => !v)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Set category
+                </button>
+              )}
+            </div>
+            {categoryDropdownOpen && (
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search categories..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    autoFocus
+                    onBlur={() => {
+                      categoryBlurTimeout.current = setTimeout(() => setCategoryDropdownOpen(false), 150);
+                    }}
+                    onFocus={() => {
+                      if (categoryBlurTimeout.current) clearTimeout(categoryBlurTimeout.current);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
+                <div className="mt-1 max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl">
                   {filteredCategoryResults.length > 0 ? (
                     filteredCategoryResults.map((cat) => (
                       <button
@@ -254,6 +369,7 @@ export function TransactionEditModal({
                           setCategoryId(cat.id);
                           setCategorySearch('');
                           setCategoryDropdownOpen(false);
+                          persist({ categoryId: cat.id });
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
                       >
@@ -266,169 +382,230 @@ export function TransactionEditModal({
                     <p className="px-3 py-2 text-sm text-muted-foreground">No matching categories</p>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">
-              Owner{' '}
-              <span className="text-xs text-muted-foreground font-normal">
-                (defaults to account: {OWNERS[(transaction.account?.owner as keyof typeof OWNERS) || 'joint'].label})
-              </span>
-            </label>
-            <div className="flex gap-2">
+          {/* Tags */}
+          <div className="px-5 py-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-foreground">Tags</span>
               <button
                 type="button"
-                onClick={() => setOwnerOverride('')}
-                className={`flex-1 px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                  ownerOverride === ''
-                    ? 'border-primary bg-primary/10 text-foreground'
-                    : 'border-border hover:bg-muted text-muted-foreground'
-                }`}
+                onClick={() => setTagDropdownOpen((v) => !v)}
+                className="text-xs font-medium text-primary hover:underline"
               >
-                Use account default
+                {selectedTags.length > 0 ? 'Edit' : 'Add tag'}
               </button>
-              {(Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
-                ([value, info]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    onClick={() => setOwnerOverride(value)}
-                    className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                      ownerOverride === value
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border hover:bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    <span>{info.emoji}</span>
-                    {info.label}
-                  </button>
-                )
-              )}
             </div>
-          </div>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Tags</label>
-
-            {/* Selected tags — click X to remove */}
             {selectedTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {selectedTags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
                     style={{ backgroundColor: tag.color, color: '#fff' }}
                   >
                     {tag.name}
                     <button
                       type="button"
-                      onClick={() => removeTag(tag.id)}
+                      onClick={() => {
+                        removeTag(tag.id);
+                        persist({ tagIds: selectedTagIds.filter((id) => id !== tag.id) });
+                      }}
                       className="hover:opacity-70 transition-opacity"
-                      title="Remove tag"
                     >
-                      <X className="w-3 h-3" />
+                      ×
                     </button>
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Quick-add: only a handful shown so this doesn't sprawl with many tags */}
-            {quickAddTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {quickAddTags.map((tag) => (
-                  <button
-                    type="button"
-                    key={tag.id}
-                    onClick={() => addTag(tag.id)}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all hover:opacity-80"
-                    style={{ backgroundColor: tag.color + '15', borderColor: tag.color + '40', color: tag.color }}
-                  >
-                    <Plus className="w-3 h-3" />
-                    {tag.name}
-                  </button>
-                ))}
+            {tagDropdownOpen && (
+              <div>
+                {quickAddTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {quickAddTags.map((tag) => (
+                      <button
+                        type="button"
+                        key={tag.id}
+                        onClick={() => {
+                          addTag(tag.id);
+                          persist({ tagIds: [...selectedTagIds, tag.id] });
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all hover:opacity-80"
+                        style={{ backgroundColor: tag.color + '15', borderColor: tag.color + '40', color: tag.color }}
+                      >
+                        <Plus className="w-3 h-3" />
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search or create a tag..."
+                    value={tagSearch}
+                    onChange={(e) => setTagSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && filteredTagResults.length === 0 && tagSearch.trim()) {
+                        e.preventDefault();
+                        handleCreateTag();
+                      }
+                    }}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+                  />
+                </div>
+                {tagSearch.trim() && (
+                  <div className="mt-1 max-h-40 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl">
+                    {filteredTagResults.map((tag) => (
+                      <button
+                        type="button"
+                        key={tag.id}
+                        onClick={() => {
+                          addTag(tag.id);
+                          persist({ tagIds: [...selectedTagIds, tag.id] });
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                        {tag.name}
+                      </button>
+                    ))}
+                    {filteredTagResults.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={handleCreateTag}
+                        disabled={creatingTag}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted transition-colors text-left disabled:opacity-50"
+                      >
+                        {creatingTag ? <Loader className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        Create "{tagSearch.trim()}"
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
-
-            {/* Search for anything beyond the quick-add shortlist */}
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search or create a tag..."
-                  value={tagSearch}
-                  onChange={(e) => setTagSearch(e.target.value)}
-                  onFocus={() => {
-                    if (tagBlurTimeout.current) clearTimeout(tagBlurTimeout.current);
-                    setTagDropdownOpen(true);
-                  }}
-                  onBlur={() => {
-                    tagBlurTimeout.current = setTimeout(() => setTagDropdownOpen(false), 150);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && filteredTagResults.length === 0 && tagSearch.trim()) {
-                      e.preventDefault();
-                      handleCreateTag();
-                    }
-                  }}
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
-                />
-              </div>
-              {tagDropdownOpen && tagSearch.trim() && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl">
-                  {filteredTagResults.map((tag) => (
-                    <button
-                      type="button"
-                      key={tag.id}
-                      onClick={() => addTag(tag.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
-                    >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                      {tag.name}
-                    </button>
-                  ))}
-                  {filteredTagResults.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={handleCreateTag}
-                      disabled={creatingTag}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted transition-colors text-left disabled:opacity-50"
-                    >
-                      {creatingTag ? (
-                        <Loader className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                      Create "{tagSearch.trim()}"
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <div className="flex gap-2 pt-2">
+          {/* Owner */}
+          <div className="px-5 py-3.5">
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              type="button"
+              onClick={() => setOwnerSectionOpen((v) => !v)}
+              className="w-full flex items-center justify-between"
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              <span className="text-sm text-foreground">Owner</span>
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                {ownerOverride
+                  ? `${OWNERS[ownerOverride as keyof typeof OWNERS].emoji} ${OWNERS[ownerOverride as keyof typeof OWNERS].label}`
+                  : `Account default (${OWNERS[(transaction.account?.owner as keyof typeof OWNERS) || 'joint'].label})`}
+                <ChevronRight className={`w-3.5 h-3.5 transition-transform ${ownerSectionOpen ? 'rotate-90' : ''}`} />
+              </span>
             </button>
+            {ownerSectionOpen && (
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOwnerOverride('');
+                    persist({ ownerOverride: null });
+                  }}
+                  className={`flex-1 px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    ownerOverride === ''
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border hover:bg-muted text-muted-foreground'
+                  }`}
+                >
+                  Default
+                </button>
+                {(Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
+                  ([value, info]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => {
+                        setOwnerOverride(value);
+                        persist({ ownerOverride: value });
+                      }}
+                      className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                        ownerOverride === value
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border hover:bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      <span>{info.emoji}</span>
+                      {info.label}
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Hide transaction toggle */}
+          <div className={rowClass}>
+            <div>
+              <p className="text-sm text-foreground">Hide transaction</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Excludes it from totals, budgets, and reports
+              </p>
+            </div>
             <button
-              onClick={onClose}
-              className="px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+              type="button"
+              onClick={toggleHidden}
+              disabled={saving}
+              role="switch"
+              aria-checked={hidden}
+              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+                hidden ? 'bg-primary' : 'bg-muted'
+              }`}
             >
-              Cancel
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform flex items-center justify-center ${
+                  hidden ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              >
+                {hidden ? (
+                  <EyeOff className="w-3 h-3 text-primary" />
+                ) : (
+                  <Eye className="w-3 h-3 text-muted-foreground" />
+                )}
+              </span>
             </button>
           </div>
         </div>
+
+        {error && <p className="px-5 py-2 text-sm text-red-500">{error}</p>}
+
+        {/* Save bar */}
+        <div className="px-5 py-4 flex gap-2 sticky bottom-0 bg-card border-t border-border">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+
+        {/* Account footer */}
+        {accountLabel && (
+          <div className="px-5 py-3 border-t border-border text-center">
+            <p className="text-xs text-muted-foreground">{accountLabel}</p>
+          </div>
+        )}
       </div>
     </div>
   );

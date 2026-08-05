@@ -64,7 +64,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, amount, type, date, categoryId, ownerOverride, tagIds } = body;
+    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden } = body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -83,6 +83,7 @@ export async function PATCH(
       updates.amount = (type === 'debit' ? -magnitude : magnitude).toString();
       updates.type = type;
     }
+    if (typeof hidden === 'boolean') updates.hidden = hidden;
 
     const result = await db
       .update(transactions)

@@ -7,6 +7,11 @@ import {
 } from '@/db/schema';
 import { eq, and, desc, gte, lt, inArray } from 'drizzle-orm';
 
+// Hidden transactions are excluded from spending totals, budgets, cash
+// flow, and recent activity — but stay visible (dimmed) in the raw
+// transaction list itself.
+const NOT_HIDDEN = eq(transactions.hidden, false);
+
 // Get all accounts for a user
 export async function getUserAccounts(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
@@ -48,7 +53,8 @@ export async function getSpendingByCategory(userId: string, refDate: Date = new 
       and(
         gte(transactions.date, monthStart),
         lt(transactions.date, monthEnd),
-        inArray(transactions.accountId, accountIds)
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
       )
     );
 
@@ -116,7 +122,8 @@ export async function getCashFlowData(userId: string) {
     .where(
       and(
         gte(transactions.date, sixMonthsAgo),
-        inArray(transactions.accountId, accountIds)
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
       )
     );
 
@@ -224,7 +231,7 @@ export async function getRecentTransactions(userId: string, limit = 10) {
   const allTransactions = await db
     .select()
     .from(transactions)
-    .where(inArray(transactions.accountId, accountIds))
+    .where(and(inArray(transactions.accountId, accountIds), NOT_HIDDEN))
     .orderBy(desc(transactions.date))
     .limit(limit);
 

@@ -1,18 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Search,
   ChevronDown,
   ChevronUp,
   Settings,
   Wand2,
-  Tag,
   X,
-  Check,
   Sparkles,
   Clock3,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
@@ -20,6 +21,7 @@ import { CategoryIcon } from '@/components/category-icon';
 import { OwnerBadge, getOwner, OWNERS } from '@/components/owner-badge';
 import { AccountBadge } from '@/components/account-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
+import { formatCurrency } from '@/lib/format';
 
 interface Category {
   id: string;
@@ -42,6 +44,7 @@ interface Transaction {
   type: 'debit' | 'credit';
   date: string;
   pending?: boolean;
+  hidden?: boolean;
   categoryId?: string | null;
   categorySource?: 'manual' | 'rule' | 'smart' | null;
   category?: Category | null;
@@ -105,17 +108,14 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Date range state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [customDateStart, setCustomDateStart] = useState('');
   const [customDateEnd, setCustomDateEnd] = useState('');
 
-  // Action menu state
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [recategorizingId, setRecategorizingId] = useState<string | null>(null);
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Rule modal state
   const [ruleModalTx, setRuleModalTx] = useState<Transaction | null>(null);
@@ -194,18 +194,6 @@ export default function TransactionsPage() {
       .then((data) => data && setAllTags(data.tags || []));
   }, []);
 
-  // Close action menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenId(null);
-        setRecategorizingId(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
   const toggleSort = (col: 'date' | 'amount') => {
     if (sortBy === col) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -235,25 +223,19 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleUpdateCategory = async (transactionId: string, categoryId: string | null) => {
+  const toggleHidden = async (tx: Transaction) => {
+    const nextHidden = !tx.hidden;
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === tx.id ? { ...t, hidden: nextHidden } : t))
+    );
     try {
-      const response = await fetch('/api/transactions/update', {
-        method: 'POST',
+      await fetch(`/api/transactions/${tx.id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId, categoryId }),
+        body: JSON.stringify({ hidden: nextHidden }),
       });
-
-      if (response.ok) {
-        const category = categories.find((c) => c.id === categoryId) || null;
-        setTransactions((prev) =>
-          prev.map((tx) => (tx.id === transactionId ? { ...tx, categoryId, category } : tx))
-        );
-      }
     } catch (error) {
-      console.error('Failed to update category:', error);
-    } finally {
-      setMenuOpenId(null);
-      setRecategorizingId(null);
+      console.error('Failed to toggle hidden:', error);
     }
   };
 
@@ -265,14 +247,7 @@ export default function TransactionsPage() {
     }
   };
 
-  const openRecategorize = (tx: Transaction) => {
-    setMenuOpenId(tx.id);
-    setRecategorizingId(tx.id);
-  };
-
   const openRuleModal = (tx: Transaction) => {
-    setMenuOpenId(null);
-    setRecategorizingId(null);
     setRuleModalTx(tx);
     setRuleForm({
       merchantName: tx.merchant || tx.name,
@@ -298,7 +273,17 @@ export default function TransactionsPage() {
 
       if (response.ok) {
         if (ruleForm.applyNow) {
-          await handleUpdateCategory(ruleModalTx.id, ruleForm.categoryId);
+          await fetch('/api/transactions/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactionId: ruleModalTx.id, categoryId: ruleForm.categoryId }),
+          });
+          const category = categories.find((c) => c.id === ruleForm.categoryId) || null;
+          setTransactions((prev) =>
+            prev.map((tx) =>
+              tx.id === ruleModalTx.id ? { ...tx, categoryId: ruleForm.categoryId, category } : tx
+            )
+          );
         }
         setRuleModalTx(null);
       }
@@ -342,8 +327,18 @@ export default function TransactionsPage() {
   });
   const groups = groupByDay(visibleTransactions);
 
+  const dateRangeLabel = (() => {
+    if (visibleTransactions.length === 0) return '—';
+    const dates = visibleTransactions.map((tx) => new Date(tx.date).getTime());
+    const min = new Date(Math.min(...dates));
+    const max = new Date(Math.max(...dates));
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${fmt(min)} - ${fmt(max)}`;
+  })();
+
   const stats = {
     total: visibleTransactions.length,
+    dateRangeLabel,
     income: visibleTransactions
       .filter((tx) => tx.type === 'credit')
       .reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount)), 0),
@@ -378,117 +373,171 @@ export default function TransactionsPage() {
       <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-4">Spending</h1>
         <PageTabs tabs={SPENDING_TABS} />
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <p className="text-muted-foreground">View and manage all your transactions</p>
-          </div>
-          <button
-            onClick={handleSmartTag}
-            disabled={smartTagging}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 shadow-sm hover:shadow-md transition-all"
-            title="Auto-tag untagged transactions using merchant patterns (United Airlines → Travel, Whole Foods → Groceries, etc.)"
-          >
-            <Sparkles className={`w-4 h-4 ${smartTagging ? 'animate-pulse' : ''}`} />
-            {smartTagging ? 'Analyzing...' : 'Smart Tag'}
-          </button>
-        </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search transactions..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            {searching && (
-              <div className="absolute right-3 top-2.5 w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            )}
-          </div>
-
-          <div className="relative">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <select
-              value={selectedOwner}
-              onChange={(e) => setSelectedOwner(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-            >
-              <option value="all">Everyone</option>
-              <option value="renato">{OWNERS.renato.emoji} Renato</option>
-              <option value="claudia">{OWNERS.claudia.emoji} Claudia</option>
-              <option value="joint">{OWNERS.joint.emoji} Joint</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
+        {/* Toolbar */}
+        <div className="bg-card border border-border rounded-xl mb-4 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-5 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Transactions
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="w-52 pl-9 pr-8 py-2 rounded-lg border border-border bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                {searching ? (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                ) : (
+                  searchInput && (
+                    <button
+                      onClick={() => setSearchInput('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                )}
+              </div>
+              <button
+                onClick={() => setFiltersOpen((v) => !v)}
+                className={`p-2 rounded-lg border transition-colors ${
+                  filtersOpen
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+                title="Filters"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleSmartTag}
+                disabled={smartTagging}
+                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                title="Smart Tag — auto-tag untagged transactions using merchant patterns"
+              >
+                <Sparkles className={`w-4 h-4 ${smartTagging ? 'animate-pulse text-primary' : ''}`} />
+              </button>
+            </div>
           </div>
 
-          <div className="relative">
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-            >
-              <option value="all">All Types</option>
-              <option value="debit">Expenses</option>
-              <option value="credit">Income</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
+          {/* Summary stats bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 border-t border-border divide-x divide-border">
+            <div className="px-5 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                Total transactions
+              </p>
+              <p className="text-sm font-semibold text-foreground">{stats.total}</p>
+            </div>
+            <div className="px-5 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                Date range
+              </p>
+              <p className="text-sm font-semibold text-foreground truncate">{stats.dateRangeLabel}</p>
+            </div>
+            <div className="px-5 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                Total expenses
+              </p>
+              <p className="text-sm font-semibold text-foreground">-{formatCurrency(stats.expenses)}</p>
+            </div>
+            <div className="px-5 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                Total income
+              </p>
+              <p className="text-sm font-semibold text-emerald-500">+{formatCurrency(stats.income)}</p>
+            </div>
           </div>
 
-          <div className="relative">
-            <select
-              value={timeRange}
-              onChange={(e) => {
-                const val = e.target.value as 'week' | 'month' | 'all' | 'custom';
-                if (val === 'custom') {
-                  setShowDatePicker(true);
-                } else {
-                  setTimeRange(val);
-                  setShowDatePicker(false);
-                }
-              }}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-            >
-              <option value="all">All Time</option>
-              <option value="month">This Month</option>
-              <option value="week">This Week</option>
-              <option value="custom">Custom Range</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
-          </div>
+          {/* Collapsible filter panel */}
+          {filtersOpen && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 px-5 py-4 border-t border-border bg-muted/20">
+              <div className="relative">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
 
-          <div className="relative">
-            <select
-              value={selectedTag}
-              onChange={(e) => setSelectedTag(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-            >
-              <option value="all">All Tags</option>
-              {allTags.map((tag) => (
-                <option key={tag.id} value={tag.id}>
-                  {tag.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
-          </div>
+              <div className="relative">
+                <select
+                  value={selectedOwner}
+                  onChange={(e) => setSelectedOwner(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+                >
+                  <option value="all">Everyone</option>
+                  <option value="renato">{OWNERS.renato.emoji} Renato</option>
+                  <option value="claudia">{OWNERS.claudia.emoji} Claudia</option>
+                  <option value="joint">{OWNERS.joint.emoji} Joint</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Types</option>
+                  <option value="debit">Expenses</option>
+                  <option value="credit">Income</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={timeRange}
+                  onChange={(e) => {
+                    const val = e.target.value as 'week' | 'month' | 'all' | 'custom';
+                    if (val === 'custom') {
+                      setShowDatePicker(true);
+                    } else {
+                      setTimeRange(val);
+                      setShowDatePicker(false);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Time</option>
+                  <option value="month">This Month</option>
+                  <option value="week">This Week</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedTag}
+                  onChange={(e) => setSelectedTag(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Tags</option>
+                  {allTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Custom Date Range Info */}
@@ -531,12 +580,6 @@ export default function TransactionsPage() {
             </p>
           </div>
         )}
-
-        {/* Sort bar */}
-        <div className="flex items-center justify-end gap-5 mb-3 px-1">
-          <SortLabel col="date">Date</SortLabel>
-          <SortLabel col="amount">Amount</SortLabel>
-        </div>
 
         {/* Date Range Picker Modal */}
         {showDatePicker && (
@@ -603,16 +646,23 @@ export default function TransactionsPage() {
           </div>
         )}
 
-        {/* Day-grouped transaction list */}
-        <div className="space-y-5 mb-8">
+        {/* Table */}
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-8">
+          {/* Column headers */}
+          <div className="hidden md:grid grid-cols-[1fr_180px_120px_140px_110px_60px] gap-3 px-5 py-2.5 border-b border-border bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span>Merchant / Description</span>
+            <span>Category</span>
+            <span>Account</span>
+            <SortLabel col="date">Date</SortLabel>
+            <SortLabel col="amount"><span className="ml-auto block text-right w-full">Amount</span></SortLabel>
+            <span />
+          </div>
+
           {groups.length > 0 ? (
             groups.map((group) => {
               const isCollapsed = collapsedDays.has(group.label);
               return (
-                <div
-                  key={group.label}
-                  className="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
-                >
+                <div key={group.label}>
                   <button
                     onClick={() =>
                       setCollapsedDays((prev) => {
@@ -622,7 +672,7 @@ export default function TransactionsPage() {
                         return next;
                       })
                     }
-                    className="w-full flex items-center justify-between px-5 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-2 bg-muted/40 hover:bg-muted/60 transition-colors border-b border-border"
                   >
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {group.label}
@@ -641,166 +691,127 @@ export default function TransactionsPage() {
                     group.items.map((tx) => (
                       <div
                         key={tx.id}
-                        className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors border-b border-border last:border-0 group"
+                        onClick={() => setEditingTx(tx)}
+                        className={`grid grid-cols-1 md:grid-cols-[1fr_180px_120px_140px_110px_60px] gap-3 items-center px-5 py-3 hover:bg-muted/30 transition-colors border-b border-border last:border-0 group cursor-pointer ${
+                          tx.hidden ? 'opacity-50' : ''
+                        }`}
                         style={{ borderLeft: `3px solid ${getOwner(tx.account?.owner).color}` }}
                       >
-                        {/* Category avatar */}
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            backgroundColor: (tx.category?.color || '#6b7280') + '1f',
-                            color: tx.category?.color || '#6b7280',
-                          }}
-                        >
-                          <CategoryIcon icon={tx.category?.icon} className="w-4 h-4" />
-                        </div>
-
-                        {/* Name + category pill + tags */}
-                        <div className="flex-1 min-w-0">
-                          <button
-                            onClick={() => setEditingTx(tx)}
-                            className="text-sm font-medium text-foreground truncate hover:underline text-left block"
-                            title="Click to edit transaction"
+                        {/* Merchant / description */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                              backgroundColor: (tx.category?.color || '#6b7280') + '1f',
+                              color: tx.category?.color || '#6b7280',
+                            }}
                           >
-                            {tx.name}
-                          </button>
-                          <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                            <div className="relative">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  filterByCategory(tx.categoryId || null);
-                                }}
-                                className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
-                                title="Filter by this category"
-                              >
-                                <span
-                                  className="text-[11px] font-medium"
-                                  style={{ color: tx.category?.color || '#9ca3af' }}
-                                >
-                                  {tx.category?.name || 'Untagged'}
+                            <CategoryIcon icon={tx.category?.icon} className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{tx.name}</p>
+                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                              {tx.pending && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-amber-500">
+                                  <Clock3 className="w-3 h-3" />
+                                  Pending
                                 </span>
-                                {tx.categorySource === 'smart' && (
-                                  <Sparkles className="w-2.5 h-2.5 opacity-60" style={{ color: tx.category?.color }} />
-                                )}
-                              </button>
+                              )}
+                              {tx.tags && tx.tags.length > 0 && (
+                                <span className="flex items-center gap-1">
+                                  {tx.tags.map((tag) => (
+                                    <span
+                                      key={tag.id}
+                                      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                                      style={{ backgroundColor: tag.color + '1a', color: tag.color }}
+                                    >
+                                      {tag.name}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
                             </div>
-                            {tx.tags && tx.tags.length > 0 && (
-                              <span className="flex items-center gap-1">
-                                {tx.tags.map((tag) => (
-                                  <span
-                                    key={tag.id}
-                                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                                    style={{ backgroundColor: tag.color + '1a', color: tag.color }}
-                                  >
-                                    {tag.name}
-                                  </span>
-                                ))}
-                              </span>
-                            )}
                           </div>
                         </div>
 
-                        {/* Account — links to the account's dedicated page */}
-                        <div className="hidden md:block flex-shrink-0">
-                          {tx.account && (
-                            <Link
-                              href={`/accounts/${tx.account.id}`}
-                              className="hover:underline"
-                              onClick={(e) => e.stopPropagation()}
+                        {/* Category pill — filters the list, doesn't open the modal */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => filterByCategory(tx.categoryId || null)}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full hover:opacity-80 transition-opacity max-w-full"
+                            title="Filter by this category"
+                          >
+                            <CategoryIcon
+                              icon={tx.category?.icon}
+                              className="w-3.5 h-3.5 flex-shrink-0"
+                              color={tx.category?.color}
+                            />
+                            <span
+                              className="text-[11px] font-medium truncate"
+                              style={{ color: tx.category?.color || '#9ca3af' }}
                             >
+                              {tx.category?.name || 'Untagged'}
+                            </span>
+                            {tx.categorySource === 'smart' && (
+                              <Sparkles className="w-2.5 h-2.5 opacity-60 flex-shrink-0" style={{ color: tx.category?.color }} />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Account */}
+                        <div onClick={(e) => e.stopPropagation()} className="hidden md:block min-w-0">
+                          {tx.account && (
+                            <Link href={`/accounts/${tx.account.id}`} className="hover:underline inline-block">
                               <AccountBadge account={tx.account} />
                             </Link>
                           )}
                         </div>
 
-                        {/* Owner */}
-                        <div className="hidden sm:block flex-shrink-0">
-                          <OwnerBadge owner={tx.account?.owner} />
-                        </div>
-
-                        {/* Pending */}
-                        {tx.pending && (
-                          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-amber-500 flex-shrink-0">
-                            <Clock3 className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
-
-                        {/* Amount */}
-                        <p
-                          className={`text-sm font-semibold text-right flex-shrink-0 w-24 ${
-                            tx.type === 'credit' ? 'text-emerald-500' : 'text-foreground'
-                          }`}
-                        >
-                          {tx.type === 'credit' ? '+' : ''}$
-                          {Math.abs(parseFloat(tx.amount)).toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                          })}
+                        {/* Date */}
+                        <p className="hidden md:block text-xs text-muted-foreground">
+                          {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </p>
 
-                        {/* Actions */}
-                        <div className="relative flex-shrink-0">
+                        {/* Amount */}
+                        <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => {
-                              setMenuOpenId(menuOpenId === tx.id ? null : tx.id);
-                              setRecategorizingId(null);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleHidden(tx);
                             }}
+                            className="p-1 rounded text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                            title={tx.hidden ? 'Unhide transaction' : 'Hide transaction'}
+                          >
+                            {tx.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <p
+                            className={`text-sm font-semibold text-right flex-shrink-0 ${
+                              tx.type === 'credit' ? 'text-emerald-500' : 'text-foreground'
+                            }`}
+                          >
+                            {tx.type === 'credit' ? '+' : ''}$
+                            {Math.abs(parseFloat(tx.amount)).toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                            })}
+                          </p>
+                        </div>
+
+                        {/* Cog — opens the transaction detail panel; Wand2 — create rule */}
+                        <div onClick={(e) => e.stopPropagation()} className="flex justify-end gap-1">
+                          <button
+                            onClick={() => openRuleModal(tx)}
                             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
-                            title="Transaction actions"
+                            title="Create rule from transaction"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingTx(tx)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            title="Open transaction"
                           >
                             <Settings className="w-4 h-4" />
                           </button>
-
-                          {menuOpenId === tx.id && (
-                            <div
-                              ref={menuRef}
-                              className="absolute right-0 top-11 z-30 w-64 bg-popover border border-border rounded-xl shadow-xl overflow-hidden text-left"
-                            >
-                              {recategorizingId !== tx.id ? (
-                                <div className="py-1">
-                                  <button
-                                    onClick={() => openRecategorize(tx)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors text-left"
-                                  >
-                                    <Tag className="w-4 h-4 text-muted-foreground" />
-                                    Change category
-                                  </button>
-                                  <button
-                                    onClick={() => openRuleModal(tx)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors text-left"
-                                  >
-                                    <Wand2 className="w-4 h-4 text-muted-foreground" />
-                                    Create rule from transaction
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="py-1 max-h-72 overflow-y-auto">
-                                  <p className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                    Assign category
-                                  </p>
-                                  {categories.map((cat) => (
-                                    <button
-                                      key={cat.id}
-                                      onClick={() => handleUpdateCategory(tx.id, cat.id)}
-                                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
-                                    >
-                                      <CategoryIcon icon={cat.icon} color={cat.color} className="w-4 h-4" />
-                                      <span className="flex-1">{cat.name}</span>
-                                      {tx.categoryId === cat.id && <Check className="w-4 h-4 text-primary" />}
-                                    </button>
-                                  ))}
-                                  <button
-                                    onClick={() => handleUpdateCategory(tx.id, null)}
-                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors text-left border-t border-border"
-                                  >
-                                    <X className="w-4 h-4" />
-                                    Remove category
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -808,7 +819,7 @@ export default function TransactionsPage() {
               );
             })
           ) : (
-            <div className="px-6 py-12 text-center text-muted-foreground bg-card border border-border rounded-xl">
+            <div className="px-6 py-12 text-center text-muted-foreground">
               No transactions found
             </div>
           )}
@@ -826,26 +837,6 @@ export default function TransactionsPage() {
             </button>
           </div>
         )}
-
-        {/* Stats Footer */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-2">Total Transactions</p>
-            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-2">Total Income</p>
-            <p className="text-2xl font-bold text-emerald-500">
-              ${stats.income.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-2">Total Expenses</p>
-            <p className="text-2xl font-bold text-red-500">
-              ${stats.expenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Create Rule Modal */}
