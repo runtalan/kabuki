@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import {
   accounts,
+  accountBalanceHistory,
   plaidItems,
   transactions,
   transactionTypeEnum,
@@ -8,11 +9,21 @@ import {
 import { eq, and } from "drizzle-orm";
 import { plaidClient } from "./plaid";
 import { generateId } from "./id";
+import { autoTagTransaction } from "./auto-tag";
 
-// Sync accounts from Plaid for a given item.
+// Plaid's own account.type — 'credit' and 'loan' carry a balance you owe,
+// everything else (depository, investment, brokerage) is an asset.
+function deriveKind(plaidType: string): "asset" | "liability" {
+  return plaidType === "credit" || plaidType === "loan" ? "liability" : "asset";
+}
+
+// Sync accounts from Plaid for a given item. `defaultOwner` (a username,
+// e.g. "renato") is applied only when a NEW account is first created —
+// existing accounts keep whatever owner assignment was already set.
 export async function syncAccounts(
   plaidItemId: string,
-  accessToken: string
+  accessToken: string,
+  defaultOwner?: string
 ) {
   const plaidItem = await db.query.plaidItems.findFirst({
     where: eq(plaidItems.id, plaidItemId),
@@ -33,15 +44,18 @@ export async function syncAccounts(
 
     // Upsert accounts into DB
     for (const plaidAccount of plaidAccounts) {
+      const currentBalance = plaidAccount.balances.current?.toString() || "0";
       const accountData = {
         id: generateId(),
         plaidItemId,
         plaidAccountId: plaidAccount.account_id,
         name: plaidAccount.name,
         officialName: plaidAccount.official_name || null,
+        mask: plaidAccount.mask || null,
         type: plaidAccount.type,
         subtype: plaidAccount.subtype || null,
-        currentBalance: plaidAccount.balances.current?.toString() || "0",
+        kind: deriveKind(plaidAccount.type),
+        currentBalance,
         availableBalance: plaidAccount.balances.available?.toString() || null,
         currency: plaidAccount.balances.iso_currency_code || "USD",
         isActive: true,
@@ -54,19 +68,36 @@ export async function syncAccounts(
         where: eq(accounts.plaidAccountId, plaidAccount.account_id),
       });
 
+      let accountId: string;
       if (existing) {
+        accountId = existing.id;
         await db
           .update(accounts)
           .set({
             currentBalance: accountData.currentBalance,
             availableBalance: accountData.availableBalance,
             name: accountData.name,
+            mask: accountData.mask,
+            kind: accountData.kind,
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, existing.id));
       } else {
-        await db.insert(accounts).values(accountData);
+        accountId = accountData.id;
+        await db.insert(accounts).values({
+          ...accountData,
+          ...(defaultOwner ? { owner: defaultOwner } : {}),
+        });
       }
+
+      // One snapshot per sync — "every time it refreshes, it saves that
+      // balance at that time."
+      await db.insert(accountBalanceHistory).values({
+        id: generateId(),
+        accountId,
+        balance: currentBalance,
+        recordedAt: new Date(),
+      });
     }
 
     return plaidAccounts;
@@ -80,6 +111,7 @@ export async function syncAccounts(
 export async function syncTransactions(
   plaidItemId: string,
   accessToken: string,
+  userId?: string,
   days: number = 30
 ) {
   const plaidItem = await db.query.plaidItems.findFirst({
@@ -89,6 +121,8 @@ export async function syncTransactions(
   if (!plaidItem) {
     throw new Error("Plaid item not found");
   }
+
+  const finalUserId = userId || plaidItem.userId;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -125,6 +159,11 @@ export async function syncTransactions(
         continue;
       }
 
+      // Plaid's amount convention: positive = money out (expense), negative =
+      // money in (income/refund). We store the "friendly" flipped sign
+      // instead — negative = expense, positive = income — since that's what
+      // the spending/cash-flow queries and the dashboard widgets assume.
+      const isExpense = plaidTx.amount > 0;
       const txData = {
         id: generateId(),
         accountId,
@@ -133,8 +172,8 @@ export async function syncTransactions(
         name: plaidTx.name,
         merchant: plaidTx.merchant_name || null,
         merchantCleanedUp: null,
-        amount: plaidTx.amount.toString(),
-        type: (plaidTx.amount < 0 ? "debit" : "credit") as "debit" | "credit",
+        amount: (-plaidTx.amount).toString(),
+        type: (isExpense ? "debit" : "credit") as "debit" | "credit",
         date: new Date(plaidTx.date),
         pending: plaidTx.pending,
         notes: null,
@@ -160,7 +199,10 @@ export async function syncTransactions(
           })
           .where(eq(transactions.id, existing.id));
       } else {
-        await db.insert(transactions).values(txData);
+        const inserted = await db.insert(transactions).values(txData).returning();
+        if (inserted.length > 0 && finalUserId) {
+          await autoTagTransaction(finalUserId, inserted[0].id, plaidTx.merchant_name);
+        }
       }
     }
 

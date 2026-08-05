@@ -231,6 +231,8 @@ export async function getRecentTransactions(userId: string, limit = 10) {
       id: tx.id,
       name: tx.name,
       category: category?.name || 'Uncategorized',
+      categoryIcon: category?.icon || null,
+      categoryColor: category?.color || null,
       amount: Number(tx.amount),
       date: tx.date,
       merchant: tx.merchant || tx.name,

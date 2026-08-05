@@ -9,6 +9,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { formatNumber } from '@/lib/format';
+import { ChartTooltip } from './chart-tooltip';
+import { EmptyChartState } from './empty-chart-state';
 
 interface NetWorthData {
   month: string;
@@ -16,6 +19,14 @@ interface NetWorthData {
 }
 
 export function NetWorthChart({ data }: { data: NetWorthData[] }) {
+  if (data.length < 2) {
+    return (
+      <div className="w-full h-80">
+        <EmptyChartState message="Not enough history yet — check back after a sync or two" height={320} />
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
@@ -28,18 +39,18 @@ export function NetWorthChart({ data }: { data: NetWorthData[] }) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-          <YAxis stroke="hsl(var(--muted-foreground))" />
+          <YAxis
+            stroke="hsl(var(--muted-foreground))"
+            tickFormatter={(value) => `$${formatNumber(value)}`}
+          />
           <Tooltip
-            formatter={(value) => `$${typeof value === 'number' ? value.toFixed(0) : value}`}
-            contentStyle={{
-              backgroundColor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-            }}
+            cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' }}
+            content={<ChartTooltip />}
           />
           <Area
             type="monotone"
             dataKey="netWorth"
+            name="Net Worth"
             stroke="#3b82f6"
             fillOpacity={1}
             fill="url(#colorNetWorth)"

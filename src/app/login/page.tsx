@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense } from 'react';
-import { BarChart3 } from 'lucide-react';
+import Link from 'next/link';
+import { ButtonsLogo } from '@/components/buttons-logo';
 import { LoginForm } from './login-form';
 
 export default function LoginPage() {
@@ -9,19 +10,17 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-            <BarChart3 className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">Kabuki</h1>
-        </div>
+        <Link href="/" className="flex items-center justify-center gap-2.5 mb-10">
+          <ButtonsLogo className="w-11 h-11" />
+          <h1 className="text-3xl font-bold text-foreground">Buttons</h1>
+        </Link>
 
         {/* Form Card */}
-        <div className="bg-card border border-border rounded-lg p-8 shadow-sm">
+        <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Sign in</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Welcome back</h2>
             <p className="text-muted-foreground text-sm">
-              Enter your credentials to access your account
+              Sign in to see your buttons.
             </p>
           </div>
 

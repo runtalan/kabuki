@@ -42,7 +42,11 @@ export const plaidItems = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     itemId: varchar("item_id", { length: 255 }).notNull().unique(),
     accessToken: varchar("access_token", { length: 500 }).notNull(),
+    institutionName: varchar("institution_name", { length: 255 }),
     lastSyncedAt: timestamp("last_synced_at"),
+    syncStatus: varchar("sync_status", { length: 20 }).default("idle").notNull(), // "idle", "syncing", "error"
+    lastError: text("last_error"),
+    isManual: boolean("is_manual").default(false).notNull(), // synthetic container for manually-added accounts
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -63,12 +67,20 @@ export const accounts = pgTable(
     plaidAccountId: varchar("plaid_account_id", { length: 255 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     officialName: varchar("official_name", { length: 255 }),
-    type: varchar("type", { length: 50 }).notNull(), // "depository", "credit", "brokerage", etc.
+    mask: varchar("mask", { length: 10 }), // last 4 digits of the account number, from Plaid
+    displayName: varchar("display_name", { length: 255 }), // user-customized name
+    icon: varchar("icon", { length: 50 }), // lucide icon name
+    owner: varchar("owner", { length: 20 }).default("joint").notNull(), // "renato" | "claudia" | "joint"
+    type: varchar("type", { length: 50 }).notNull(), // "depository", "credit", "brokerage", "manual", etc.
     subtype: varchar("subtype", { length: 50 }), // "checking", "savings", "credit card", etc.
+    kind: varchar("kind", { length: 10 }).default("asset").notNull(), // "asset" | "liability" — sign for net worth
+    liabilityType: varchar("liability_type", { length: 30 }), // "credit_card" | "student_loan" | "mortgage" | "personal_loan" | "other"
+    isManual: boolean("is_manual").default(false).notNull(),
     currentBalance: numeric("current_balance", { precision: 16, scale: 2 }).notNull(),
     availableBalance: numeric("available_balance", { precision: 16, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    lastSyncedAt: timestamp("last_synced_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -78,18 +90,61 @@ export const accounts = pgTable(
   ]
 );
 
+// Historical balance snapshots — one row per sync (or manual edit) so each
+// account can render a real over-time line chart instead of an approximation.
+export const accountBalanceHistory = pgTable(
+  "account_balance_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    balance: numeric("balance", { precision: 16, scale: 2 }).notNull(),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_balance_history_account_id").on(table.accountId),
+    index("idx_balance_history_recorded_at").on(table.recordedAt),
+  ]
+);
+
 // Categories (for tagging/filtering transactions)
 export const categories = pgTable(
   "categories",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     name: varchar("name", { length: 100 }).notNull().unique(),
-    color: varchar("color", { length: 7 }).default("#6366f1").notNull(), // hex color
-    icon: varchar("icon", { length: 50 }).default("folder").notNull(), // lucide icon name
+    color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
+    icon: varchar("icon", { length: 50 }).default("folder").notNull(),
     isCustom: boolean("is_custom").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("idx_categories_name").on(table.name)]
+);
+
+// Auto-tagging rules
+export const rules = pgTable(
+  "rules",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    categoryId: varchar("category_id", { length: 36 })
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    merchantName: varchar("merchant_name", { length: 255 }).notNull(),
+    matchType: varchar("match_type", { length: 20 }).default("contains").notNull(), // "exact", "contains", "startsWith"
+    enabled: boolean("enabled").default(true).notNull(),
+    priority: integer("priority").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_rules_user_id").on(table.userId),
+    index("idx_rules_category_id").on(table.categoryId),
+    index("idx_rules_merchant_name").on(table.merchantName),
+  ]
 );
 
 // Transactions (from Plaid; enriched with category and merchant cleanup)
@@ -104,6 +159,11 @@ export const transactions = pgTable(
       () => categories.id,
       { onDelete: "set null" }
     ),
+    // Provenance of categoryId — governs override precedence: manual > rule > smart
+    categorySource: varchar("category_source", { length: 10 }),
+    // Per-transaction owner override — falls back to the account's owner
+    // when null (e.g. a joint account but this one purchase was Renato's).
+    ownerOverride: varchar("owner_override", { length: 20 }),
     plaidTransactionId: varchar("plaid_transaction_id", {
       length: 255,
     }).notNull(),
@@ -147,6 +207,38 @@ export const transactionSplits = pgTable(
   ]
 );
 
+// Freeform tags — cross-cutting labels like "Coachella" or "Wedding" that
+// aren't tied to a spending category, so a trip's flights (Travel),
+// restaurants (Dining), and merch (Shopping) can still be summed together.
+export const tags = pgTable(
+  "tags",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    name: varchar("name", { length: 100 }).notNull().unique(),
+    color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("idx_tags_name").on(table.name)]
+);
+
+// Many-to-many join: a transaction can carry several tags, a tag spans many transactions.
+export const transactionTags = pgTable(
+  "transaction_tags",
+  {
+    transactionId: varchar("transaction_id", { length: 36 })
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    tagId: varchar("tag_id", { length: 36 })
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("idx_transaction_tags_unique").on(table.transactionId, table.tagId),
+    index("idx_transaction_tags_transaction_id").on(table.transactionId),
+    index("idx_transaction_tags_tag_id").on(table.tagId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
@@ -166,7 +258,18 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
     references: [plaidItems.id],
   }),
   transactions: many(transactions),
+  balanceHistory: many(accountBalanceHistory),
 }));
+
+export const accountBalanceHistoryRelations = relations(
+  accountBalanceHistory,
+  ({ one }) => ({
+    account: one(accounts, {
+      fields: [accountBalanceHistory.accountId],
+      references: [accounts.id],
+    }),
+  })
+);
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
   transactions: many(transactions),
@@ -184,8 +287,24 @@ export const transactionsRelations = relations(
       references: [categories.id],
     }),
     splits: many(transactionSplits),
+    tags: many(transactionTags),
   })
 );
+
+export const tagsRelations = relations(tags, ({ many }) => ({
+  transactions: many(transactionTags),
+}));
+
+export const transactionTagsRelations = relations(transactionTags, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [transactionTags.transactionId],
+    references: [transactions.id],
+  }),
+  tag: one(tags, {
+    fields: [transactionTags.tagId],
+    references: [tags.id],
+  }),
+}));
 
 export const transactionSplitsRelations = relations(
   transactionSplits,
@@ -200,3 +319,14 @@ export const transactionSplitsRelations = relations(
     }),
   })
 );
+
+export const rulesRelations = relations(rules, ({ one }) => ({
+  user: one(users, {
+    fields: [rules.userId],
+    references: [users.id],
+  }),
+  category: one(categories, {
+    fields: [rules.categoryId],
+    references: [categories.id],
+  }),
+}));

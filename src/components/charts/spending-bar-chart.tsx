@@ -1,6 +1,9 @@
 'use client';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { formatNumber } from '@/lib/format';
+import { ChartTooltip } from './chart-tooltip';
+import { EmptyChartState } from './empty-chart-state';
 
 interface SpendingData {
   name: string;
@@ -9,6 +12,16 @@ interface SpendingData {
 }
 
 export function SpendingBarChart({ data }: { data: SpendingData[] }) {
+  const hasData = data.some((d) => d.value > 0);
+
+  if (!hasData) {
+    return (
+      <div className="w-full h-80">
+        <EmptyChartState message="No spending recorded for this period" height={320} />
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-80">
       <ResponsiveContainer width="100%" height="100%">
@@ -26,15 +39,11 @@ export function SpendingBarChart({ data }: { data: SpendingData[] }) {
           />
           <YAxis
             tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-            label={{ value: 'Amount ($)', angle: -90, position: 'insideLeft' }}
+            tickFormatter={(value) => `$${formatNumber(value)}`}
           />
           <Tooltip
-            formatter={(value) => `$${typeof value === 'number' ? value.toFixed(2) : value}`}
-            contentStyle={{
-              backgroundColor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-            }}
+            cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+            content={<ChartTooltip />}
           />
           <Legend />
           <Bar dataKey="value" fill="#8884d8" name="Spending" radius={[8, 8, 0, 0]}>

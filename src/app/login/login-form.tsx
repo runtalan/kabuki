@@ -88,16 +88,6 @@ export function LoginForm() {
         <LogIn className="w-5 h-5" />
         {isLoading ? 'Signing in...' : 'Sign in'}
       </button>
-
-      {/* Demo Credentials */}
-      <div className="mt-8 pt-6 border-t border-border">
-        <p className="text-xs text-muted-foreground mb-3">
-          Demo credentials:
-        </p>
-        <code className="block text-xs bg-muted/30 p-3 rounded text-foreground">
-          renato / password
-        </code>
-      </div>
     </form>
   );
 }

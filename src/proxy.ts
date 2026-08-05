@@ -5,8 +5,9 @@ import { NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const session = await auth();
 
-  // Allow login page and static assets
+  // Allow the marketing landing page, login page, and static assets
   if (
+    request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname.startsWith("/api") ||
     request.nextUrl.pathname.startsWith("/_next") ||

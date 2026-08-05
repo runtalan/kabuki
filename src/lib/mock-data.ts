@@ -35,6 +35,10 @@ export const mockAccounts = [
     type: 'depository',
     balance: 15230.50,
     currency: 'USD',
+    kind: 'asset' as const,
+    owner: 'joint',
+    icon: null as string | null,
+    mask: null as string | null,
   },
   {
     id: '2',
@@ -42,13 +46,21 @@ export const mockAccounts = [
     type: 'depository',
     balance: 25000.00,
     currency: 'USD',
+    kind: 'asset' as const,
+    owner: 'joint',
+    icon: null as string | null,
+    mask: null as string | null,
   },
   {
     id: '3',
     name: 'Credit Card',
     type: 'credit',
-    balance: -5000.00,
+    balance: 5000.00,
     currency: 'USD',
+    kind: 'liability' as const,
+    owner: 'joint',
+    icon: null as string | null,
+    mask: null as string | null,
   },
 ];
 

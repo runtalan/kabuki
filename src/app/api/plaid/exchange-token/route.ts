@@ -9,13 +9,14 @@ import { z } from "zod";
 
 const ExchangeTokenSchema = z.object({
   public_token: z.string(),
+  institution_name: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     const body = await req.json();
-    const { public_token } = ExchangeTokenSchema.parse(body);
+    const { public_token, institution_name } = ExchangeTokenSchema.parse(body);
 
     // Exchange public_token for access_token
     const exchangeResponse = await plaidClient.itemPublicTokenExchange({
@@ -32,13 +33,15 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       itemId,
       accessToken,
+      institutionName: institution_name || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    // Sync accounts and transactions immediately after linking
-    await syncAccounts(plaidItemId, accessToken);
-    await syncTransactions(plaidItemId, accessToken);
+    // Sync accounts and transactions immediately after linking — new
+    // accounts default to whoever linked them, not a generic "joint" label.
+    await syncAccounts(plaidItemId, accessToken, user.email);
+    await syncTransactions(plaidItemId, accessToken, user.id);
 
     return NextResponse.json({
       success: true,

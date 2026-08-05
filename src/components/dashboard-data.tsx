@@ -2,10 +2,10 @@ import { getUser } from '@/lib/auth';
 import {
   getSpendingByCategory,
   getCashFlowData,
-  getNetWorthTrend,
   getUserAccounts,
   getRecentTransactions,
 } from '@/lib/queries';
+import { getNetWorthSeries } from '@/lib/net-worth';
 import { mockSpendingByCategory, mockCashFlowData, mockNetWorthTrend, mockAccounts, mockRecentTransactions } from '@/lib/mock-data';
 
 export async function getDashboardData() {
@@ -22,28 +22,34 @@ export async function getDashboardData() {
       };
     }
 
-    const [spendingByCategory, cashFlowData, netWorthTrend, userAccounts, recentTransactions] =
+    const [spendingByCategory, cashFlowData, netWorthSeries, userAccounts, recentTransactions] =
       await Promise.all([
         getSpendingByCategory(user.id),
         getCashFlowData(user.id),
-        getNetWorthTrend(user.id),
+        getNetWorthSeries(user.id, '3m'),
         getUserAccounts(user.id),
         getRecentTransactions(user.id, 5),
       ]);
 
-    // Fallback to mock data if queries return empty
+    // Real data only — empty states render honestly instead of mock fallbacks
     return {
-      spendingByCategory: spendingByCategory.length > 0 ? spendingByCategory : mockSpendingByCategory,
-      cashFlowData: cashFlowData.length > 0 ? cashFlowData : mockCashFlowData,
-      netWorthTrend: netWorthTrend.length > 0 ? netWorthTrend : mockNetWorthTrend,
-      accounts: userAccounts.length > 0 ? userAccounts.map(acc => ({
+      spendingByCategory,
+      cashFlowData,
+      netWorthTrend: netWorthSeries.length > 0
+        ? netWorthSeries.map((p) => ({ month: p.date, netWorth: p.netWorth }))
+        : [],
+      accounts: userAccounts.map(acc => ({
         id: acc.id,
-        name: acc.name,
+        name: acc.displayName || acc.name,
         type: acc.type,
         balance: Number(acc.currentBalance),
         currency: acc.currency,
-      })) : mockAccounts,
-      recentTransactions: recentTransactions.length > 0 ? recentTransactions : mockRecentTransactions,
+        kind: acc.kind as 'asset' | 'liability',
+        owner: acc.owner,
+        icon: acc.icon,
+        mask: acc.mask,
+      })),
+      recentTransactions,
     };
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
@@ -69,16 +75,18 @@ export async function getReportsData() {
       };
     }
 
-    const [spendingByCategory, cashFlowData, netWorthTrend] = await Promise.all([
+    const [spendingByCategory, cashFlowData, netWorthSeries] = await Promise.all([
       getSpendingByCategory(user.id),
       getCashFlowData(user.id),
-      getNetWorthTrend(user.id),
+      getNetWorthSeries(user.id, '6m'),
     ]);
 
     return {
       spendingByCategory: spendingByCategory.length > 0 ? spendingByCategory : mockSpendingByCategory,
       cashFlowData: cashFlowData.length > 0 ? cashFlowData : mockCashFlowData,
-      netWorthTrend: netWorthTrend.length > 0 ? netWorthTrend : mockNetWorthTrend,
+      netWorthTrend: netWorthSeries.length > 0
+        ? netWorthSeries.map((p) => ({ month: p.date, netWorth: p.netWorth }))
+        : mockNetWorthTrend,
     };
   } catch (error) {
     console.error('Error fetching reports data:', error);

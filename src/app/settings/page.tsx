@@ -28,7 +28,7 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
         <p className="text-muted-foreground mb-8">Manage your account and preferences.</p>
 
