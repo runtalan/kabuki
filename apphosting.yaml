@@ -39,7 +39,7 @@ env:
       - RUNTIME
 
   - variable: PLAID_ENV
-    value: "sandbox"
+    secret: PLAID_ENV
     availability:
       - RUNTIME
 
