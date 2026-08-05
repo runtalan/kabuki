@@ -18,7 +18,8 @@
     "db:inject": "tsx src/db/inject-user.ts",
     "env:sandbox": "bash scripts/switch-env.sh sandbox",
     "env:production-limited": "bash scripts/switch-env.sh production-limited",
-    "env:production": "bash scripts/switch-env.sh production"
+    "env:production": "bash scripts/switch-env.sh production",
+    "verify:prod-secrets": "bash scripts/verify-prod-secrets.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
