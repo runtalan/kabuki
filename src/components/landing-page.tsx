@@ -3,6 +3,29 @@ import { Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
+function LaurelWreath() {
+  return (
+    <svg viewBox="0 0 60 100" className="w-12 h-16 opacity-60">
+      <g>
+        {/* Left wreath */}
+        <path d="M 30 10 Q 20 20 15 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
+        <path d="M 30 10 Q 20 20 15 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
+        <ellipse cx="18" cy="18" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="16" cy="24" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="15" cy="30" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="15" cy="36" rx="2" ry="3" fill="currentColor" />
+
+        {/* Right wreath */}
+        <path d="M 30 10 Q 40 20 45 35" stroke="currentColor" strokeWidth="1.5" fill="none" />
+        <ellipse cx="42" cy="18" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="44" cy="24" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="45" cy="30" rx="2" ry="3" fill="currentColor" />
+        <ellipse cx="45" cy="36" rx="2" ry="3" fill="currentColor" />
+      </g>
+    </svg>
+  );
+}
+
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
@@ -114,9 +137,17 @@ export function LandingPage() {
             { label: '100% Approved', sub: 'By Renato & Claudia' },
             { label: '★★★★★', sub: '2 users, 2 five-star reviews' },
           ].map((badge) => (
-            <div key={badge.label}>
-              <p className="font-semibold text-foreground text-sm">🌿 {badge.label} 🌿</p>
-              <p className="text-xs text-muted-foreground mt-1">{badge.sub}</p>
+            <div key={badge.label} className="flex flex-col items-center gap-3">
+              <div className="flex items-center justify-center gap-3 w-full">
+                <LaurelWreath />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">{badge.label}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{badge.sub}</p>
+                </div>
+                <div className="scale-x-[-1]">
+                  <LaurelWreath />
+                </div>
+              </div>
             </div>
           ))}
         </div>
