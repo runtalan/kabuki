@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Area,
   AreaChart,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import { MerchantAvatar } from '@/components/merchant-avatar';
 import { SpendCalendar } from '@/components/spend-calendar';
+import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { getTypeBadge } from '@/lib/account-types';
 import { OWNERS, getOwner } from '@/components/owner-badge';
 
@@ -62,6 +65,33 @@ interface RecentTransaction {
   date: string;
 }
 
+interface EditableCategory {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+interface EditableTransaction {
+  id: string;
+  name: string;
+  amount: string;
+  type: 'debit' | 'credit';
+  date: string;
+  pending?: boolean;
+  hidden?: boolean;
+  transferType?: 'transfer' | 'credit_card_payment' | null;
+  categoryId?: string | null;
+  ownerOverride?: string | null;
+  account?: {
+    owner?: string | null;
+    name?: string;
+    displayName?: string | null;
+    mask?: string | null;
+  } | null;
+  tags?: { id: string; name: string; color: string }[];
+}
+
 function money(value: number, decimals = 0) {
   return `$${Math.abs(value).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -104,6 +134,21 @@ export function HomeOverview({
     savings: 0,
   };
   const cashFlowMax = Math.max(currentMonth.income, currentMonth.expenses, 1);
+
+  const router = useRouter();
+  const [categories, setCategories] = useState<EditableCategory[]>([]);
+  const [editingTx, setEditingTx] = useState<EditableTransaction | null>(null);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setCategories(data.categories || []));
+  }, []);
+
+  const openTransaction = async (id: string) => {
+    const res = await fetch(`/api/transactions/${id}`);
+    if (res.ok) setEditingTx(await res.json());
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -178,7 +223,7 @@ export function HomeOverview({
 
         {/* Spent this month (calendar) */}
         <div className="bg-card border border-border rounded-2xl p-6">
-          <SpendCalendar bare />
+          <SpendCalendar bare onSelectTransaction={openTransaction} />
         </div>
 
         {/* Recent Activity */}
@@ -197,10 +242,10 @@ export function HomeOverview({
           <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
             {recentTransactions.length > 0 ? (
               recentTransactions.map((tx) => (
-                <Link
+                <button
                   key={tx.id}
-                  href="/spending/transactions"
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                  onClick={() => openTransaction(tx.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors text-left cursor-pointer"
                   style={{ borderLeft: `3px solid ${getOwner(tx.owner).color}` }}
                 >
                   <MerchantAvatar
@@ -235,7 +280,7 @@ export function HomeOverview({
                     {tx.amount >= 0 ? '+' : '-'}
                     {money(tx.amount, 2)}
                   </p>
-                </Link>
+                </button>
               ))
             ) : (
               <p className="text-sm text-muted-foreground px-3 py-6 text-center">
@@ -249,7 +294,10 @@ export function HomeOverview({
       {/* Right column: cash flow + quick account balances */}
       <div className="space-y-6">
         {/* Cash Flow */}
-        <div className="bg-card border border-border rounded-2xl p-6">
+        <Link
+          href="/home/cash-flow"
+          className="block bg-card border border-border rounded-2xl p-6 hover:border-primary/40 hover:shadow-sm transition-all"
+        >
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
             Cash Flow This Month
           </p>
@@ -298,7 +346,7 @@ export function HomeOverview({
               </span>
             </div>
           </div>
-        </div>
+        </Link>
 
         <div className="bg-card border border-border rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
@@ -358,6 +406,18 @@ export function HomeOverview({
           </div>
         </div>
       </div>
+
+      {editingTx && (
+        <TransactionEditModal
+          transaction={editingTx}
+          categories={categories}
+          onClose={() => setEditingTx(null)}
+          onSaved={() => {
+            setEditingTx(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

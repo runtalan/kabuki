@@ -183,6 +183,118 @@ export async function getCashFlowData(userId: string) {
   }));
 }
 
+const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Monthly income/expense/savings series for the Cash Flow chart — longer
+// trailing window than getCashFlowData (which only feeds the Home widget's
+// "this month" snapshot).
+export async function getCashFlowSeries(userId: string, months = 24) {
+  const userItems = await db.query.plaidItems.findMany({
+    where: eq(plaidItems.userId, userId),
+  });
+
+  const itemIds = userItems.map((item) => item.id);
+  if (itemIds.length === 0) return [];
+
+  const userAccounts = await db.query.accounts.findMany({
+    where: inArray(accounts.plaidItemId, itemIds),
+  });
+
+  const accountIds = userAccounts.map((acc) => acc.id);
+  if (accountIds.length === 0) return [];
+
+  const now = new Date();
+  const rangeStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+
+  const allTransactions = await db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        gte(transactions.date, rangeStart),
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN,
+        NOT_TRANSFER
+      )
+    );
+
+  const monthData: Record<string, { income: number; expenses: number }> = {};
+  const order: { key: string; year: number; monthIndex: number }[] = [];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    monthData[key] = { income: 0, expenses: 0 };
+    order.push({ key, year: date.getFullYear(), monthIndex: date.getMonth() });
+  }
+
+  for (const tx of allTransactions) {
+    const key = `${tx.date.getFullYear()}-${tx.date.getMonth()}`;
+    if (!monthData[key]) continue;
+    if (Number(tx.amount) >= 0) {
+      monthData[key].income += Number(tx.amount);
+    } else {
+      monthData[key].expenses += Math.abs(Number(tx.amount));
+    }
+  }
+
+  return order.map(({ key, year, monthIndex }, idx) => {
+    const { income, expenses } = monthData[key];
+    const savings = income - expenses;
+    return {
+      month: MONTH_NAMES[monthIndex],
+      year,
+      label: `${MONTH_NAMES[monthIndex]} ${year}`,
+      income: Math.round(income),
+      expenses: Math.round(expenses),
+      savings: Math.round(savings),
+      savingsRate: income > 0 ? (savings / income) * 100 : 0,
+      isCurrentMonth: idx === order.length - 1,
+    };
+  });
+}
+
+// Get every income/expense transaction in the current calendar month, with
+// enough relations loaded to drive the edit modal — powers the Home →
+// Income/Expense page that the "Cash Flow This Month" card links to.
+export async function getCurrentMonthTransactions(userId: string) {
+  const userItems = await db.query.plaidItems.findMany({
+    where: eq(plaidItems.userId, userId),
+  });
+
+  const itemIds = userItems.map((item) => item.id);
+  if (itemIds.length === 0) return [];
+
+  const userAccounts = await db.query.accounts.findMany({
+    where: inArray(accounts.plaidItemId, itemIds),
+  });
+
+  const accountIds = userAccounts.map((acc) => acc.id);
+  if (accountIds.length === 0) return [];
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  return db.query.transactions.findMany({
+    where: and(
+      gte(transactions.date, monthStart),
+      inArray(transactions.accountId, accountIds),
+      NOT_HIDDEN,
+      NOT_TRANSFER
+    ),
+    with: {
+      category: true,
+      account: {
+        columns: { id: true, name: true, displayName: true, owner: true, mask: true, isManual: true },
+      },
+      tags: { with: { tag: true } },
+    },
+    orderBy: desc(transactions.date),
+  });
+}
+
 // Get net worth trend (last 6 months)
 export async function getNetWorthTrend(userId: string) {
   const userAccounts = await getUserAccounts(userId);

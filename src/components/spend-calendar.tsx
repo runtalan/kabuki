@@ -43,7 +43,10 @@ function heatClasses(net: number, maxMagnitude: number) {
   return BLUE_CLASSES[level];
 }
 
-export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
+export function SpendCalendar({
+  bare = false,
+  onSelectTransaction,
+}: { bare?: boolean; onSelectTransaction?: (id: string) => void } = {}) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(() => new Date());
@@ -327,7 +330,10 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
                     {dayTxs.map((tx) => (
                       <div
                         key={tx.id}
-                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                        onClick={() => onSelectTransaction?.(tx.id)}
+                        className={`flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors ${
+                          onSelectTransaction ? 'cursor-pointer' : ''
+                        }`}
                         style={{ borderLeft: `3px solid ${getOwner(tx.account?.owner).color}` }}
                       >
                         <MerchantAvatar

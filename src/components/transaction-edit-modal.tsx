@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2 } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS } from './owner-badge';
 import { formatCurrency } from '@/lib/format';
@@ -23,6 +23,7 @@ interface Tag {
 interface Transaction {
   id: string;
   name: string;
+  merchant?: string | null;
   amount: string;
   type: 'debit' | 'credit';
   date: string;
@@ -80,6 +81,15 @@ export function TransactionEditModal({
   const [editingBasics, setEditingBasics] = useState(false);
   const [visible, setVisible] = useState(false);
 
+  const [ruleSectionOpen, setRuleSectionOpen] = useState(false);
+  const [ruleMatchType, setRuleMatchType] = useState<'exact' | 'contains' | 'startsWith'>('contains');
+  const [ruleMerchantName, setRuleMerchantName] = useState(transaction.merchant || transaction.name);
+  const [ruleCategoryId, setRuleCategoryId] = useState(transaction.categoryId || '');
+  const [ruleApplyNow, setRuleApplyNow] = useState(true);
+  const [savingRule, setSavingRule] = useState(false);
+  const [ruleError, setRuleError] = useState('');
+  const [ruleCreated, setRuleCreated] = useState(false);
+
   const tagBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categoryBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -105,6 +115,7 @@ export function TransactionEditModal({
   useEscapeKey(() => {
     if (categoryDropdownOpen) return setCategoryDropdownOpen(false);
     if (tagDropdownOpen) return setTagDropdownOpen(false);
+    if (ruleSectionOpen) return setRuleSectionOpen(false);
     handleClose();
   });
 
@@ -201,6 +212,37 @@ export function TransactionEditModal({
     const value = transferType === next ? null : next;
     setTransferType(value);
     await persist({ transferType: value });
+  };
+
+  const handleCreateRule = async () => {
+    if (!ruleMerchantName.trim() || !ruleCategoryId) return;
+    setSavingRule(true);
+    setRuleError('');
+    try {
+      const res = await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantName: ruleMerchantName.trim(),
+          matchType: ruleMatchType,
+          categoryId: ruleCategoryId,
+        }),
+      });
+      if (res.ok) {
+        if (ruleApplyNow) {
+          setCategoryId(ruleCategoryId);
+          await persist({ categoryId: ruleCategoryId });
+        }
+        setRuleSectionOpen(false);
+        setRuleCreated(true);
+        setTimeout(() => setRuleCreated(false), 2500);
+      } else {
+        const data = await res.json();
+        setRuleError(data.error || 'Failed to create rule');
+      }
+    } finally {
+      setSavingRule(false);
+    }
   };
 
   const accountLabel = transaction.account
@@ -402,6 +444,107 @@ export function TransactionEditModal({
                   ) : (
                     <p className="px-3 py-2 text-sm text-muted-foreground">No matching categories</p>
                   )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Auto-tag rule */}
+          <div className="px-5 py-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-foreground inline-flex items-center gap-1.5">
+                <Wand2 className="w-3.5 h-3.5 text-muted-foreground" />
+                Auto-tag rule
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!ruleSectionOpen) {
+                    setRuleMerchantName(transaction.merchant || transaction.name);
+                    setRuleCategoryId(categoryId);
+                  }
+                  setRuleSectionOpen((v) => !v);
+                }}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Create rule
+              </button>
+            </div>
+
+            {ruleCreated && (
+              <p className="text-xs text-emerald-500 font-medium">Rule created ✓</p>
+            )}
+
+            {ruleSectionOpen && (
+              <div className="space-y-3 mt-1">
+                <div className="flex flex-wrap items-center gap-2 text-sm bg-muted/40 border border-border rounded-lg px-3 py-2.5">
+                  <span className="text-muted-foreground">If merchant</span>
+                  <select
+                    value={ruleMatchType}
+                    onChange={(e) => setRuleMatchType(e.target.value as 'exact' | 'contains' | 'startsWith')}
+                    className="px-2 py-1 rounded border border-border bg-background text-foreground text-xs"
+                  >
+                    <option value="contains">contains</option>
+                    <option value="exact">equals</option>
+                    <option value="startsWith">starts with</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={ruleMerchantName}
+                    onChange={(e) => setRuleMerchantName(e.target.value)}
+                    className="flex-1 min-w-24 px-2 py-1 rounded border border-border bg-background text-foreground text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Then tag as</label>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                    {categories.map((cat) => (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => setRuleCategoryId(cat.id)}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs text-left transition-colors ${
+                          ruleCategoryId === cat.id
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border hover:bg-muted text-foreground'
+                        }`}
+                      >
+                        <CategoryIcon icon={cat.icon} color={cat.color} className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{cat.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ruleApplyNow}
+                    onChange={(e) => setRuleApplyNow(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  Also apply to this transaction now
+                </label>
+
+                {ruleError && <p className="text-xs text-red-500">{ruleError}</p>}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateRule}
+                    disabled={savingRule || !ruleMerchantName.trim() || !ruleCategoryId}
+                    className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {savingRule ? 'Saving...' : 'Save Rule'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRuleSectionOpen(false)}
+                    className="px-3 py-1.5 bg-muted text-foreground text-xs rounded-lg hover:bg-muted/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             )}

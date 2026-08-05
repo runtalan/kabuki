@@ -39,6 +39,7 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
 export const HOME_TABS: PageTab[] = [
   { href: '/home', label: 'Overview' },
   { href: '/home/net-worth', label: 'Net worth' },
+  { href: '/home/cash-flow', label: 'Cash flow' },
 ];
 
 export const SPENDING_TABS: PageTab[] = [
