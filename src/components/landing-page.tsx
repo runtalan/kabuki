@@ -39,7 +39,7 @@ function LaurelBranch({ flip = false }: { flip?: boolean }) {
   };
 
   return (
-    <g transform={flip ? 'scale(-1,1)' : undefined}>
+    <g transform={flip ? 'translate(58,0) scale(-1,1)' : undefined}>
       <path d={stemPath} stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
       {leaves.map(({ t, size }, i) => {
         const { x, y, angle } = pointAt(t);
@@ -62,7 +62,7 @@ function LaurelBranch({ flip = false }: { flip?: boolean }) {
 
 function LaurelWreath({ flip = false }: { flip?: boolean }) {
   return (
-    <svg viewBox="0 0 58 104" className="w-9 h-16 text-foreground/70">
+    <svg viewBox="0 0 58 104" className="w-14 h-24 text-foreground/70">
       <LaurelBranch flip={flip} />
     </svg>
   );
