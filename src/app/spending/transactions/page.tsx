@@ -491,6 +491,29 @@ export default function TransactionsPage() {
           </div>
         </div>
 
+        {/* Custom Date Range Info */}
+        {customDateStart && customDateEnd && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
+            <p className="text-sm text-foreground">
+              Custom date range:{' '}
+              <span className="font-semibold">
+                {new Date(customDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} -{' '}
+                {new Date(customDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            </p>
+            <button
+              onClick={() => {
+                setCustomDateStart('');
+                setCustomDateEnd('');
+                setTimeRange('all');
+              }}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Tag total, when a tag filter is active */}
         {selectedTag !== 'all' && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">

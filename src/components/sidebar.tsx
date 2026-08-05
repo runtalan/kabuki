@@ -8,6 +8,7 @@ import {
   Home,
   Landmark,
   BarChart2,
+  TrendingUp,
   Shapes,
   Wand2,
   Tags,
@@ -31,6 +32,14 @@ const navSections = [
       { href: '/spending', label: 'Spending', icon: BarChart2 },
       { href: '/spending/transactions', label: 'Transactions', icon: BarChart2 },
       { href: '/accounts', label: 'Accounts', icon: Landmark },
+    ],
+  },
+  {
+    label: 'Invest',
+    items: [
+      { href: '/invest', label: 'Holdings', icon: TrendingUp },
+      { href: '/invest/options', label: 'Options', icon: TrendingUp },
+      { href: '/invest/predictions', label: 'Predictions', icon: TrendingUp },
     ],
   },
   {
