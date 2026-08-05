@@ -6,15 +6,15 @@
 
 - **Local development**: Always use `sandbox` environment (fake data, safe to experiment)
 - **Production (Firebase)**: Always use `production` environment (real Plaid API, real database)
-- **Database**: Sandbox uses `kabuki_sandbox` (local, throwaway data); Production uses `kabuki` (real data on Cloud SQL)
+- **Database**: Sandbox uses `kabuki_sandbox` (local, throwaway data); Production uses Supabase Postgres (project `qqhvjcwqhfvpjlisezaq`, session pooler connection)
 
 ## Three Environments
 
 | Environment | Use Case | Plaid | Database | Command | Notes |
 |---|---|---|---|---|---|
 | `sandbox` | **Local development only** | Sandbox (fake data) | `kabuki_sandbox` (local) | `npm run env:sandbox` | Safe for testing; fake institutions; data is transient |
-| `production-limited` | Not typically used | Real (limited tier) | `kabuki` (real) | `npm run env:production-limited` | Same credentials as `production`; kept separate for future tier-specific keys |
-| `production` | **Firebase deploy only** | Real (full tier) | `kabuki` (real on Cloud SQL) | `npm run env:production` | Never use locally; syncs real bank accounts |
+| `production-limited` | Not typically used | Real (limited tier) | `postgresql://localhost/kabuki` (stale — not the real database; not typically used) | `npm run env:production-limited` | Same credentials as `production`; kept separate for future tier-specific keys |
+| `production` | **Firebase deploy only** | Real (full tier) | Real data, Supabase project `qqhvjcwqhfvpjlisezaq` (session pooler) | `npm run env:production` | Never use locally; syncs real bank accounts |
 
 ## Local Development Workflow
 
@@ -72,7 +72,7 @@ npm run db:studio     # browse/edit data in Drizzle Studio
    ```
 
    Use these exact values:
-   - `DATABASE_URL`: Your production Postgres URL (Cloud SQL)
+   - `DATABASE_URL`: Your production Postgres URL (Supabase, session pooler — see "Database Setup" below)
    - `AUTH_SECRET`: `6f8d9c2e7a1b4e5f3c9a8d2b7e4f1a6c5d9e2b8f3a7c1d4e6f9a2b5c8d1e4f`
    - `PLAID_CLIENT_ID`: `6a726935989b1b000e47014a`
    - `PLAID_SECRET`: `7790789a21002b1690c9bfff36d21e` (production, NOT sandbox)
@@ -194,11 +194,13 @@ DATABASE_URL=postgresql://localhost/kabuki_sandbox npx drizzle-kit push
 DATABASE_URL=postgresql://localhost/kabuki_sandbox npx tsx src/db/seed.ts
 ```
 
-### For production (Cloud SQL, one-time)
-1. Create Cloud SQL Postgres instance in GCP
-2. Get the connection string (looks like `postgresql://user:pass@host:5432/kabuki`)
-3. Set it in Firebase: `npx firebase apphosting:secrets:set DATABASE_URL`
-4. Run migrations via Firebase deploy (set `npm run db:push` in `apphosting.yaml`, or run it manually once)
+### For production (Supabase, one-time)
+1. Production runs on Supabase project `qqhvjcwqhfvpjlisezaq` (already provisioned; see the Supabase dashboard for this org).
+2. Get the connection string from Project Settings → Database → Connection string → **Session pooler** tab (looks like `postgresql://postgres.qqhvjcwqhfvpjlisezaq:<password>@aws-<region>.pooler.supabase.com:5432/postgres`). Use the session pooler, not the direct `db.*.supabase.co` host — the direct host is IPv6-only and may not be reachable from every network/runtime.
+3. Set it in Firebase: `npx firebase apphosting:secrets:set DATABASE_URL --backend kabuki`
+4. Apply migrations directly against Supabase (see [DATABASE.md](./DATABASE.md)) — either via `psql <connection-string> -f drizzle/00NN_*.sql` or the Supabase MCP `apply_migration` tool.
+
+Note: RLS is not enabled on any table (matches the app's pre-existing model — all access control lives in application code, not the database). This is a known, deliberate gap; revisit if this app ever adds a Supabase client (`@supabase/supabase-js`) that talks to the Data API directly.
 
 ## Troubleshooting
 

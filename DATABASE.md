@@ -2,6 +2,8 @@
 
 **Read this before touching `src/db/schema.ts`.** This project does not use `drizzle-kit generate` / `drizzle-kit migrate` — migrations are hand-written SQL files in `drizzle/`, applied manually with `psql`, and this file is the log of what ran where and when. See [ENVIRONMENTS.md](./ENVIRONMENTS.md) for which database is which.
 
+**Production runs on Supabase** (project `qqhvjcwqhfvpjlisezaq`), migrated from Google Cloud SQL on 2026-08-05. Sandbox is still a local Postgres instance (`kabuki_sandbox`), unchanged. Because the `drizzle/` files had already drifted from what was actually running in production before this migration (see note at the bottom), the Supabase schema was seeded from a `pg_dump --schema-only` of the real production database rather than by replaying `drizzle/0000`–`0013` — treat live Supabase as the source of truth going forward and keep `drizzle/` in sync with it via this log.
+
 ## Workflow for a new migration (do this every time)
 
 1. Edit `src/db/schema.ts` first — the Drizzle schema is the source of truth for what the app code expects.
@@ -12,11 +14,11 @@
    ```
 4. Add a row to the log below — date, migration file, one-line feature description.
 5. Commit the schema change + migration file + this log update together.
-6. After deploying, apply the same file to **production**:
+6. After deploying, apply the same file to **production** (Supabase, session pooler):
    ```bash
-   psql "postgresql://postgres:<PROD_PASSWORD>@136.64.112.60:5432/kabuki" -f drizzle/00NN_short_description.sql
+   psql "postgresql://postgres.qqhvjcwqhfvpjlisezaq:<PROD_PASSWORD>@aws-1-us-west-2.pooler.supabase.com:5432/postgres" -f drizzle/00NN_short_description.sql
    ```
-   Prod connection details live in Firebase secrets (`DATABASE_URL`) — see ENVIRONMENTS.md. Do not hardcode the password in scripts or commits.
+   Prod connection details live in Firebase secrets (`DATABASE_URL`) — see ENVIRONMENTS.md. Do not hardcode the password in scripts or commits. Alternatively, use the Supabase MCP `apply_migration` tool if working from an assistant with that server configured.
 7. Update the "Current schema state" table at the bottom if the migration touched it.
 
 **Why manual and not `drizzle-kit migrate`:** the project has run `db:push`-style manual application since day one (see the `_journal.json` gap between idx 1 and the 12 migration files that actually exist). Keep doing it this way for consistency — don't switch to the journal-tracked flow mid-project without migrating the journal too.
@@ -67,5 +69,9 @@ psql <DATABASE_URL> -c "\d transactions"                        # describe one t
 
 # Diff sandbox vs prod schema by eye
 psql postgresql://localhost/kabuki_sandbox -c "\d transactions"
-psql "<PROD_DATABASE_URL>" -c "\d transactions"
+psql "<PROD_SUPABASE_DATABASE_URL>" -c "\d transactions"
 ```
+
+## Known drift (found during the Supabase migration, 2026-08-05)
+
+`drizzle/0000_keen_doomsday.sql` creates `users.email`, but the app (`src/db/schema.ts`) and live production have used `users.username` since the very first commit — the rename was applied by hand at some point and never captured as a migration file. If you're ever rebuilding a database from the `drizzle/` files in order, this table will come out wrong. Prefer `pg_dump --schema-only` from live production as the source of truth when in doubt, and consider writing the missing rename as an explicit migration to close this gap.
