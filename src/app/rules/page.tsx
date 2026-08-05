@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Trash2, ToggleLeft } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
+import { FetchErrorBanner } from '@/components/fetch-error-banner';
 
 interface Category {
   id: string;
@@ -26,6 +27,7 @@ export default function RulesPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     merchantName: '',
@@ -48,14 +50,21 @@ export default function RulesPage() {
       if (rulesRes.ok) {
         const rulesData = await rulesRes.json();
         setRules(rulesData.rules || []);
+      } else {
+        setLoadError(true);
       }
 
       if (categoriesRes.ok) {
         const categoriesData = await categoriesRes.json();
         setCategories(categoriesData.categories || []);
+      } else {
+        setLoadError(true);
       }
+
+      if (rulesRes.ok && categoriesRes.ok) setLoadError(false);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -145,6 +154,15 @@ export default function RulesPage() {
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
+        {loadError && (
+          <FetchErrorBanner
+            message="Couldn't load your rules. Check your connection and try again."
+            onRetry={() => {
+              setLoading(true);
+              fetchData();
+            }}
+          />
+        )}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Auto-Tagging Rules</h1>

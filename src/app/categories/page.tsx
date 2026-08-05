@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/app-layout';
 import { LUCIDE_ICONS } from '@/lib/icons';
 import { CategoryIcon } from '@/components/category-icon';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { FetchErrorBanner } from '@/components/fetch-error-banner';
 
 interface Category {
   id: string;
@@ -36,6 +37,7 @@ const EMPTY_FORM = { name: '', color: '#3b82f6', icon: 'folder' };
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'table'>('table');
   const [sortBy, setSortBy] = useState<'name' | 'type'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -96,9 +98,13 @@ export default function CategoriesPage() {
       const data = await response.json();
       if (response.ok) {
         setCategories(data.categories || []);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -199,6 +205,15 @@ export default function CategoriesPage() {
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
+        {loadError && (
+          <FetchErrorBanner
+            message="Couldn't load your categories. Check your connection and try again."
+            onRetry={() => {
+              setLoading(true);
+              fetchCategories();
+            }}
+          />
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Categories</h1>

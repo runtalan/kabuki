@@ -32,6 +32,7 @@ import { OWNERS, type OwnerKey } from '@/components/owner-badge';
 const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
 import { LIABILITY_TYPES, ASSET_TYPES, getTypeBadge, suggestIcon } from '@/lib/account-types';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { FetchErrorBanner } from '@/components/fetch-error-banner';
 
 interface Account {
   id: string;
@@ -80,6 +81,7 @@ export default function AccountsPage() {
   const router = useRouter();
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ displayName: '', icon: '', owner: 'joint', currentBalance: '' });
@@ -135,9 +137,13 @@ export default function AccountsPage() {
       const data = await response.json();
       if (response.ok) {
         setItems(data.items || []);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -393,6 +399,15 @@ export default function AccountsPage() {
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
+        {loadError && (
+          <FetchErrorBanner
+            message="Couldn't load your accounts. Check your connection and try again."
+            onRetry={() => {
+              setLoading(true);
+              fetchAccounts();
+            }}
+          />
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Connected Accounts</h1>

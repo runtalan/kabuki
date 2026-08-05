@@ -25,6 +25,7 @@ import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { parseLocalDate, endOfLocalDay } from '@/lib/date';
+import { FetchErrorBanner } from '@/components/fetch-error-banner';
 
 interface Category {
   id: string;
@@ -112,6 +113,7 @@ function TransactionsPageContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searching, setSearching] = useState(false);
 
   const [searchInput, setSearchInput] = useState('');
@@ -178,9 +180,13 @@ function TransactionsPageContent() {
             setTransactions(data.transactions || []);
           }
           setHasMore(data.hasMore || false);
+          setLoadError(false);
+        } else {
+          setLoadError(true);
         }
       } catch (error) {
         console.error('Error fetching transactions:', error);
+        setLoadError(true);
       } finally {
         setLoading(false);
         setSearching(false);
@@ -447,6 +453,13 @@ function TransactionsPageContent() {
       <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-4">Spending</h1>
         <PageTabs tabs={SPENDING_TABS} />
+
+        {loadError && (
+          <FetchErrorBanner
+            message="Couldn't load transactions. Check your connection and try again."
+            onRetry={() => fetchTransactions()}
+          />
+        )}
 
         {/* Toolbar */}
         <div className="bg-card border border-border rounded-xl mb-4 overflow-hidden">
