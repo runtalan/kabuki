@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Home, TrendingUp, Wallet, Tag, FilePenLine, ChevronDown } from 'lucide-react';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 type Section = 'home' | 'spending' | 'transactions' | 'accounts' | 'invest' | 'categories' | 'tags' | 'rules';
 
@@ -91,9 +92,53 @@ const FAKE_TAGS_DATA = [
   { name: 'Refund', count: 5, icon: '💰', spent: '$580' },
 ];
 
+// Portfolio performance chart data
+const PORTFOLIO_CHART_DATA = [
+  { date: 'Jan 1', value: 245000 },
+  { date: 'Jan 15', value: 252000 },
+  { date: 'Feb 1', value: 248000 },
+  { date: 'Feb 15', value: 261000 },
+  { date: 'Mar 1', value: 275000 },
+  { date: 'Mar 15', value: 268000 },
+  { date: 'Apr 1', value: 272000 },
+  { date: 'Apr 15', value: 281000 },
+  { date: 'May 1', value: 285430 },
+];
+
+// Holding sparkline data
+const HOLDING_CHARTS: Record<string, Array<{ value: number }>> = {
+  AAPL: [
+    { value: 220 }, { value: 222 }, { value: 225 }, { value: 224 }, { value: 226 },
+    { value: 228 }, { value: 227 }, { value: 229 }, { value: 228 }, { value: 228.5 },
+  ],
+  MSFT: [
+    { value: 410 }, { value: 412 }, { value: 415 }, { value: 418 }, { value: 420 },
+    { value: 422 }, { value: 424 }, { value: 426 }, { value: 428 }, { value: 428.9 },
+  ],
+  TSLA: [
+    { value: 280 }, { value: 275 }, { value: 270 }, { value: 265 }, { value: 260 },
+    { value: 255 }, { value: 250 }, { value: 248 }, { value: 246 }, { value: 245.3 },
+  ],
+  NVDA: [
+    { value: 750 }, { value: 780 }, { value: 810 }, { value: 840 }, { value: 850 },
+    { value: 860 }, { value: 870 }, { value: 875 }, { value: 875 }, { value: 875.2 },
+  ],
+};
+
+const ALLOCATION_DATA = [
+  { name: 'AAPL', value: 11425 },
+  { name: 'MSFT', value: 15011 },
+  { name: 'NVDA', value: 13128 },
+  { name: 'SPY', value: 48015 },
+  { name: 'Others', value: 198400 },
+];
+
+const ALLOCATION_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#6b7280'];
+
 export function InteractiveAppDemo() {
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [activeSubSection, setActiveSubSection] = useState<string>('overview');
+  const [investTimeRange, setInvestTimeRange] = useState<'1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y'>('1Y');
 
   const sections: Record<Section, { label: string; icon: React.ComponentType<any>; subsections?: string[] }> = {
     home: {
@@ -461,7 +506,7 @@ export function InteractiveAppDemo() {
 
           {/* Portfolio Summary */}
           <div className="rounded-lg border border-border p-6 bg-gradient-to-br from-card to-primary/5">
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex justify-between items-start mb-2">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Portfolio Value</p>
                 <p className="text-4xl font-bold text-foreground">{FAKE_INVEST_DATA.portfolio.value}</p>
@@ -472,54 +517,83 @@ export function InteractiveAppDemo() {
               </div>
             </div>
 
-            {/* Mini Chart */}
-            <div className="h-20 mb-4">
-              <svg className="w-full h-full" viewBox="0 0 400 80" preserveAspectRatio="xMidYMid meet">
-                <defs>
-                  <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: '#3b82f6', stopOpacity: 0.3 }} />
-                    <stop offset="100%" style={{ stopColor: '#3b82f6', stopOpacity: 0 }} />
-                  </linearGradient>
-                </defs>
-                {/* Smooth curve */}
-                <path
-                  d="M0,50 Q40,35 80,45 T160,40 T240,30 T320,45 T400,35"
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                  fill="none"
-                />
-                {/* Area under curve */}
-                <path
-                  d="M0,50 Q40,35 80,45 T160,40 T240,30 T320,45 T400,35 L400,80 L0,80 Z"
-                  fill="url(#chartGradient)"
-                />
-              </svg>
+            {/* Time Range Buttons */}
+            <div className="flex gap-2 mb-4">
+              {(['1W', '1M', '3M', '6M', 'YTD', '1Y'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setInvestTimeRange(range)}
+                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                    investTimeRange === range
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {range}
+                </button>
+              ))}
             </div>
 
-            <div className="flex gap-4 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-muted-foreground">Portfolio Performance</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">YTD: +18.2%</span>
-              </div>
+            {/* Portfolio Performance Chart */}
+            <div className="h-32 -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={PORTFOLIO_CHART_DATA}>
+                  <defs>
+                    <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(107, 114, 128, 0.1)" />
+                  <XAxis dataKey="date" stroke="rgba(107, 114, 128, 0.5)" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="rgba(107, 114, 128, 0.5)" tick={{ fontSize: 12 }} domain={['dataMin - 5000', 'dataMax + 5000']} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid #374151', borderRadius: '8px' }}
+                    labelStyle={{ color: '#f3f4f6' }}
+                    formatter={(value) => `$${(value as number).toLocaleString()}`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fill="url(#portfolioGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Holdings Grid */}
+          {/* Holdings Grid with Sparklines */}
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-3">Holdings</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {FAKE_INVEST_DATA.portfolio.holdings.map((holding) => (
                 <div key={holding.symbol} className="rounded-lg border border-border p-4 bg-card hover:bg-muted/20 cursor-pointer transition-colors">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="text-sm font-bold text-foreground">{holding.symbol}</p>
                       <p className="text-xs text-muted-foreground">{holding.name}</p>
                     </div>
                     <p className="text-xs font-semibold text-right text-foreground">{holding.shares} shares</p>
                   </div>
+
+                  {/* Mini Sparkline Chart */}
+                  <div className="h-12 mb-3 -mx-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={HOLDING_CHARTS[holding.symbol] || []}>
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke={holding.change.startsWith('+') ? '#10b981' : '#ef4444'}
+                          dot={false}
+                          strokeWidth={2}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-xs text-muted-foreground">{holding.price}/share</p>
@@ -578,6 +652,44 @@ export function InteractiveAppDemo() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Portfolio Allocation */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-4">Portfolio Allocation</h3>
+            <div className="rounded-lg border border-border p-6 bg-card flex gap-8">
+              <div className="h-40 w-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={ALLOCATION_DATA}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {ALLOCATION_DATA.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={ALLOCATION_COLORS[index]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex-1 space-y-2">
+                {ALLOCATION_DATA.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ALLOCATION_COLORS[index] }} />
+                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    <span className="text-xs font-semibold text-foreground ml-auto">
+                      ${(item.value / 1000).toFixed(1)}k
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
