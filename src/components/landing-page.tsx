@@ -23,13 +23,13 @@ function LaurelBranch() {
     return { x, y, angle };
   };
 
-  // Slender, pointed leaf blade — narrow relative to its length.
+  // Thicker, pointed leaf blade — fuller body while still tapering to a tip.
   const leafLen = 19;
-  const leafWidth = 3.6;
+  const leafWidth = 6.4;
   const leaf = `M 0 0 Q ${leafWidth} ${leafLen * 0.4} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.4} 0 0 Z`;
 
-  // Evenly spaced pairs from base to tip.
-  const pairs = Array.from({ length: 5 }, (_, i) => 0.1 + i * (0.78 / 4));
+  // Denser pairs from base to tip.
+  const pairs = Array.from({ length: 7 }, (_, i) => 0.08 + i * (0.84 / 6));
 
   return (
     <>
