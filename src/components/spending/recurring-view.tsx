@@ -152,9 +152,20 @@ export function RecurringView({
   const month = cursor.getMonth();
   const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long' });
 
+  // Everything downstream that presents a recurring charge as settled fact —
+  // the calendar, "Upcoming this month", the monthly totals, and the Summary
+  // sentence — should only draw on entries the user has actually confirmed
+  // (or added manually). A detection sitting in the "Is this recurring?"
+  // queue is a guess, not yet a fact; counting it here would let an
+  // unreviewed false positive quietly inflate "your recurring bills total
+  // $X" before the user ever answers Yes/No. The List view intentionally
+  // keeps showing every entry (reviewed or not) since that's where the
+  // review queue itself lives.
+  const confirmedEntries = useMemo(() => entries.filter((e) => !e.needsReview), [entries]);
+
   const occurrences = useMemo(
-    () => occurrencesInMonth(entries, year, month),
-    [entries, year, month]
+    () => occurrencesInMonth(confirmedEntries, year, month),
+    [confirmedEntries, year, month]
   );
 
   const byDay = useMemo(() => {
@@ -176,8 +187,8 @@ export function RecurringView({
   const reviewQueue = entries.filter((e) => e.needsReview);
   const reviewItem = reviewQueue[Math.min(reviewIndex, reviewQueue.length - 1)] || null;
 
-  const bills = entries.filter((e) => !e.isIncome);
-  const income = entries.filter((e) => e.isIncome);
+  const bills = confirmedEntries.filter((e) => !e.isIncome);
+  const income = confirmedEntries.filter((e) => e.isIncome);
   const monthlyOutflow = bills.reduce((s, e) => s + e.monthlyCost, 0);
   const monthlyInflow = income.reduce((s, e) => s + e.monthlyCost, 0);
 
@@ -448,6 +459,14 @@ export function RecurringView({
                       {entry.isManual && (
                         <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold flex-shrink-0">
                           Manual
+                        </span>
+                      )}
+                      {entry.needsReview && (
+                        <span
+                          className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-semibold flex-shrink-0"
+                          title="Not yet confirmed — answer 'Is this recurring?' to include it in your totals"
+                        >
+                          Pending review
                         </span>
                       )}
                     </div>
