@@ -56,6 +56,10 @@ export function parseDay(iso: string) {
   return new Date(y, m - 1, d);
 }
 
+// (parseDay above is the same local-midnight parse as parseLocalDate in
+// src/lib/date.ts — duplicated here rather than imported so this module has
+// zero cross-file deps beyond its own scope. Keep both in sync if either changes.)
+
 // Date-only strings ("2026-08-20") parse as UTC midnight via `new Date()`,
 // which reads back a day early anywhere west of UTC once formatted with local
 // getters. Anchor them to local midnight instead; pass through full timestamps.

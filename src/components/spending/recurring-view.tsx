@@ -106,12 +106,14 @@ export function RecurringView({
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringEntry | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEscapeKey(() => {
     if (addOpen) return setAddOpen(false);
     if (editing) return setEditing(null);
     if (menuOpenId) return setMenuOpenId(null);
-  }, addOpen || !!editing || !!menuOpenId);
+    if (selectedDate) return setSelectedDate(null);
+  }, addOpen || !!editing || !!menuOpenId || !!selectedDate);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -132,6 +134,11 @@ export function RecurringView({
     }
     return map;
   }, [occurrences]);
+
+  const selectedDayOccurrences = useMemo(
+    () => (selectedDate ? occurrences.filter((o) => o.date === selectedDate) : []),
+    [occurrences, selectedDate]
+  );
 
   const reviewQueue = entries.filter((e) => e.needsReview);
   const reviewItem = reviewQueue[Math.min(reviewIndex, reviewQueue.length - 1)] || null;
@@ -186,9 +193,11 @@ export function RecurringView({
     }
   };
 
-  const remove = async (entry: RecurringEntry) => {
+  // Returns whether the entry was actually removed, so callers (like the day
+  // detail modal) don't act on a confirm() the user cancelled.
+  const remove = async (entry: RecurringEntry): Promise<boolean> => {
     setMenuOpenId(null);
-    if (!confirm(`Remove "${entry.merchant}" from recurring?`)) return;
+    if (!confirm(`Remove "${entry.merchant}" from recurring?`)) return false;
     setEntries((prev) => prev.filter((e) => e.merchantKey !== entry.merchantKey));
     if (entry.id) {
       await fetch(`/api/recurring/${entry.id}`, { method: 'DELETE' });
@@ -205,6 +214,7 @@ export function RecurringView({
       });
     }
     await refresh();
+    return true;
   };
 
   const changeMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
@@ -313,14 +323,17 @@ export function RecurringView({
                   .reduce((s, o) => s + o.entry.amount, 0);
 
                 return (
-                  <div
+                  <button
                     key={day}
-                    className={`min-h-[92px] rounded-lg border p-2 flex flex-col transition-colors ${
+                    type="button"
+                    onClick={() => dayOccurrences.length > 0 && setSelectedDate(dayOccurrences[0].date)}
+                    disabled={dayOccurrences.length === 0}
+                    className={`min-h-[92px] rounded-lg border p-2 flex flex-col text-left transition-colors ${
                       isToday
                         ? 'border-foreground/40 bg-muted/40'
                         : dayOccurrences.length > 0
-                          ? 'border-border bg-muted/20 hover:bg-muted/40'
-                          : 'border-border/60'
+                          ? 'border-border bg-muted/20 hover:bg-muted/40 cursor-pointer'
+                          : 'border-border/60 cursor-default'
                     }`}
                   >
                     <p
@@ -360,7 +373,7 @@ export function RecurringView({
                     {dayOccurrences.length === 0 && (
                       <p className="text-[10px] text-muted-foreground/40 mt-auto">–</p>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -587,6 +600,24 @@ export function RecurringView({
         </div>
       </div>
 
+      {selectedDate && (
+        <DayDetailModal
+          date={selectedDate}
+          occurrences={selectedDayOccurrences}
+          busy={busy}
+          onClose={() => setSelectedDate(null)}
+          onDismiss={async (entry) => {
+            const removed = await remove(entry);
+            if (!removed) return;
+            // Removing the last occurrence for the day closes the modal instead
+            // of leaving an empty panel open.
+            setSelectedDate((prev) =>
+              prev && selectedDayOccurrences.length <= 1 ? null : prev
+            );
+          }}
+        />
+      )}
+
       {(addOpen || editing) && (
         <RecurringFormModal
           entry={editing}
@@ -651,6 +682,96 @@ function RowMenu({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Shown when a calendar day cell is clicked — lists every recurring charge
+// landing on that date and lets the user dismiss any that shouldn't actually
+// be treated as recurring.
+function DayDetailModal({
+  date,
+  occurrences,
+  busy,
+  onClose,
+  onDismiss,
+}: {
+  date: string;
+  occurrences: { entry: RecurringEntry; date: string }[];
+  busy: boolean;
+  onClose: () => void;
+  onDismiss: (entry: RecurringEntry) => void;
+}) {
+  const label = parseDay(date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  const total = occurrences.reduce(
+    (sum, o) => sum + (o.entry.isIncome ? o.entry.amount : -o.entry.amount),
+    0
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">{label}</h2>
+            <p className="text-xs text-muted-foreground">
+              {occurrences.length} recurring {occurrences.length === 1 ? 'charge' : 'charges'}
+              <span className="mx-1.5 text-muted-foreground/50">•</span>
+              <span className={total >= 0 ? 'text-emerald-500' : ''}>
+                net {total >= 0 ? '+' : ''}
+                {money(total)}
+              </span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto divide-y divide-border">
+          {occurrences.map((occ, i) => (
+            <div key={`${occ.entry.merchantKey}-${i}`} className="flex items-center gap-3 px-5 py-3.5">
+              <MerchantAvatar entry={occ.entry} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground truncate">{occ.entry.merchant}</p>
+                <p className="text-xs text-muted-foreground">
+                  {FREQUENCY_LABELS[occ.entry.frequency]}
+                  {occ.entry.categoryName && (
+                    <>
+                      <span className="mx-1.5 text-muted-foreground/50">•</span>
+                      {occ.entry.categoryName}
+                    </>
+                  )}
+                </p>
+              </div>
+              <p
+                className={`text-sm font-semibold flex-shrink-0 ${
+                  occ.entry.isIncome ? 'text-emerald-500' : 'text-foreground'
+                }`}
+              >
+                {occ.entry.isIncome ? '+' : ''}
+                {money(occ.entry.amount)}
+              </p>
+              <button
+                onClick={() => onDismiss(occ.entry)}
+                disabled={busy}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50 flex-shrink-0"
+                title="Not actually recurring — remove"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import {
   Search,
   ChevronDown,
@@ -23,6 +24,7 @@ import { AccountBadge } from '@/components/account-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { parseLocalDate, endOfLocalDay } from '@/lib/date';
 
 interface Category {
   id: string;
@@ -91,13 +93,29 @@ function groupByDay(transactions: Transaction[]) {
 }
 
 export default function TransactionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <TransactionsPageContent />
+    </Suspense>
+  );
+}
+
+function TransactionsPageContent() {
+  const searchParams = useSearchParams();
+  // Deep-link support: ?start=YYYY-MM-DD&end=YYYY-MM-DD&category=<id> pre-fills
+  // filters, so the Budget page's month drill-down (and anything else) can land
+  // here with the right scope already applied instead of a blank page.
+  const initialStart = searchParams.get('start') || '';
+  const initialEnd = searchParams.get('end') || '';
+  const initialCategory = searchParams.get('category') || 'all';
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
 
   const [searchInput, setSearchInput] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedTag, setSelectedTag] = useState('all');
@@ -109,12 +127,12 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(!!(initialStart || initialCategory !== 'all'));
 
   // Date range state
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [customDateStart, setCustomDateStart] = useState('');
-  const [customDateEnd, setCustomDateEnd] = useState('');
+  const [customDateStart, setCustomDateStart] = useState(initialStart);
+  const [customDateEnd, setCustomDateEnd] = useState(initialEnd);
 
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
 
@@ -314,14 +332,14 @@ export default function TransactionsPage() {
       return date;
     }
     if (customDateStart) {
-      return new Date(customDateStart);
+      return parseLocalDate(customDateStart);
     }
     return new Date(0);
   };
 
   const getTimeRangeEndDate = () => {
     if (customDateEnd) {
-      return new Date(customDateEnd);
+      return endOfLocalDay(customDateEnd);
     }
     return new Date();
   };
@@ -353,6 +371,55 @@ export default function TransactionsPage() {
       .filter((tx) => tx.type === 'debit')
       .reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount)), 0),
   };
+
+  // Any active filter narrows the result set enough that a quick breakdown
+  // is more useful than scrolling the raw list — e.g. drilling into a month
+  // from Budget, or filtering to one category, benefits from seeing where
+  // the money actually went at a glance.
+  const filtersActive =
+    selectedCategory !== 'all' ||
+    selectedOwner !== 'all' ||
+    selectedType !== 'all' ||
+    selectedTag !== 'all' ||
+    searchInput.trim().length > 0 ||
+    (!!customDateStart && !!customDateEnd) ||
+    timeRange !== 'all';
+
+  const categoryBreakdown = (() => {
+    const byCategory = new Map<string, { name: string; color: string; icon: string | null; total: number }>();
+    for (const tx of visibleTransactions) {
+      if (tx.type !== 'debit') continue;
+      const key = tx.category?.id || 'uncategorized';
+      const existing = byCategory.get(key);
+      const amt = Math.abs(parseFloat(tx.amount));
+      if (existing) {
+        existing.total += amt;
+      } else {
+        byCategory.set(key, {
+          name: tx.category?.name || 'Uncategorized',
+          color: tx.category?.color || '#9ca3af',
+          icon: tx.category?.icon || null,
+          total: amt,
+        });
+      }
+    }
+    return Array.from(byCategory.values())
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6);
+  })();
+
+  const merchantBreakdown = (() => {
+    const byMerchant = new Map<string, number>();
+    for (const tx of visibleTransactions) {
+      if (tx.type !== 'debit') continue;
+      const key = tx.merchant || tx.name;
+      byMerchant.set(key, (byMerchant.get(key) || 0) + Math.abs(parseFloat(tx.amount)));
+    }
+    return Array.from(byMerchant.entries())
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6);
+  })();
 
   const SortLabel = ({ col, children }: { col: 'date' | 'amount'; children: React.ReactNode }) => (
     <button
@@ -553,8 +620,8 @@ export default function TransactionsPage() {
             <p className="text-sm text-foreground">
               Custom date range:{' '}
               <span className="font-semibold">
-                {new Date(customDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} -{' '}
-                {new Date(customDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {parseLocalDate(customDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} -{' '}
+                {parseLocalDate(customDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </span>
             </p>
             <button
@@ -650,6 +717,76 @@ export default function TransactionsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Mini breakdowns — shown whenever a filter narrows the result set */}
+        {filtersActive && (categoryBreakdown.length > 0 || merchantBreakdown.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {categoryBreakdown.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  By Category
+                </p>
+                <div className="space-y-2.5">
+                  {categoryBreakdown.map((cat) => {
+                    const max = categoryBreakdown[0].total;
+                    const pct = max > 0 ? (cat.total / max) * 100 : 0;
+                    return (
+                      <div key={cat.name} className="flex items-center gap-2.5">
+                        <CategoryIcon icon={cat.icon} color={cat.color} className="w-3.5 h-3.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-medium text-foreground truncate">{cat.name}</span>
+                            <span className="text-xs font-semibold text-foreground flex-shrink-0 ml-2">
+                              {formatCurrency(cat.total)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${pct}%`, backgroundColor: cat.color }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {merchantBreakdown.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Top Merchants
+                </p>
+                <div className="space-y-2.5">
+                  {merchantBreakdown.map((m, i) => {
+                    const max = merchantBreakdown[0].total;
+                    const pct = max > 0 ? (m.total / max) * 100 : 0;
+                    return (
+                      <div key={m.name} className="flex items-center gap-2.5">
+                        <span className="text-[10px] font-bold text-muted-foreground w-3 flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-medium text-foreground truncate">{m.name}</span>
+                            <span className="text-xs font-semibold text-foreground flex-shrink-0 ml-2">
+                              {formatCurrency(m.total)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

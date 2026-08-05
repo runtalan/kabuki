@@ -18,6 +18,16 @@ interface SpendingData {
   value: number;
 }
 
+interface MonthlyHistoryPoint {
+  year: number;
+  month: number; // 0-indexed
+  label: string;
+  spent: number;
+  budget: number;
+  variance: number;
+  hasData: boolean;
+}
+
 function money(value: number, decimals = 0) {
   return `$${Math.abs(value).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -36,10 +46,12 @@ export function BudgetView({
   categories,
   spendingByCategory,
   suggestions,
+  monthlyHistory,
 }: {
   categories: BudgetCategory[];
   spendingByCategory: SpendingData[];
   suggestions: Record<string, number>;
+  monthlyHistory: MonthlyHistoryPoint[];
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -148,25 +160,24 @@ export function BudgetView({
     </div>
   );
 
-  // Historical budget performance data (12 months)
-  const months = [
-    { name: 'Jan', budget: 1900, spent: 1720, variance: 180 },
-    { name: 'Feb', budget: 1900, spent: 2050, variance: -150 },
-    { name: 'Mar', budget: 1900, spent: 1840, variance: 60 },
-    { name: 'Apr', budget: 1900, spent: 1950, variance: -50 },
-    { name: 'May', budget: 1900, spent: 1780, variance: 120 },
-    { name: 'Jun', budget: 1900, spent: 2100, variance: -200 },
-    { name: 'Jul', budget: 1900, spent: 1650, variance: 250 },
-    { name: 'Aug', budget: 1900, spent: 1900, variance: 0 },
-    { name: 'Sep', budget: 1900, spent: 2300, variance: -400 },
-    { name: 'Oct', budget: 1900, spent: 1840, variance: 60 },
-    { name: 'Nov', budget: 1900, spent: 1700, variance: 200 },
-    { name: 'Dec', budget: 1900, spent: 1890, variance: 10 },
-  ];
+  // Real trailing-12-month history, computed server-side in getMonthlyBudgetHistory.
+  // Only months with actual transaction activity count toward the on-track /
+  // over-budget tallies — an empty month before the account existed isn't
+  // "on track," it's just no data.
+  const monthsWithData = monthlyHistory.filter((m) => m.hasData);
+  const budgetHitCount = monthsWithData.filter((m) => m.variance >= 0).length;
+  const overBudgetMonths = monthsWithData.filter((m) => m.variance < 0).length;
+  const averageVariance =
+    monthsWithData.length > 0
+      ? monthsWithData.reduce((sum, m) => sum + m.variance, 0) / monthsWithData.length
+      : 0;
 
-  const budgetHitCount = months.filter(m => m.variance >= 0).length;
-  const overBudgetDays = months.filter(m => m.variance < 0).length;
-  const averageVariance = months.reduce((sum, m) => sum + m.variance, 0) / months.length;
+  const goToMonth = (point: MonthlyHistoryPoint) => {
+    const start = new Date(point.year, point.month, 1);
+    const end = new Date(point.year, point.month + 1, 0);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    router.push(`/spending/transactions?start=${iso(start)}&end=${iso(end)}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -275,11 +286,13 @@ export function BudgetView({
               <div>
                 <p className="text-sm text-muted-foreground">Months on Track</p>
                 <p className="text-3xl font-bold text-emerald-600">{budgetHitCount}</p>
-                <p className="text-xs text-muted-foreground mt-1">Out of 12 months</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Out of {monthsWithData.length} month{monthsWithData.length === 1 ? '' : 's'} with data
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Months Over Budget</p>
-                <p className="text-3xl font-bold text-red-500">{overBudgetDays}</p>
+                <p className="text-3xl font-bold text-red-500">{overBudgetMonths}</p>
                 <p className="text-xs text-muted-foreground mt-1">Total overspend</p>
               </div>
               <div>
@@ -288,46 +301,67 @@ export function BudgetView({
                   {money(Math.abs(averageVariance))}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {averageVariance >= 0 ? 'Under budget' : 'Over budget'}
+                  {averageVariance >= 0 ? 'Under budget' : 'Over budget'} vs. today&apos;s budget
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Monthly Grid */}
+          {/* Monthly Grid — click a month to see its transactions and category breakdown */}
           <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
-            {months.map((month, index) => {
-              const isUnderBudget = month.variance >= 0;
-              const intensity = Math.min(Math.abs(month.variance) / 300, 1); // Normalize to 0-1
-              const baseColor = isUnderBudget ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'; // emerald or red
-              const rgb = isUnderBudget
-                ? `rgba(16, 185, 129, ${0.2 + intensity * 0.8})`
-                : `rgba(239, 68, 68, ${0.2 + intensity * 0.8})`;
+            {monthlyHistory.map((point) => {
+              const isUnderBudget = point.variance >= 0;
+              const intensity = Math.min(Math.abs(point.variance) / 300, 1); // Normalize to 0-1
+              const rgb = !point.hasData
+                ? undefined
+                : isUnderBudget
+                  ? `rgba(16, 185, 129, ${0.2 + intensity * 0.8})`
+                  : `rgba(239, 68, 68, ${0.2 + intensity * 0.8})`;
 
               return (
                 <div
-                  key={month.name}
+                  key={`${point.year}-${point.month}`}
                   className="relative group"
-                  title={`${month.name}: ${money(month.spent)} spent of ${money(month.budget)} budget`}
+                  title={
+                    point.hasData
+                      ? `${point.label}: ${money(point.spent)} spent of ${money(point.budget)} budget — click to view transactions`
+                      : `${point.label}: no transaction history`
+                  }
                 >
-                  <div
-                    className="aspect-square rounded-lg border border-border cursor-pointer transition-transform hover:scale-105 flex items-center justify-center"
-                    style={{ backgroundColor: rgb }}
+                  <button
+                    type="button"
+                    onClick={() => point.hasData && goToMonth(point)}
+                    disabled={!point.hasData}
+                    className={`w-full aspect-square rounded-lg border border-border transition-transform flex items-center justify-center ${
+                      point.hasData ? 'cursor-pointer hover:scale-105' : 'cursor-default opacity-40'
+                    }`}
+                    style={rgb ? { backgroundColor: rgb } : { backgroundColor: 'var(--muted)' }}
                   >
-                    <span className="text-xs font-semibold text-foreground">{month.name}</span>
-                  </div>
+                    <span className="text-xs font-semibold text-foreground">{point.label}</span>
+                  </button>
 
                   {/* Hover tooltip */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
                     <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-sm text-foreground whitespace-nowrap">
-                      <p className="font-semibold">{month.name} 2024</p>
-                      <p className="text-xs text-muted-foreground">
-                        {money(month.spent)} / {money(month.budget)}
+                      <p className="font-semibold">
+                        {point.label} {point.year}
                       </p>
-                      <p className={`text-xs font-semibold mt-1 ${isUnderBudget ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {isUnderBudget ? '✓ ' : '✗ '}
-                        {money(Math.abs(month.variance))} {isUnderBudget ? 'under' : 'over'}
-                      </p>
+                      {point.hasData ? (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {money(point.spent)} / {money(point.budget)}
+                          </p>
+                          <p
+                            className={`text-xs font-semibold mt-1 ${isUnderBudget ? 'text-emerald-600' : 'text-red-500'}`}
+                          >
+                            {isUnderBudget ? '✓ ' : '✗ '}
+                            {money(Math.abs(point.variance))} {isUnderBudget ? 'under' : 'over'}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground/70 mt-1">Click to view transactions</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No transaction history yet</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -336,7 +370,7 @@ export function BudgetView({
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-6 mt-6 text-sm">
+          <div className="flex items-center gap-6 mt-6 text-sm flex-wrap">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-emerald-500" />
               <span className="text-muted-foreground">Under Budget</span>
@@ -344,6 +378,10 @@ export function BudgetView({
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-red-500" />
               <span className="text-muted-foreground">Over Budget</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-muted opacity-40" />
+              <span className="text-muted-foreground">No data</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Darker = Bigger swing</span>

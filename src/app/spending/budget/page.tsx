@@ -3,7 +3,7 @@ import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
 import { BudgetView } from '@/components/spending/budget-view';
 import { getUser } from '@/lib/auth';
 import { getSpendingByCategory } from '@/lib/queries';
-import { getCategoryBudgetSuggestions } from '@/lib/spending-insights';
+import { getCategoryBudgetSuggestions, getMonthlyBudgetHistory } from '@/lib/spending-insights';
 import { db } from '@/db';
 
 export const dynamic = 'force-dynamic';
@@ -11,13 +11,14 @@ export const dynamic = 'force-dynamic';
 export default async function BudgetPage() {
   const user = await getUser();
 
-  const [allCategories, spendingByCategory, suggestions] = user
+  const [allCategories, spendingByCategory, suggestions, monthlyHistory] = user
     ? await Promise.all([
         db.query.categories.findMany({ orderBy: (cat, { asc }) => asc(cat.name) }),
         getSpendingByCategory(user.id),
         getCategoryBudgetSuggestions(user.id),
+        getMonthlyBudgetHistory(user.id),
       ])
-    : [[], [], {}];
+    : [[], [], {}, []];
 
   return (
     <AppLayout>
@@ -34,6 +35,7 @@ export default async function BudgetPage() {
           }))}
           spendingByCategory={spendingByCategory}
           suggestions={suggestions}
+          monthlyHistory={monthlyHistory}
         />
       </div>
     </AppLayout>

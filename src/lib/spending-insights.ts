@@ -115,6 +115,95 @@ export async function getSpendingOverview(userId: string, refDate: Date = new Da
   };
 }
 
+export interface MonthlyBudgetHistoryPoint {
+  year: number;
+  month: number; // 0-indexed, matches Date.getMonth()
+  label: string; // "Jan"
+  spent: number;
+  budget: number;
+  variance: number; // budget - spent; positive = under budget
+  hasData: boolean; // false when the account had zero transactions that month
+}
+
+// Real month-by-month spend across all budgeted categories, for the trailing
+// `monthsBack` months (default 12, most recent last). Compares each month's
+// actual spend against the categories' *current* budget totals — there's no
+// historical snapshot of what the budget was at the time, so this answers
+// "how would this month have looked against today's budget" rather than
+// "was I over the budget that existed back then." Months with zero
+// transactions in the account are flagged via hasData so the UI can grey
+// them out instead of implying a suspiciously perfect $0 month.
+export async function getMonthlyBudgetHistory(
+  userId: string,
+  monthsBack = 12
+): Promise<MonthlyBudgetHistoryPoint[]> {
+  const accountIds = await getUserAccountIds(userId);
+
+  const allCategories = await db.query.categories.findMany();
+  const budgetedCategoryIds = new Set(
+    allCategories.filter((c) => c.monthlyBudget && Number(c.monthlyBudget) > 0).map((c) => c.id)
+  );
+  const totalBudget = allCategories.reduce(
+    (sum, c) => sum + (c.monthlyBudget ? Number(c.monthlyBudget) : 0),
+    0
+  );
+
+  const now = new Date();
+  const rangeStart = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+
+  const points: MonthlyBudgetHistoryPoint[] = Array.from({ length: monthsBack }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1) + i, 1);
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      spent: 0,
+      budget: totalBudget,
+      variance: totalBudget,
+      hasData: false,
+    };
+  });
+
+  if (accountIds.length === 0 || budgetedCategoryIds.size === 0) return points;
+
+  const rows = await db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        gte(transactions.date, rangeStart),
+        inArray(transactions.accountId, accountIds),
+        NOT_HIDDEN
+      )
+    );
+
+  const byMonthKey = new Map<string, { spent: number; hasData: boolean }>();
+  for (const point of points) {
+    byMonthKey.set(`${point.year}-${point.month}`, { spent: 0, hasData: false });
+  }
+
+  for (const tx of rows) {
+    const key = `${tx.date.getFullYear()}-${tx.date.getMonth()}`;
+    const bucket = byMonthKey.get(key);
+    if (!bucket) continue;
+    bucket.hasData = true;
+    // Only expenses in currently-budgeted categories count toward "spent".
+    if (Number(tx.amount) < 0 && tx.categoryId && budgetedCategoryIds.has(tx.categoryId)) {
+      bucket.spent += Math.abs(Number(tx.amount));
+    }
+  }
+
+  return points.map((point) => {
+    const bucket = byMonthKey.get(`${point.year}-${point.month}`)!;
+    return {
+      ...point,
+      spent: bucket.spent,
+      hasData: bucket.hasData,
+      variance: totalBudget - bucket.spent,
+    };
+  });
+}
+
 // Auto-suggested budget per category: the trailing 3-month average spend,
 // rounded to a clean number. Excludes the current (partial) month so a
 // suggestion isn't skewed by however far through the month it is. Only
