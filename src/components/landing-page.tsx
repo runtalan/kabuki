@@ -6,7 +6,7 @@ import { InteractiveAppDemo } from './interactive-app-demo';
 function LaurelBranch() {
   // Classic laurel crescent: stem bulges outward through the middle and
   // curves back inward at both ends, lined with flat, pointed leaves.
-  const leaves = Array.from({ length: 13 }, (_, i) => 0.04 + i * (0.92 / 12));
+  const leaves = Array.from({ length: 6 }, (_, i) => 0.05 + i * (0.9 / 5));
 
   const stemPath = 'M 22 102 Q -14 70 -2 40 Q 8 12 46 -2';
 
@@ -24,20 +24,20 @@ function LaurelBranch() {
     return { x, y, angle };
   };
 
-  // Flat, blade-like leaf: thin relative to its length, pointed at both ends.
-  const leafLen = 17;
-  const leafWidth = 3.4;
+  // Flat, broad leaf blade: wide relative to its length, rounded rather than needle-thin.
+  const leafLen = 22;
+  const leafWidth = 8;
 
   return (
     <>
-      <path d={stemPath} stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d={stemPath} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
       {leaves.map((t, i) => {
         const { x, y, angle } = pointAt(t);
         const outward = angle - 62;
         return (
           <g key={i} transform={`translate(${x} ${y}) rotate(${outward})`}>
             <path
-              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.5} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.5} 0 0 Z`}
+              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.28} ${leafWidth * 0.55} ${leafLen * 0.55} Q ${leafWidth * 0.15} ${leafLen * 0.85} 0 ${leafLen} Q ${-leafWidth * 0.15} ${leafLen * 0.85} ${-leafWidth * 0.55} ${leafLen * 0.55} Q ${-leafWidth} ${leafLen * 0.28} 0 0 Z`}
               fill="currentColor"
             />
           </g>
@@ -50,8 +50,8 @@ function LaurelBranch() {
 function LaurelWreath({ flip = false }: { flip?: boolean }) {
   return (
     <svg
-      viewBox="-20 -6 78 114"
-      className={`w-14 h-24 shrink-0 text-gray-300 dark:text-gray-700 ${flip ? 'scale-x-[-1]' : ''}`}
+      viewBox="-28 -10 88 122"
+      className={`w-16 h-28 shrink-0 text-gray-400 dark:text-gray-600 ${flip ? 'scale-x-[-1]' : ''}`}
     >
       <LaurelBranch />
     </svg>
