@@ -136,12 +136,12 @@ export function LandingPage() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              Smart auto-tagging
+              Options premium analysis
             </h3>
             <p className="text-muted-foreground leading-relaxed">
-              United Airlines? Travel. Whole Foods? Groceries. Buttons quietly
-              learns your merchants so you almost never have to tag anything
-              by hand.
+              Buttons calculates standard deviation against your actual holdings,
+              then surfaces the option premiums with the best odds of expiring
+              profitable — so every play is sized to how your portfolio really moves.
             </p>
           </div>
 
