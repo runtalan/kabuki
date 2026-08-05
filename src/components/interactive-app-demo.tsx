@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Home, TrendingUp, Wallet, Tag, FilePenLine, ChevronDown } from 'lucide-react';
 
-type Section = 'home' | 'spending' | 'transactions' | 'accounts' | 'categories' | 'tags' | 'rules';
+type Section = 'home' | 'spending' | 'transactions' | 'accounts' | 'invest' | 'categories' | 'tags' | 'rules';
 
 // Hardcoded fake data
 const FAKE_TRANSACTIONS = [
@@ -37,6 +37,27 @@ const FAKE_SPENDING_DATA = {
   ],
 };
 
+const FAKE_INVEST_DATA = {
+  portfolio: {
+    value: '$285,430',
+    change: '+$12,340',
+    changePercent: '+4.5%',
+    holdings: [
+      { symbol: 'AAPL', name: 'Apple Inc.', shares: 50, price: '$228.50', value: '$11,425', change: '+$450', pct: '+4.1%' },
+      { symbol: 'MSFT', name: 'Microsoft', shares: 35, price: '$428.90', value: '$15,011', change: '+$1,240', pct: '+9.0%' },
+      { symbol: 'TSLA', name: 'Tesla Inc.', shares: 20, price: '$245.30', value: '$4,906', change: '-$640', pct: '-11.5%' },
+      { symbol: 'NVDA', name: 'NVIDIA', shares: 15, price: '$875.20', value: '$13,128', change: '+$2,180', pct: '+20.1%' },
+      { symbol: 'SPY', name: 'S&P 500 ETF', shares: 100, price: '$480.15', value: '$48,015', change: '+$2,840', pct: '+6.3%' },
+    ],
+  },
+  options: [
+    { symbol: 'AAPL', strategy: 'Call Spread', strike: '$230/$235', expiry: '08/16', premium: '-$45', roi: '+180%', status: 'Open' },
+    { symbol: 'MSFT', strategy: 'Put Spread', strike: '$420/$410', expiry: '08/23', premium: '+$65', roi: '+32%', status: 'Open' },
+    { symbol: 'SPY', strategy: 'Iron Condor', strike: '480/485/475/470', expiry: '08/30', premium: '+$120', roi: '+18%', status: 'Open' },
+    { symbol: 'NVDA', strategy: 'Covered Call', strike: '$900', expiry: '09/20', premium: '+$85', roi: '+7.2%', status: 'Assigned' },
+  ],
+};
+
 export function InteractiveAppDemo() {
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [activeSubSection, setActiveSubSection] = useState<string>('overview');
@@ -59,6 +80,10 @@ export function InteractiveAppDemo() {
     accounts: {
       label: 'Accounts',
       icon: Wallet,
+    },
+    invest: {
+      label: 'Invest',
+      icon: TrendingUp,
     },
     categories: {
       label: 'Categories',
@@ -391,6 +416,159 @@ export function InteractiveAppDemo() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeSection === 'invest') {
+      return (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold text-foreground">Invest</h1>
+
+          {/* Portfolio Summary */}
+          <div className="rounded-lg border border-border p-6 bg-gradient-to-br from-card to-primary/5">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Portfolio Value</p>
+                <p className="text-4xl font-bold text-foreground">{FAKE_INVEST_DATA.portfolio.value}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-emerald-600">{FAKE_INVEST_DATA.portfolio.change}</p>
+                <p className="text-sm text-emerald-600 font-semibold">{FAKE_INVEST_DATA.portfolio.changePercent}</p>
+              </div>
+            </div>
+
+            {/* Mini Chart */}
+            <div className="h-20 mb-4">
+              <svg className="w-full h-full" viewBox="0 0 400 80" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style={{ stopColor: '#3b82f6', stopOpacity: 0.3 }} />
+                    <stop offset="100%" style={{ stopColor: '#3b82f6', stopOpacity: 0 }} />
+                  </linearGradient>
+                </defs>
+                {/* Smooth curve */}
+                <path
+                  d="M0,50 Q40,35 80,45 T160,40 T240,30 T320,45 T400,35"
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  fill="none"
+                />
+                {/* Area under curve */}
+                <path
+                  d="M0,50 Q40,35 80,45 T160,40 T240,30 T320,45 T400,35 L400,80 L0,80 Z"
+                  fill="url(#chartGradient)"
+                />
+              </svg>
+            </div>
+
+            <div className="flex gap-4 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary" />
+                <span className="text-muted-foreground">Portfolio Performance</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">YTD: +18.2%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Holdings Grid */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Holdings</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {FAKE_INVEST_DATA.portfolio.holdings.map((holding) => (
+                <div key={holding.symbol} className="rounded-lg border border-border p-4 bg-card hover:bg-muted/20 cursor-pointer transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{holding.symbol}</p>
+                      <p className="text-xs text-muted-foreground">{holding.name}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-right text-foreground">{holding.shares} shares</p>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{holding.price}/share</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-foreground">{holding.value}</p>
+                      <p className={`text-xs font-semibold ${holding.change.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {holding.change} ({holding.pct})
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Options & Derivatives */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Active Options Plays</h3>
+            <div className="rounded-lg border border-border overflow-hidden bg-card">
+              <table className="w-full text-xs">
+                <thead className="border-b border-border bg-muted/40">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground">Symbol</th>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground">Strategy</th>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground">Strike</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground">Expiry</th>
+                    <th className="px-4 py-3 text-right font-semibold text-foreground">Premium</th>
+                    <th className="px-4 py-3 text-right font-semibold text-foreground">ROI</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FAKE_INVEST_DATA.options.map((opt, i) => (
+                    <tr key={i} className="border-b border-border hover:bg-muted/20 cursor-pointer transition-colors last:border-0">
+                      <td className="px-4 py-3 font-bold text-foreground">{opt.symbol}</td>
+                      <td className="px-4 py-3 text-foreground">{opt.strategy}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{opt.strike}</td>
+                      <td className="px-4 py-3 text-center text-muted-foreground">{opt.expiry}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${opt.premium.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {opt.premium}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-bold ${opt.roi.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {opt.roi}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          opt.status === 'Open'
+                            ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          {opt.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Watchlist */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Watchlist</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                { symbol: 'META', price: '$498.50', change: '+8.2%', vol: '78.5M' },
+                { symbol: 'AMZN', price: '$189.30', change: '+12.4%', vol: '52.3M' },
+                { symbol: 'GOOG', price: '$143.75', change: '+5.1%', vol: '41.2M' },
+              ].map((watch) => (
+                <div key={watch.symbol} className="rounded-lg border border-border p-4 bg-card hover:bg-muted/20 cursor-pointer transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-sm font-bold text-foreground">{watch.symbol}</p>
+                    <p className={`text-xs font-semibold ${watch.change.startsWith('+') ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {watch.change}
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-foreground mb-1">{watch.price}</p>
+                  <p className="text-xs text-muted-foreground">Vol: {watch.vol}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
