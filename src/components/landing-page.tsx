@@ -4,32 +4,19 @@ import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
 function LaurelBranch({ flip = false }: { flip?: boolean }) {
-  // A single laurel branch: stem curves from bottom-outside up to top-center,
-  // with paired pointed leaves along its length, tapering as it nears the top.
-  const leaves: { t: number; size: number }[] = [
-    { t: 0.06, size: 1.0 },
-    { t: 0.16, size: 1.05 },
-    { t: 0.26, size: 1.1 },
-    { t: 0.36, size: 1.05 },
-    { t: 0.46, size: 1.0 },
-    { t: 0.56, size: 0.92 },
-    { t: 0.66, size: 0.82 },
-    { t: 0.76, size: 0.7 },
-    { t: 0.86, size: 0.58 },
-    { t: 0.94, size: 0.44 },
-  ];
+  // A single laurel branch: stem sweeps from bottom-outside up and around to
+  // top-center in a deep arc, with a handful of large, evenly-sized leaves.
+  const leaves = [0.08, 0.24, 0.42, 0.6, 0.78, 0.93];
 
-  // Stem path: from bottom (0,100) curving up to top center (50,0)
-  const stemPath = 'M 8 100 Q 4 60 20 35 Q 34 14 50 0';
+  // Deeper, rounder curve than a simple diagonal.
+  const stemPath = 'M 6 100 Q -6 55 14 30 Q 30 10 50 0';
 
   const pointAt = (t: number) => {
-    // Approximate the quadratic bezier chain for position + tangent angle
-    // Using two quad segments joined at t=0.55
-    const seg1 = t <= 0.55;
-    const lt = seg1 ? t / 0.55 : (t - 0.55) / 0.45;
-    const p0 = seg1 ? { x: 8, y: 100 } : { x: 20, y: 35 };
-    const p1 = seg1 ? { x: 4, y: 60 } : { x: 34, y: 14 };
-    const p2 = seg1 ? { x: 20, y: 35 } : { x: 50, y: 0 };
+    const seg1 = t <= 0.5;
+    const lt = seg1 ? t / 0.5 : (t - 0.5) / 0.5;
+    const p0 = seg1 ? { x: 6, y: 100 } : { x: 14, y: 30 };
+    const p1 = seg1 ? { x: -6, y: 55 } : { x: 30, y: 10 };
+    const p2 = seg1 ? { x: 14, y: 30 } : { x: 50, y: 0 };
     const x = (1 - lt) ** 2 * p0.x + 2 * (1 - lt) * lt * p1.x + lt ** 2 * p2.x;
     const y = (1 - lt) ** 2 * p0.y + 2 * (1 - lt) * lt * p1.y + lt ** 2 * p2.y;
     const dx = 2 * (1 - lt) * (p1.x - p0.x) + 2 * lt * (p2.x - p0.x);
@@ -38,14 +25,14 @@ function LaurelBranch({ flip = false }: { flip?: boolean }) {
     return { x, y, angle };
   };
 
+  const leafLen = 20;
+  const leafWidth = 8;
+
   return (
     <g transform={flip ? 'translate(58,0) scale(-1,1)' : undefined}>
-      <path d={stemPath} stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-      {leaves.map(({ t, size }, i) => {
+      <path d={stemPath} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      {leaves.map((t, i) => {
         const { x, y, angle } = pointAt(t);
-        const leafLen = 11 * size;
-        const leafWidth = 4.4 * size;
-        // Leaf points outward/downward from the stem at ~55deg from tangent
         const outward = angle - 60;
         return (
           <g key={i} transform={`translate(${x} ${y}) rotate(${outward})`}>
@@ -62,7 +49,7 @@ function LaurelBranch({ flip = false }: { flip?: boolean }) {
 
 function LaurelWreath({ flip = false }: { flip?: boolean }) {
   return (
-    <svg viewBox="0 0 58 104" className="w-14 h-24 text-foreground/70">
+    <svg viewBox="0 0 58 104" className="w-14 h-24 shrink-0 text-gray-300 dark:text-gray-700">
       <LaurelBranch flip={flip} />
     </svg>
   );
