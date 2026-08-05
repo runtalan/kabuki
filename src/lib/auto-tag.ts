@@ -13,7 +13,7 @@ function canOverride(currentSource: string | null, incomingSource: string) {
   return PRECEDENCE[incomingSource] > PRECEDENCE[currentSource];
 }
 
-function matchesRule(merchantLower: string, rule: { merchantName: string; matchType: string }) {
+export function matchesRule(merchantLower: string, rule: { merchantName: string; matchType: string }) {
   const nameLower = rule.merchantName.toLowerCase();
   switch (rule.matchType) {
     case 'exact':
@@ -67,6 +67,35 @@ export async function autoTagTransaction(
     .where(eq(transactions.id, transactionId));
 }
 
+// Finds the user's existing transactions a rule would retag, without writing
+// anything — same eligibility rules as applyRuleToExistingTransactions (must
+// match the merchant pattern, must not already be manually tagged, must not
+// already be in the rule's target category). Used to preview a rule before
+// it's applied.
+export async function findMatchingTransactions(
+  userId: string,
+  rule: { categoryId: string; merchantName: string; matchType: string }
+) {
+  const rows = await db.query.plaidItems.findMany({
+    where: (item, { eq: eqOp }) => eqOp(item.userId, userId),
+    with: {
+      accounts: {
+        with: {
+          transactions: { with: { category: true } },
+        },
+      },
+    },
+  });
+
+  const candidates = rows.flatMap((item) => item.accounts.flatMap((acc) => acc.transactions));
+
+  return candidates.filter((tx) => {
+    if (!canOverride(tx.categorySource, 'rule')) return false;
+    const merchantLower = (tx.merchant || tx.name).toLowerCase();
+    return matchesRule(merchantLower, rule) && tx.categoryId !== rule.categoryId;
+  });
+}
+
 // Applies a freshly created/edited rule to the user's existing transactions
 // whose merchant matches, but only where the current category came from a
 // lower-precedence source (smart guess or nothing) — never touches manual
@@ -75,46 +104,16 @@ export async function applyRuleToExistingTransactions(
   userId: string,
   rule: { categoryId: string; merchantName: string; matchType: string }
 ): Promise<number> {
-  // Drizzle's relational query API needs an explicit join path back to the
-  // user through account -> plaidItem, so fetch via the accounts relation.
-  const rows = await db.query.plaidItems.findMany({
-    where: (item, { eq: eqOp }) => eqOp(item.userId, userId),
-    with: {
-      accounts: {
-        with: {
-          transactions: true,
-        },
-      },
-    },
-  });
-
-  const candidates = rows.flatMap((item) =>
-    item.accounts.flatMap((acc) => acc.transactions)
-  );
-
-  const nameLower = rule.merchantName.toLowerCase();
-  let updated = 0;
+  const candidates = await findMatchingTransactions(userId, rule);
 
   for (const tx of candidates) {
-    if (!canOverride(tx.categorySource, 'rule')) continue;
-    const merchantLower = (tx.merchant || tx.name).toLowerCase();
-    const matched =
-      rule.matchType === 'exact'
-        ? merchantLower === nameLower
-        : rule.matchType === 'startsWith'
-        ? merchantLower.startsWith(nameLower)
-        : merchantLower.includes(nameLower);
-
-    if (matched && tx.categoryId !== rule.categoryId) {
-      await db
-        .update(transactions)
-        .set({ categoryId: rule.categoryId, categorySource: 'rule', updatedAt: new Date() })
-        .where(eq(transactions.id, tx.id));
-      updated++;
-    }
+    await db
+      .update(transactions)
+      .set({ categoryId: rule.categoryId, categorySource: 'rule', updatedAt: new Date() })
+      .where(eq(transactions.id, tx.id));
   }
 
-  return updated;
+  return candidates.length;
 }
 
 // Runs the smart merchant guesser over every transaction for a user that

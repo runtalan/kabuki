@@ -57,6 +57,7 @@ export function PlaidLinkButton() {
               body: JSON.stringify({
                 public_token: publicToken,
                 institution_name: metadata?.institution?.name || null,
+                institution_id: metadata?.institution?.institution_id || null,
               }),
             });
 

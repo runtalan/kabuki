@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
-import { OWNERS } from './owner-badge';
+import { OWNERS, getOwner } from './owner-badge';
+import { CategoryIcon } from './category-icon';
 
 interface Transaction {
   id: string;
@@ -13,6 +14,7 @@ interface Transaction {
   date: string;
   hidden?: boolean;
   account?: { owner?: string | null } | null;
+  category?: { name: string; color: string; icon: string } | null;
 }
 
 type Granularity = 'month' | 'week';
@@ -301,28 +303,65 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
       {/* Selected day detail */}
       {selectedDay && (
         <div className="mt-5 pt-4 border-t border-border">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            {monthLabel} {selectedDay}
-          </p>
-          <div className="space-y-2">
-            {dayTransactions(selectedDay).length > 0 ? (
-              dayTransactions(selectedDay).map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground truncate pr-4">{tx.name}</span>
-                  <span
-                    className={`font-medium whitespace-nowrap ${
-                      tx.type === 'credit' ? 'text-blue-500' : 'text-foreground'
-                    }`}
-                  >
-                    {tx.type === 'credit' ? '+' : '-'}
-                    {formatCurrency(Math.abs(parseFloat(tx.amount)))}
-                  </span>
+          {(() => {
+            const dayTxs = dayTransactions(selectedDay);
+            return (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {monthLabel} {selectedDay}
+                  </p>
+                  {dayTxs.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {dayTxs.length} transaction{dayTxs.length === 1 ? '' : 's'}
+                    </p>
+                  )}
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No transactions this day</p>
-            )}
-          </div>
+                {dayTxs.length > 0 ? (
+                  <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
+                    {dayTxs.map((tx) => (
+                      <div
+                        key={tx.id}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                        style={{ borderLeft: `3px solid ${getOwner(tx.account?.owner).color}` }}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: (tx.category?.color || '#6b7280') + '1f',
+                            color: tx.category?.color || '#6b7280',
+                          }}
+                        >
+                          <CategoryIcon icon={tx.category?.icon} className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{tx.name}</p>
+                          <p
+                            className="text-[11px] font-medium truncate"
+                            style={{ color: tx.category?.color || '#9ca3af' }}
+                          >
+                            {tx.category?.name || 'Untagged'}
+                          </p>
+                        </div>
+                        <p
+                          className={`text-sm font-semibold whitespace-nowrap flex-shrink-0 ${
+                            tx.type === 'credit' ? 'text-emerald-500' : 'text-foreground'
+                          }`}
+                        >
+                          {tx.type === 'credit' ? '+' : '-'}$
+                          {Math.abs(parseFloat(tx.amount)).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No transactions this day</p>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

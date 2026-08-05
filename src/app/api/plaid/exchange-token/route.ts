@@ -5,11 +5,14 @@ import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { generateId } from "@/lib/id";
 import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
+import { cacheInstitutionLogo } from "@/lib/institution-logo";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const ExchangeTokenSchema = z.object({
   public_token: z.string(),
   institution_name: z.string().nullable().optional(),
+  institution_id: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
     const demoBlock = assertWriteAccess(user);
     if (demoBlock) return demoBlock;
     const body = await req.json();
-    const { public_token, institution_name } = ExchangeTokenSchema.parse(body);
+    const { public_token, institution_name, institution_id } = ExchangeTokenSchema.parse(body);
 
     // Exchange public_token for access_token
     const exchangeResponse = await plaidClient.itemPublicTokenExchange({
@@ -36,6 +39,7 @@ export async function POST(req: NextRequest) {
       itemId,
       accessToken,
       institutionName: institution_name || null,
+      institutionId: institution_id || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -44,6 +48,21 @@ export async function POST(req: NextRequest) {
     // accounts default to whoever linked them, not a generic "joint" label.
     await syncAccounts(plaidItemId, accessToken, user.email);
     await syncTransactions(plaidItemId, accessToken, user.id);
+
+    // Best-effort: cache the institution's logo. Never block linking on this.
+    if (institution_id) {
+      try {
+        const logoUrl = await cacheInstitutionLogo(institution_id);
+        if (logoUrl) {
+          await db
+            .update(plaidItems)
+            .set({ institutionLogoUrl: logoUrl })
+            .where(eq(plaidItems.id, plaidItemId));
+        }
+      } catch (logoError) {
+        console.error("Failed to cache institution logo:", logoError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

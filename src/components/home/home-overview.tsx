@@ -18,7 +18,7 @@ import {
 import { CategoryIcon } from '@/components/category-icon';
 import { SpendCalendar } from '@/components/spend-calendar';
 import { getTypeBadge } from '@/lib/account-types';
-import { OWNERS } from '@/components/owner-badge';
+import { OWNERS, getOwner } from '@/components/owner-badge';
 
 const ACCOUNT_ICONS: Record<string, typeof Wallet> = { Wallet, CreditCard, PiggyBank, TrendingUp };
 
@@ -56,6 +56,7 @@ interface RecentTransaction {
   category: string;
   categoryIcon?: string | null;
   categoryColor?: string | null;
+  owner?: string | null;
   amount: number;
   date: string;
 }
@@ -174,6 +175,81 @@ export function HomeOverview({
           </Link>
         </div>
 
+        {/* Spent this month (calendar) */}
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <SpendCalendar bare />
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Recent Activity
+            </p>
+            <Link
+              href="/spending/transactions"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
+            {recentTransactions.length > 0 ? (
+              recentTransactions.map((tx) => (
+                <Link
+                  key={tx.id}
+                  href="/spending/transactions"
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                  style={{ borderLeft: `3px solid ${getOwner(tx.owner).color}` }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{
+                      backgroundColor: (tx.categoryColor || '#6b7280') + '1f',
+                      color: tx.categoryColor || '#6b7280',
+                    }}
+                  >
+                    <CategoryIcon icon={tx.categoryIcon} className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
+                    <div className="flex items-center gap-2">
+                      <p
+                        className="text-[11px] font-medium truncate"
+                        style={{ color: tx.categoryColor || '#9ca3af' }}
+                      >
+                        {tx.category}
+                      </p>
+                      <span className="text-[11px] text-muted-foreground/60">·</span>
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(tx.date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <p
+                    className={`text-sm font-semibold flex-shrink-0 ${
+                      tx.amount >= 0 ? 'text-emerald-500' : 'text-foreground'
+                    }`}
+                  >
+                    {tx.amount >= 0 ? '+' : '-'}
+                    {money(tx.amount, 2)}
+                  </p>
+                </Link>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground px-3 py-6 text-center">
+                No transactions yet — link an account to see activity here.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right column: cash flow + quick account balances */}
+      <div className="space-y-6">
         {/* Cash Flow */}
         <div className="bg-card border border-border rounded-2xl p-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
@@ -224,75 +300,6 @@ export function HomeOverview({
               </span>
             </div>
           </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Recent Activity
-            </p>
-            <Link
-              href="/spending/transactions"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="space-y-1">
-            {recentTransactions.length > 0 ? (
-              recentTransactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: (tx.categoryColor || '#6b7280') + '22' }}
-                    >
-                      <CategoryIcon
-                        icon={tx.categoryIcon}
-                        color={tx.categoryColor}
-                        className="w-4 h-4"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
-                      <p className="text-xs text-muted-foreground">{tx.category}</p>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0 ml-3">
-                    <p
-                      className={`text-sm font-semibold ${
-                        tx.amount >= 0 ? 'text-emerald-500' : 'text-foreground'
-                      }`}
-                    >
-                      {tx.amount >= 0 ? '+' : '-'}
-                      {money(tx.amount, 2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(tx.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground px-3 py-6 text-center">
-                No transactions yet — link an account to see activity here.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Right column: spend calendar + quick account balances */}
-      <div className="space-y-6">
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <SpendCalendar bare />
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-6">

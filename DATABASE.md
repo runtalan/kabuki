@@ -41,6 +41,7 @@
 | 2026-08-04 | `0011_transaction_hidden.sql` | Per-transaction hide toggle (excluded from totals/budgets/reports) |
 | 2026-08-05 | `0012_recurring_series.sql` | Recurring transactions — review queue, manual entries, calendar projection |
 | 2026-08-05 | `0013_demo_account.sql` | `users.is_demo` flag for the shared, view-only public demo account |
+| 2026-08-05 | `0014_institution_logo.sql` | `plaid_items.institution_id` + `institution_logo_url` (cached Plaid logo, uploaded to Supabase Storage) |
 
 ## Current schema state
 
@@ -59,6 +60,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `tags` | 0008 | |
 | `transaction_tags` | 0008 | join table |
 | `recurring_series` | 0012 | User overrides + manual entries layered on heuristic detection |
+| `plaid_items` | 0000 | +`is_manual` (0006); +`institution_id`,`institution_logo_url` (0014) |
 
 ## Quick reference
 

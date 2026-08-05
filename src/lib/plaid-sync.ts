@@ -59,6 +59,7 @@ export async function syncAccounts(
         availableBalance: plaidAccount.balances.available?.toString() || null,
         currency: plaidAccount.balances.iso_currency_code || "USD",
         isActive: true,
+        lastSyncedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -79,6 +80,7 @@ export async function syncAccounts(
             name: accountData.name,
             mask: accountData.mask,
             kind: accountData.kind,
+            lastSyncedAt: accountData.lastSyncedAt,
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, existing.id));

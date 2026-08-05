@@ -45,6 +45,8 @@ export const plaidItems = pgTable(
     itemId: varchar("item_id", { length: 255 }).notNull().unique(),
     accessToken: varchar("access_token", { length: 500 }).notNull(),
     institutionName: varchar("institution_name", { length: 255 }),
+    institutionId: varchar("institution_id", { length: 255 }),
+    institutionLogoUrl: text("institution_logo_url"),
     lastSyncedAt: timestamp("last_synced_at"),
     syncStatus: varchar("sync_status", { length: 20 }).default("idle").notNull(), // "idle", "syncing", "error"
     lastError: text("last_error"),

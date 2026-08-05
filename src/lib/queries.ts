@@ -237,6 +237,7 @@ export async function getRecentTransactions(userId: string, limit = 10) {
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
+  const accountOwnerMap = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
   return allTransactions.map((tx) => {
     const category = tx.categoryId ? categoryMap.get(tx.categoryId) : null;
@@ -246,6 +247,7 @@ export async function getRecentTransactions(userId: string, limit = 10) {
       category: category?.name || 'Uncategorized',
       categoryIcon: category?.icon || null,
       categoryColor: category?.color || null,
+      owner: accountOwnerMap.get(tx.accountId) || 'joint',
       amount: Number(tx.amount),
       date: tx.date,
       merchant: tx.merchant || tx.name,

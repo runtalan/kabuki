@@ -52,3 +52,14 @@ env:
     value: "US"
     availability:
       - RUNTIME
+
+  # Supabase Storage (institution logo caching)
+  - variable: SUPABASE_URL
+    value: "https://qqhvjcwqhfvpjlisezaq.supabase.co"
+    availability:
+      - RUNTIME
+
+  - variable: SUPABASE_SERVICE_ROLE_KEY
+    secret: SUPABASE_SERVICE_ROLE_KEY
+    availability:
+      - RUNTIME

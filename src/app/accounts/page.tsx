@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   RefreshCw,
   Trash2,
-  AlertCircle,
   CheckCircle,
-  Clock,
   Edit2,
   Wallet,
   CreditCard,
@@ -23,10 +21,14 @@ import {
   Loader,
   ChevronDown,
   ChevronUp,
+  MoreVertical,
+  Eye,
+  Pencil,
 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PlaidLinkButton } from '@/components/plaid-link-button';
 import { OWNERS, type OwnerKey } from '@/components/owner-badge';
+import { formatRelativeTime } from '@/lib/format';
 
 // Display order for the collapsible owner sections on the accounts overview.
 const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
@@ -51,6 +53,7 @@ interface Account {
   isManual?: boolean;
   currentBalance: string;
   lastSyncedAt?: string;
+  mask?: string | null;
 }
 
 const OWNER_OPTIONS = (Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
@@ -60,12 +63,55 @@ const OWNER_OPTIONS = (Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof 
 interface PlaidItem {
   id: string;
   institutionName?: string;
+  institutionLogoUrl?: string | null;
   syncStatus: 'idle' | 'syncing' | 'error';
   lastError?: string;
   lastSyncedAt?: string;
   isManual?: boolean;
   addedByUsername?: string | null;
   accounts: Account[];
+}
+
+const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
+
+function avatarColorFor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function InstitutionAvatar({ item }: { item: PlaidItem }) {
+  const name = item.institutionName || 'Unnamed Connection';
+  if (item.institutionLogoUrl) {
+    return (
+      <img
+        src={item.institutionLogoUrl}
+        alt={name}
+        className="w-11 h-11 rounded-full object-cover flex-shrink-0 bg-white"
+      />
+    );
+  }
+  if (item.isManual) {
+    return (
+      <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-primary/10">
+        <Landmark className="w-5 h-5 text-primary" />
+      </div>
+    );
+  }
+  const initials = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  return (
+    <div
+      className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold text-white"
+      style={{ backgroundColor: avatarColorFor(name) }}
+    >
+      {initials || <CheckCircle className="w-5 h-5" />}
+    </div>
+  );
 }
 
 const ICON_OPTIONS = [
@@ -108,6 +154,7 @@ export default function AccountsPage() {
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [institutionNameDraft, setInstitutionNameDraft] = useState('');
   const [collapsedOwners, setCollapsedOwners] = useState<Set<string>>(new Set());
+  const [menuOpenItemId, setMenuOpenItemId] = useState<string | null>(null);
 
   useEscapeKey(() => setShowAddLiability(false), showAddLiability);
 
@@ -367,17 +414,6 @@ export default function AccountsPage() {
     }
   };
 
-  const getSyncStatusIcon = (status: string) => {
-    switch (status) {
-      case 'syncing':
-        return <Clock className="w-5 h-5 text-blue-600 animate-spin" />;
-      case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-600" />;
-      default:
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-    }
-  };
-
   const getIconComponent = (iconName?: string) => {
     const icon = ICON_OPTIONS.find((opt) => opt.name === (iconName || 'Wallet'));
     if (icon) {
@@ -538,13 +574,7 @@ export default function AccountsPage() {
                 {/* Institution Header */}
                 <div className="flex items-center justify-between mb-6 pb-6 border-b border-border">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      {item.isManual ? (
-                        <Landmark className="w-6 h-6 text-primary" />
-                      ) : (
-                        <CheckCircle className="w-6 h-6 text-primary" />
-                      )}
-                    </div>
+                    <InstitutionAvatar item={item} />
                     <div className="flex-1">
                       {renamingItemId === item.id ? (
                         <div className="flex items-center gap-2">
@@ -574,31 +604,32 @@ export default function AccountsPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 group/name">
-                          <h2 className="text-lg font-semibold text-foreground">
-                            {item.institutionName || 'Unnamed Connection'}
-                          </h2>
-                          <button
-                            onClick={() => startRenamingInstitution(item)}
-                            className="p-1 rounded opacity-0 group-hover/name:opacity-100 hover:bg-muted transition-all"
-                            title="Rename"
-                          >
-                            <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                          </button>
-                        </div>
+                        <h2 className="text-lg font-semibold text-foreground">
+                          {item.institutionName || 'Unnamed Connection'}
+                        </h2>
                       )}
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {!item.isManual && (
                           <>
-                            {getSyncStatusIcon(item.syncStatus)}
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {item.syncStatus === 'idle' ? 'Synced' : item.syncStatus}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                item.syncStatus === 'error'
+                                  ? 'bg-red-500'
+                                  : item.syncStatus === 'syncing'
+                                  ? 'bg-blue-500 animate-pulse'
+                                  : 'bg-emerald-500'
+                              }`}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {item.syncStatus === 'syncing'
+                                ? 'Syncing…'
+                                : item.syncStatus === 'error'
+                                ? 'Sync error'
+                                : item.lastSyncedAt
+                                ? `Updated ${formatRelativeTime(item.lastSyncedAt)}`
+                                : 'Not synced yet'}
+                              {' • via Plaid'}
                             </span>
-                            {item.lastSyncedAt && (
-                              <span className="text-xs text-muted-foreground">
-                                • {new Date(item.lastSyncedAt).toLocaleDateString()}
-                              </span>
-                            )}
                           </>
                         )}
                         {item.isManual && (
@@ -622,25 +653,56 @@ export default function AccountsPage() {
                       </div>
                     </div>
                   </div>
-                  {!item.isManual && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!item.isManual && (
                       <button
                         onClick={() => handleRefresh(item.id)}
                         disabled={refreshing === item.id}
                         className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
-                        title="Refresh accounts"
+                        title={`Refresh ${item.institutionName || 'this connection'}`}
                       >
-                        <RefreshCw className={`w-5 h-5 text-muted-foreground ${refreshing === item.id ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-4 h-4 text-muted-foreground ${refreshing === item.id ? 'animate-spin' : ''}`} />
                       </button>
+                    )}
+                    <div className="relative">
                       <button
-                        onClick={() => handleDisconnect(item.id)}
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Disconnect account"
+                        onClick={() => setMenuOpenItemId(menuOpenItemId === item.id ? null : item.id)}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        title="More actions"
                       >
-                        <Trash2 className="w-5 h-5 text-red-600" />
+                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
                       </button>
+                      {menuOpenItemId === item.id && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setMenuOpenItemId(null)} />
+                          <div className="absolute right-0 top-9 z-20 w-48 bg-popover border border-border rounded-xl shadow-xl overflow-hidden py-1">
+                            <button
+                              onClick={() => {
+                                setMenuOpenItemId(null);
+                                startRenamingInstitution(item);
+                              }}
+                              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                              Rename
+                            </button>
+                            {!item.isManual && (
+                              <button
+                                onClick={() => {
+                                  setMenuOpenItemId(null);
+                                  handleDisconnect(item.id);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-muted transition-colors text-left"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Disconnect
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Error message */}
@@ -780,6 +842,9 @@ export default function AccountsPage() {
                         </div>
                         <p className="text-sm font-medium text-foreground mb-1">
                           {account.displayName || account.name}
+                          {account.mask && (
+                            <span className="text-muted-foreground font-normal"> ••{account.mask}</span>
+                          )}
                         </p>
                         <span
                           className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full mb-2"
@@ -827,6 +892,9 @@ export default function AccountsPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
                             {account.displayName || account.name}
+                            {account.mask && (
+                              <span className="text-muted-foreground font-normal"> ••{account.mask}</span>
+                            )}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span
@@ -869,6 +937,16 @@ export default function AccountsPage() {
                         </p>
 
                         <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/accounts/${account.id}`);
+                            }}
+                            className="p-1.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+                            title="View account details"
+                          >
+                            <Eye className="w-4 h-4 text-muted-foreground" />
+                          </button>
                           <button
                             onClick={(e) => startEditing(account, e)}
                             className="p-1.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"

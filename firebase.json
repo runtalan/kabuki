@@ -15,7 +15,8 @@
       "PLAID_CLIENT_ID",
       "PLAID_SECRET",
       "PLAID_ENV",
-      "AUTH_URL"
+      "AUTH_URL",
+      "SUPABASE_SERVICE_ROLE_KEY"
     ],
     "alwaysDeployFromSource": false
   },

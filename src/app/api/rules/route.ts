@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const demoBlock = assertWriteAccess(user);
     if (demoBlock) return demoBlock;
 
-    const { categoryId, merchantName, matchType, priority } = await request.json();
+    const { categoryId, merchantName, matchType, priority, retroactive } = await request.json();
 
     if (!categoryId || !merchantName) {
       return Response.json(
@@ -62,13 +62,16 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    // Retroactively apply to existing transactions — overrides smart guesses,
-    // never touches manually tagged ones.
-    const retagged = await applyRuleToExistingTransactions(user.id, {
-      categoryId,
-      merchantName,
-      matchType: matchType || 'contains',
-    });
+    // Retroactively apply to existing transactions only when explicitly
+    // requested — overrides smart guesses, never touches manually tagged
+    // ones. Opt-in because retagging can silently touch a lot of history.
+    const retagged = retroactive
+      ? await applyRuleToExistingTransactions(user.id, {
+          categoryId,
+          merchantName,
+          matchType: matchType || 'contains',
+        })
+      : 0;
 
     return Response.json({ ...result[0], retagged });
   } catch (error) {
