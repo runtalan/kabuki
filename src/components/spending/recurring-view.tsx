@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  CalendarClock,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -86,6 +87,38 @@ function MerchantAvatar({
         color={entry.categoryColor || '#6b7280'}
         className={icon}
       />
+    </div>
+  );
+}
+
+// Shown in place of the calendar/list when detection has found nothing yet
+// and no manual entries exist. Distinct from "filtered down to zero" — this
+// is the true first-run state.
+function RecurringEmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-center text-center px-6 py-16">
+      <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+        <CalendarClock className="w-7 h-7 text-primary" />
+      </div>
+      <h3 className="text-lg font-semibold text-foreground mb-2">
+        No recurring transactions yet
+      </h3>
+      <p className="text-sm text-muted-foreground max-w-sm leading-relaxed mb-6">
+        Detection looks for the same merchant charging you on a steady schedule — weekly,
+        biweekly, monthly, or yearly. It needs at least two or three billing cycles of history to
+        tell a real subscription from a coincidence, so check back once your accounts have synced
+        a couple more months of transactions.
+      </p>
+      <button
+        onClick={onAdd}
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Add one manually
+      </button>
+      <p className="text-xs text-muted-foreground mt-3">
+        Know a bill won't show up on its own? Add it directly instead of waiting on detection.
+      </p>
     </div>
   );
 }
@@ -274,7 +307,9 @@ export function RecurringView({
           </div>
         </div>
 
-        {view === 'calendar' ? (
+        {entries.length === 0 ? (
+          <RecurringEmptyState onAdd={() => setAddOpen(true)} />
+        ) : view === 'calendar' ? (
           <div className="p-6">
             {/* Month navigator */}
             <div className="flex items-center justify-between mb-5">
@@ -387,9 +422,7 @@ export function RecurringView({
                 </p>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {entries.length === 0
-                  ? 'No recurring transactions detected yet. Detection needs a few billing cycles of history — check back once your accounts have synced a couple of months, or add one manually.'
-                  : monthlyInflow >= monthlyOutflow
+                {monthlyInflow >= monthlyOutflow
                     ? `Your recurring income of ${money(monthlyInflow, 0)}/mo comfortably covers ${money(monthlyOutflow, 0)}/mo in recurring bills across ${bills.length} ${bills.length === 1 ? 'subscription' : 'subscriptions'}. That leaves roughly ${money(monthlyInflow - monthlyOutflow, 0)} of headroom each month.`
                     : `Recurring bills total ${money(monthlyOutflow, 0)}/mo against ${money(monthlyInflow, 0)}/mo of detected recurring income — a shortfall of ${money(monthlyOutflow - monthlyInflow, 0)} that has to come from other income or savings.`}
               </p>
@@ -398,8 +431,7 @@ export function RecurringView({
         ) : (
           /* List view */
           <div className="divide-y divide-border">
-            {entries.length > 0 ? (
-              entries.map((entry) => (
+            {entries.map((entry) => (
                 <div key={entry.merchantKey} className="flex items-center gap-3 px-6 py-3.5">
                   <MerchantAvatar entry={entry} />
                   <div className="min-w-0 flex-1">
@@ -459,13 +491,7 @@ export function RecurringView({
                     onDelete={() => remove(entry)}
                   />
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground py-16 text-center px-6">
-                No recurring transactions yet. Detection needs a few billing cycles of history —
-                or add one manually with “Add”.
-              </p>
-            )}
+              ))}
           </div>
         )}
       </div>
