@@ -102,6 +102,14 @@ export default function TransactionsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('all');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Date range state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [customDateStart, setCustomDateStart] = useState('');
+  const [customDateEnd, setCustomDateEnd] = useState('');
 
   // Action menu state
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -121,8 +129,9 @@ export default function TransactionsPage() {
   const [smartTagging, setSmartTagging] = useState(false);
 
   const fetchTransactions = useCallback(
-    async (opts: { silent?: boolean } = {}) => {
-      if (!opts.silent) setLoading(true);
+    async (opts: { silent?: boolean; loadMore?: boolean; pageNum?: number } = {}) => {
+      if (!opts.silent && !opts.loadMore) setLoading(true);
+      if (opts.loadMore) setLoadingMore(true);
       setSearching(true);
       try {
         const params = new URLSearchParams();
@@ -133,21 +142,34 @@ export default function TransactionsPage() {
         if (selectedTag !== 'all') params.set('tag', selectedTag);
         params.set('sortBy', sortBy);
         params.set('sortDir', sortDir);
+        params.set('page', (opts.pageNum || 1).toString());
 
         const res = await fetch(`/api/transactions?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          setTransactions(data.transactions || []);
+          if (opts.loadMore) {
+            setTransactions((prev) => [...prev, ...(data.transactions || [])]);
+          } else {
+            setTransactions(data.transactions || []);
+          }
+          setHasMore(data.hasMore || false);
         }
       } catch (error) {
         console.error('Error fetching transactions:', error);
       } finally {
         setLoading(false);
         setSearching(false);
+        setLoadingMore(false);
       }
     },
     [searchInput, selectedCategory, selectedOwner, selectedType, selectedTag, sortBy, sortDir]
   );
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchTransactions({ loadMore: true, pageNum: nextPage });
+  };
 
   // Debounce free-text search hitting the backend; other filters refetch immediately.
   useEffect(() => {
@@ -157,9 +179,11 @@ export default function TransactionsPage() {
   }, [searchInput]);
 
   useEffect(() => {
+    setPage(1);
+    setTransactions([]);
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, selectedOwner, selectedType, selectedTag, sortBy, sortDir]);
+  }, [selectedCategory, selectedOwner, selectedType, selectedTag, sortBy, sortDir];
 
   useEffect(() => {
     fetch('/api/categories')
@@ -297,12 +321,25 @@ export default function TransactionsPage() {
       date.setMonth(date.getMonth() - 1);
       return date;
     }
+    if (customDateStart) {
+      return new Date(customDateStart);
+    }
     return new Date(0);
   };
 
-  const visibleTransactions = transactions.filter(
-    (tx) => new Date(tx.date) >= getTimeRangeDate()
-  );
+  const getTimeRangeEndDate = () => {
+    if (customDateEnd) {
+      return new Date(customDateEnd);
+    }
+    return new Date();
+  };
+
+  const visibleTransactions = transactions.filter((tx) => {
+    const txDate = new Date(tx.date);
+    const startDate = getTimeRangeDate();
+    const endDate = getTimeRangeEndDate();
+    return txDate >= startDate && txDate <= endDate;
+  });
   const groups = groupByDay(visibleTransactions);
 
   const stats = {
@@ -418,12 +455,21 @@ export default function TransactionsPage() {
           <div className="relative">
             <select
               value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as 'week' | 'month' | 'all')}
+              onChange={(e) => {
+                const val = e.target.value as 'week' | 'month' | 'all' | 'custom';
+                if (val === 'custom') {
+                  setShowDatePicker(true);
+                } else {
+                  setTimeRange(val);
+                  setShowDatePicker(false);
+                }
+              }}
               className="w-full px-4 py-2 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
             >
               <option value="all">All Time</option>
               <option value="month">This Month</option>
               <option value="week">This Week</option>
+              <option value="custom">Custom Range</option>
             </select>
             <ChevronDown className="absolute right-3 top-3 w-5 h-5 text-muted-foreground pointer-events-none" />
           </div>
@@ -468,6 +514,71 @@ export default function TransactionsPage() {
           <SortLabel col="date">Date</SortLabel>
           <SortLabel col="amount">Amount</SortLabel>
         </div>
+
+        {/* Date Range Picker Modal */}
+        {showDatePicker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowDatePicker(false)}
+            />
+            <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Select Date Range</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customDateStart}
+                    onChange={(e) => setCustomDateStart(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase mb-2 block">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customDateEnd}
+                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <button
+                    onClick={() => {
+                      if (customDateStart && customDateEnd) {
+                        setTimeRange('all');
+                        setShowDatePicker(false);
+                        // Custom range is applied via the getTimeRangeDate logic
+                      }
+                    }}
+                    disabled={!customDateStart || !customDateEnd}
+                    className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDatePicker(false);
+                      setCustomDateStart('');
+                      setCustomDateEnd('');
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Day-grouped transaction list */}
         <div className="space-y-5 mb-8">
@@ -679,6 +790,19 @@ export default function TransactionsPage() {
             </div>
           )}
         </div>
+
+        {/* Load More Button */}
+        {hasMore && (
+          <div className="flex justify-center mb-8">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {loadingMore ? 'Loading...' : 'Load More Transactions'}
+            </button>
+          </div>
+        )}
 
         {/* Stats Footer */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

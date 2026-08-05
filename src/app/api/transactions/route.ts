@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const accountId = searchParams.get('accountId');
     const sortBy = searchParams.get('sortBy') === 'amount' ? 'amount' : 'date';
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const pageSize = 50;
+    const offset = (page - 1) * pageSize;
 
     const userItems = await db.query.plaidItems.findMany({
       where: eq(plaidItems.userId, user.id),
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
 
     const itemIds = userItems.map((item) => item.id);
     if (itemIds.length === 0) {
-      return Response.json({ transactions: [] });
+      return Response.json({ transactions: [], hasMore: false, total: 0 });
     }
 
     const userAccounts = await db.query.accounts.findMany({
@@ -43,7 +46,7 @@ export async function GET(request: Request) {
       accountIds = accountIds.filter((id) => id === accountId);
     }
     if (accountIds.length === 0) {
-      return Response.json({ transactions: [] });
+      return Response.json({ transactions: [], hasMore: false, total: 0 });
     }
 
     const conditions = [inArray(transactions.accountId, accountIds)];
@@ -66,7 +69,7 @@ export async function GET(request: Request) {
       });
       const taggedIds = tagged.map((t) => t.transactionId);
       if (taggedIds.length === 0) {
-        return Response.json({ transactions: [] });
+        return Response.json({ transactions: [], hasMore: false, total: 0 });
       }
       conditions.push(inArray(transactions.id, taggedIds));
     }
@@ -74,6 +77,7 @@ export async function GET(request: Request) {
     const orderColumn = sortBy === 'amount' ? transactions.amount : transactions.date;
     const orderFn = sortDir === 'asc' ? asc : desc;
 
+    // Fetch one extra to determine if there are more results
     const userTransactions = await db.query.transactions.findMany({
       where: and(...conditions),
       with: {
@@ -84,14 +88,21 @@ export async function GET(request: Request) {
         tags: { with: { tag: true } },
       },
       orderBy: orderFn(orderColumn),
-      limit: 500,
+      limit: pageSize + 1,
+      offset,
     });
 
+    const hasMore = userTransactions.length > pageSize;
+    const paginatedTransactions = userTransactions.slice(0, pageSize);
+
     return Response.json({
-      transactions: userTransactions.map((tx) => ({
+      transactions: paginatedTransactions.map((tx) => ({
         ...tx,
         tags: tx.tags.map((t) => t.tag),
       })),
+      hasMore,
+      page,
+      pageSize,
     });
   } catch (error) {
     console.error('Error fetching transactions:', error);
