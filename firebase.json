@@ -8,6 +8,14 @@
       ".next",
       "firebase-debug.log",
       "firebase-debug.*.log"
+    ],
+    "env": [
+      "DATABASE_URL",
+      "AUTH_SECRET",
+      "PLAID_CLIENT_ID",
+      "PLAID_SECRET",
+      "PLAID_ENV",
+      "AUTH_URL"
     ]
   },
   "emulators": {
