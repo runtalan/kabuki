@@ -3,26 +3,67 @@ import { Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
-function LaurelWreath() {
-  return (
-    <svg viewBox="0 0 120 120" className="w-16 h-16 opacity-70">
-      <g>
-        {/* Left laurel branch */}
-        <path d="M 60 20 Q 40 30 30 50" stroke="currentColor" strokeWidth="2" fill="none" />
-        {/* Left leaves */}
-        <ellipse cx="52" cy="28" rx="2.5" ry="4" fill="currentColor" transform="rotate(-20 52 28)" />
-        <ellipse cx="46" cy="35" rx="2.5" ry="4" fill="currentColor" transform="rotate(-15 46 35)" />
-        <ellipse cx="40" cy="42" rx="2.5" ry="4" fill="currentColor" transform="rotate(-10 40 42)" />
-        <ellipse cx="34" cy="48" rx="2.5" ry="4" fill="currentColor" transform="rotate(-5 34 48)" />
+function LaurelBranch({ flip = false }: { flip?: boolean }) {
+  // A single laurel branch: stem curves from bottom-outside up to top-center,
+  // with paired pointed leaves along its length, tapering as it nears the top.
+  const leaves: { t: number; size: number }[] = [
+    { t: 0.06, size: 1.0 },
+    { t: 0.16, size: 1.05 },
+    { t: 0.26, size: 1.1 },
+    { t: 0.36, size: 1.05 },
+    { t: 0.46, size: 1.0 },
+    { t: 0.56, size: 0.92 },
+    { t: 0.66, size: 0.82 },
+    { t: 0.76, size: 0.7 },
+    { t: 0.86, size: 0.58 },
+    { t: 0.94, size: 0.44 },
+  ];
 
-        {/* Right laurel branch */}
-        <path d="M 60 20 Q 80 30 90 50" stroke="currentColor" strokeWidth="2" fill="none" />
-        {/* Right leaves */}
-        <ellipse cx="68" cy="28" rx="2.5" ry="4" fill="currentColor" transform="rotate(20 68 28)" />
-        <ellipse cx="74" cy="35" rx="2.5" ry="4" fill="currentColor" transform="rotate(15 74 35)" />
-        <ellipse cx="80" cy="42" rx="2.5" ry="4" fill="currentColor" transform="rotate(10 80 42)" />
-        <ellipse cx="86" cy="48" rx="2.5" ry="4" fill="currentColor" transform="rotate(5 86 48)" />
-      </g>
+  // Stem path: from bottom (0,100) curving up to top center (50,0)
+  const stemPath = 'M 8 100 Q 4 60 20 35 Q 34 14 50 0';
+
+  const pointAt = (t: number) => {
+    // Approximate the quadratic bezier chain for position + tangent angle
+    // Using two quad segments joined at t=0.55
+    const seg1 = t <= 0.55;
+    const lt = seg1 ? t / 0.55 : (t - 0.55) / 0.45;
+    const p0 = seg1 ? { x: 8, y: 100 } : { x: 20, y: 35 };
+    const p1 = seg1 ? { x: 4, y: 60 } : { x: 34, y: 14 };
+    const p2 = seg1 ? { x: 20, y: 35 } : { x: 50, y: 0 };
+    const x = (1 - lt) ** 2 * p0.x + 2 * (1 - lt) * lt * p1.x + lt ** 2 * p2.x;
+    const y = (1 - lt) ** 2 * p0.y + 2 * (1 - lt) * lt * p1.y + lt ** 2 * p2.y;
+    const dx = 2 * (1 - lt) * (p1.x - p0.x) + 2 * lt * (p2.x - p0.x);
+    const dy = 2 * (1 - lt) * (p1.y - p0.y) + 2 * lt * (p2.y - p0.y);
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return { x, y, angle };
+  };
+
+  return (
+    <g transform={flip ? 'scale(-1,1)' : undefined}>
+      <path d={stemPath} stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      {leaves.map(({ t, size }, i) => {
+        const { x, y, angle } = pointAt(t);
+        const leafLen = 11 * size;
+        const leafWidth = 4.4 * size;
+        // Leaf points outward/downward from the stem at ~55deg from tangent
+        const outward = angle - 60;
+        return (
+          <g key={i} transform={`translate(${x} ${y}) rotate(${outward})`}>
+            <path
+              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.35} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.35} 0 0 Z`}
+              fill="currentColor"
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function LaurelWreath({ flip = false }: { flip?: boolean }) {
+  return (
+    <svg viewBox="0 0 58 104" className="w-9 h-16 text-foreground/70">
+      <LaurelBranch flip={flip} />
     </svg>
   );
 }
@@ -139,15 +180,13 @@ export function LandingPage() {
             { label: '★★★★★', sub: '2 users, 2 five-star reviews' },
           ].map((badge) => (
             <div key={badge.label} className="flex flex-col items-center gap-3">
-              <div className="flex items-center justify-center gap-3 w-full">
+              <div className="flex items-center justify-center gap-2 w-full">
                 <LaurelWreath />
                 <div>
                   <p className="font-semibold text-foreground text-sm">{badge.label}</p>
                   <p className="text-xs text-muted-foreground mt-1">{badge.sub}</p>
                 </div>
-                <div className="scale-x-[-1]">
-                  <LaurelWreath />
-                </div>
+                <LaurelWreath flip />
               </div>
             </div>
           ))}
