@@ -58,6 +58,39 @@ const FAKE_INVEST_DATA = {
   ],
 };
 
+const FAKE_ACCOUNTS_DATA = [
+  { name: 'Plaid Checking', owner: 'Renato', balance: '$12,400', type: 'Checking', icon: '🏦' },
+  { name: 'Plaid Savings', owner: 'Claudia', balance: '$45,680', type: 'Savings', icon: '💰' },
+  { name: 'Plaid CD', owner: 'Joint', balance: '$50,000', type: 'CD', icon: '📊' },
+  { name: 'Fidelity Brokerage', owner: 'Renato', balance: '$156,200', type: 'Investment', icon: '📈' },
+  { name: 'Amex Credit Card', owner: 'Renato', balance: '-$3,898', type: 'Credit', icon: '💳' },
+  { name: 'Chase Sapphire', owner: 'Claudia', balance: '-$2,150', type: 'Credit', icon: '💳' },
+];
+
+const FAKE_CATEGORIES_DATA = [
+  { name: 'Income', spent: '+$14,200', budget: '—', icon: '📈', pct: 0 },
+  { name: 'Groceries', spent: '$1,240', budget: '$1,500', icon: '🛒', pct: 82.7 },
+  { name: 'Dining', spent: '$2,340', budget: '$2,000', icon: '🍽️', pct: 117 },
+  { name: 'Travel', spent: '$3,500', budget: '$4,000', icon: '✈️', pct: 87.5 },
+  { name: 'Transport', spent: '$680', budget: '$800', icon: '🚗', pct: 85 },
+  { name: 'Entertainment', spent: '$1,540', budget: '$1,500', icon: '🎬', pct: 102.7 },
+  { name: 'Utilities', spent: '$2,100', budget: '$2,500', icon: '💡', pct: 84 },
+  { name: 'Healthcare', spent: '$450', budget: '$600', icon: '🏥', pct: 75 },
+  { name: 'Shopping', spent: '$1,240', budget: '$1,200', icon: '🛍️', pct: 103.3 },
+  { name: 'Subscriptions', spent: '$450', budget: '$500', icon: '🔔', pct: 90 },
+];
+
+const FAKE_TAGS_DATA = [
+  { name: 'Travel', count: 24, icon: '✈️', spent: '$3,500' },
+  { name: 'Work Expenses', count: 18, icon: '💼', spent: '$1,240' },
+  { name: 'Recurring', count: 42, icon: '🔄', spent: '$2,180' },
+  { name: 'Shared Expense', count: 31, icon: '👥', spent: '$4,240' },
+  { name: 'Personal', count: 156, icon: '👤', spent: '$8,960' },
+  { name: 'Investment', count: 12, icon: '📊', spent: '$24,500' },
+  { name: 'Business', count: 8, icon: '🏢', spent: '$2,140' },
+  { name: 'Refund', count: 5, icon: '💰', spent: '$580' },
+];
+
 export function InteractiveAppDemo() {
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [activeSubSection, setActiveSubSection] = useState<string>('overview');
@@ -574,6 +607,121 @@ export function InteractiveAppDemo() {
       );
     }
 
+    if (activeSection === 'accounts') {
+      return (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold text-foreground">Accounts</h1>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {FAKE_ACCOUNTS_DATA.map((acc) => (
+              <div
+                key={acc.name}
+                className="rounded-lg border border-border p-5 bg-gradient-to-br from-card to-primary/5 hover:to-primary/10 cursor-pointer transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{acc.icon}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{acc.name}</p>
+                      <p className="text-xs text-muted-foreground">{acc.type}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">{acc.owner}</p>
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{acc.balance}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeSection === 'categories') {
+      return (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold text-foreground">Categories</h1>
+
+          <div className="rounded-lg border border-border overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/40">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Category</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Spent</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Budget</th>
+                  <th className="px-4 py-3 text-center font-semibold text-foreground text-xs">Usage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FAKE_CATEGORIES_DATA.map((cat) => {
+                  const isOverBudget = cat.pct > 100 && cat.budget !== '—';
+                  return (
+                    <tr key={cat.name} className="border-b border-border hover:bg-muted/20 cursor-pointer transition-colors last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{cat.icon}</span>
+                          <span className="text-xs font-medium text-foreground">{cat.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold text-foreground">{cat.spent}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{cat.budget}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center">
+                          <div className="w-16 bg-muted rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                isOverBudget ? 'bg-red-500' : cat.pct > 75 ? 'bg-amber-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${Math.min(cat.pct, 100)}%` }}
+                            />
+                          </div>
+                          <span className={`ml-2 text-xs font-semibold w-8 text-right ${
+                            isOverBudget ? 'text-red-600' : 'text-foreground'
+                          }`}>
+                            {cat.pct}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeSection === 'tags') {
+      return (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold text-foreground">Tags</h1>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {FAKE_TAGS_DATA.map((tag) => (
+              <div
+                key={tag.name}
+                className="rounded-lg border border-border p-5 bg-card hover:bg-muted/20 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">{tag.icon}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">{tag.name}</p>
+                    <p className="text-xs text-muted-foreground">{tag.count} transactions</p>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground mb-1">Total Spending</p>
+                  <p className="text-lg font-bold text-foreground">{tag.spent}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="text-center text-muted-foreground py-12">
         <p className="text-sm">Section preview not available</p>
@@ -615,11 +763,6 @@ export function InteractiveAppDemo() {
         {/* Main Content */}
         <div className="md:col-span-4 p-6 overflow-y-auto max-h-[700px] bg-background">
           <div>
-            {activeSection !== 'transactions' && (
-              <h1 className="text-3xl font-bold text-foreground mb-6">
-                {activeSection === 'home' ? 'Home' : 'Spending'}
-              </h1>
-            )}
             {renderContent()}
           </div>
         </div>
