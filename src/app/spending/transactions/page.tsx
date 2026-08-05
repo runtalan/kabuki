@@ -183,7 +183,7 @@ export default function TransactionsPage() {
     setTransactions([]);
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, selectedOwner, selectedType, selectedTag, sortBy, sortDir];
+  }, [selectedCategory, selectedOwner, selectedType, selectedTag, sortBy, sortDir]);
 
   useEffect(() => {
     fetch('/api/categories')
