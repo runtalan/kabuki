@@ -5,6 +5,38 @@ import { Home, TrendingUp, Wallet, Tag, FilePenLine, ChevronDown } from 'lucide-
 
 type Section = 'home' | 'spending' | 'transactions' | 'accounts' | 'categories' | 'tags' | 'rules';
 
+// Hardcoded fake data
+const FAKE_TRANSACTIONS = [
+  { id: 1, date: 'Jul 27', merchant: 'United Airlines', category: 'Travel', amount: '-$500.00', icon: '✈️' },
+  { id: 2, date: 'Jul 25', merchant: 'Uber', category: 'Transport', amount: '-$6.33', icon: '🚗' },
+  { id: 3, date: 'Jul 22', merchant: 'Tectra Inc', category: 'Uncategorized', amount: '-$500.00', icon: '📋' },
+  { id: 4, date: 'Jul 21', merchant: 'AUTOMATIC PAYMENT - THANK', category: 'Uncategorized', amount: '-$2,078.50', icon: '🤖' },
+  { id: 5, date: 'Jul 21', merchant: 'KFC', category: 'Dining', amount: '-$500.00', icon: '🍗' },
+  { id: 6, date: 'Jul 20', merchant: 'Whole Foods', category: 'Groceries', amount: '-$124.32', icon: '🛒' },
+  { id: 7, date: 'Jul 19', merchant: 'Spotify', category: 'Subscription', amount: '-$14.99', icon: '🎵' },
+  { id: 8, date: 'Jul 18', merchant: 'Netflix', category: 'Entertainment', amount: '-$15.99', icon: '🎬' },
+];
+
+const FAKE_SPENDING_DATA = {
+  thisMonth: '$11,720.14',
+  lastMonth: '$9,240.50',
+  average: '$10,320.32',
+  categories: [
+    { name: 'Dining', amount: '$2,340', pct: 20, icon: '🍽️' },
+    { name: 'Travel', amount: '$3,500', pct: 30, icon: '✈️' },
+    { name: 'Groceries', amount: '$1,840', pct: 15.7, icon: '🛒' },
+    { name: 'Utilities', amount: '$2,100', pct: 17.9, icon: '💡' },
+    { name: 'Entertainment', amount: '$1,540', pct: 13.1, icon: '🎬' },
+  ],
+  topMerchants: [
+    { rank: 1, name: 'United Airlines', amount: '$500', icon: '✈️' },
+    { rank: 2, name: 'KFC', amount: '$500', icon: '🍗' },
+    { rank: 3, name: 'Spotify', amount: '$14.99', icon: '🎵' },
+    { rank: 4, name: 'Whole Foods', amount: '$124.32', icon: '🛒' },
+    { rank: 5, name: 'Netflix', amount: '$15.99', icon: '🎬' },
+  ],
+};
+
 export function InteractiveAppDemo() {
   const [activeSection, setActiveSection] = useState<Section>('home');
   const [activeSubSection, setActiveSubSection] = useState<string>('overview');
@@ -223,9 +255,150 @@ export function InteractiveAppDemo() {
       );
     }
 
+    if (activeSection === 'spending' && activeSubSection === 'overview') {
+      return (
+        <div className="space-y-6">
+          {/* Tabs */}
+          <div className="flex gap-6 border-b border-border">
+            <button className="px-0 py-3 text-sm font-medium text-foreground border-b-2 border-foreground pb-3">
+              Overview
+            </button>
+            <button className="px-0 py-3 text-sm font-medium text-muted-foreground hover:text-foreground pb-3">
+              Budget
+            </button>
+            <button className="px-0 py-3 text-sm font-medium text-muted-foreground hover:text-foreground pb-3">
+              Transactions
+            </button>
+            <button className="px-0 py-3 text-sm font-medium text-muted-foreground hover:text-foreground pb-3">
+              Recurring
+            </button>
+          </div>
+
+          {/* Spending Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-lg border border-border p-4 bg-card">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Spent This Month</p>
+              <p className="text-2xl font-bold text-foreground">{FAKE_SPENDING_DATA.thisMonth}</p>
+              <p className="text-xs text-muted-foreground mt-2">vs ${FAKE_SPENDING_DATA.lastMonth.slice(1)} last month</p>
+            </div>
+            <div className="rounded-lg border border-border p-4 bg-card">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Monthly Average</p>
+              <p className="text-2xl font-bold text-foreground">{FAKE_SPENDING_DATA.average}</p>
+              <p className="text-xs text-muted-foreground mt-2">Based on 3 months</p>
+            </div>
+            <div className="rounded-lg border border-border p-4 bg-card">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Pace This Month</p>
+              <p className="text-2xl font-bold text-red-600">+$2,480</p>
+              <p className="text-xs text-muted-foreground mt-2">Trending higher</p>
+            </div>
+          </div>
+
+          {/* Category Breakdown & Top Merchants */}
+          <div className="grid grid-cols-2 gap-6">
+            {/* Spending by Category */}
+            <div className="rounded-lg border border-border p-6 bg-card">
+              <p className="text-sm font-semibold text-muted-foreground mb-4">Spending by Category</p>
+              <div className="space-y-3">
+                {FAKE_SPENDING_DATA.categories.map((cat) => (
+                  <div key={cat.name} className="flex items-center gap-3">
+                    <span className="text-lg">{cat.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-xs font-medium text-foreground">{cat.name}</span>
+                        <span className="text-xs text-muted-foreground">{cat.pct}%</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-primary to-accent h-2 rounded-full"
+                          style={{ width: `${cat.pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-xs font-semibold text-foreground w-16 text-right">{cat.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top Merchants */}
+            <div className="rounded-lg border border-border p-6 bg-card">
+              <p className="text-sm font-semibold text-muted-foreground mb-4">Top Merchants</p>
+              <div className="space-y-3">
+                {FAKE_SPENDING_DATA.topMerchants.map((m) => (
+                  <div key={m.rank} className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                      {m.rank}
+                    </div>
+                    <span className="text-lg">{m.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{m.name}</p>
+                    </div>
+                    <span className="text-xs font-semibold text-foreground">{m.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeSection === 'transactions') {
+      return (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold text-foreground">Transactions</h1>
+
+          {/* Filter Bar */}
+          <div className="flex gap-2 flex-wrap">
+            <button className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20">
+              All
+            </button>
+            <button className="px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80">
+              Travel
+            </button>
+            <button className="px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80">
+              Dining
+            </button>
+            <button className="px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80">
+              Groceries
+            </button>
+          </div>
+
+          {/* Transactions Table */}
+          <div className="rounded-lg border border-border overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/40">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Merchant</th>
+                  <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Category</th>
+                  <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FAKE_TRANSACTIONS.map((tx, i) => (
+                  <tr key={i} className="border-b border-border hover:bg-muted/20 cursor-pointer transition-colors">
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{tx.date}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{tx.icon}</span>
+                        <span className="text-xs font-medium text-foreground">{tx.merchant}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{tx.category}</td>
+                    <td className="px-4 py-3 text-right text-xs font-semibold text-foreground">{tx.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="text-center text-muted-foreground py-12">
-        <p className="text-sm">This is a preview of the Home Overview section</p>
+        <p className="text-sm">Section preview not available</p>
       </div>
     );
   };
@@ -264,7 +437,11 @@ export function InteractiveAppDemo() {
         {/* Main Content */}
         <div className="md:col-span-4 p-6 overflow-y-auto max-h-[700px] bg-background">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-6">Home</h1>
+            {activeSection !== 'transactions' && (
+              <h1 className="text-3xl font-bold text-foreground mb-6">
+                {activeSection === 'home' ? 'Home' : 'Spending'}
+              </h1>
+            )}
             {renderContent()}
           </div>
         </div>
