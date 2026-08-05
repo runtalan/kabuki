@@ -240,4 +240,6 @@ This file is the source of truth for environment strategy. Follow these rules st
 
 ---
 
-Last updated: 2026-08-05. Refer to this doc every time you set up a dev session or deploy to production.
+Last updated: 2026-08-05 (deployed to production)
+
+Refer to this doc every time you set up a dev session or deploy to production.
