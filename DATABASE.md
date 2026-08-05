@@ -42,6 +42,8 @@
 | 2026-08-05 | `0012_recurring_series.sql` | Recurring transactions — review queue, manual entries, calendar projection |
 | 2026-08-05 | `0013_demo_account.sql` | `users.is_demo` flag for the shared, view-only public demo account |
 | 2026-08-05 | `0014_institution_logo.sql` | `plaid_items.institution_id` + `institution_logo_url` (cached Plaid logo, uploaded to Supabase Storage) |
+| 2026-08-05 | `0015_transaction_merchant_logo_and_pfc.sql` | `transactions.merchant_entity_id`, `merchant_logo_url` (cached Plaid merchant logo), `pfc_primary`, `pfc_detailed` (Plaid's personal_finance_category) |
+| 2026-08-05 | `0016_transaction_transfer_type.sql` | `transactions.transfer_type` — marks internal transfers/credit card payments so they're excluded from income, expense, cash-flow, and budget totals |
 
 ## Current schema state
 
@@ -53,7 +55,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `plaid_items` | 0000 | +`is_manual` (0006) |
 | `accounts` | 0000 | +`display_name`,`icon` (0002); +`owner` (0004); +`kind`,`liability_type`,`is_manual` (0006); +`mask` (0007); +`asset_type`,`address` (0009) |
 | `categories` | 0000 | +`monthly_budget` (0010) |
-| `transactions` | 0000 | +`category_source` (0005); +`owner_override` (0008); +`hidden` (0011) |
+| `transactions` | 0000 | +`category_source` (0005); +`owner_override` (0008); +`hidden` (0011); +`merchant_entity_id`,`merchant_logo_url`,`pfc_primary`,`pfc_detailed` (0015); +`transfer_type` (0016) |
 | `transaction_splits` | 0001 | |
 | `rules` | 0003 | |
 | `account_balance_history` | 0006 | |

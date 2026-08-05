@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 
 const VALID_OWNERS = ['renato', 'claudia', 'joint'];
+const VALID_TRANSFER_TYPES = ['transfer', 'credit_card_payment'];
 
 export async function GET(
   request: Request,
@@ -66,7 +67,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden } = body;
+    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden, transferType } = body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -86,6 +87,10 @@ export async function PATCH(
       updates.type = type;
     }
     if (typeof hidden === 'boolean') updates.hidden = hidden;
+    if (transferType !== undefined) {
+      updates.transferType =
+        transferType && VALID_TRANSFER_TYPES.includes(transferType) ? transferType : null;
+    }
 
     const result = await db
       .update(transactions)

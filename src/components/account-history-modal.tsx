@@ -63,6 +63,7 @@ export function AccountHistoryModal({ accountId, onClose }: AccountHistoryModalP
           <h2 className="text-lg font-semibold text-foreground">{accountName}</h2>
           <button
             onClick={onClose}
+            title="Close"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-4 h-4" />

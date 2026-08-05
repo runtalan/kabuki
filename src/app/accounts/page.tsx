@@ -749,6 +749,7 @@ export default function AccountsPage() {
                               <button
                                 key={opt.name}
                                 onClick={() => setEditForm({ ...editForm, icon: opt.name })}
+                                title={opt.name}
                                 className={`p-2 rounded border transition-colors ${
                                   editForm.icon === opt.name
                                     ? 'border-primary bg-primary/10'
@@ -1022,6 +1023,7 @@ export default function AccountsPage() {
                         onClick={() =>
                           setLiabilityForm({ ...liabilityForm, icon: opt.name, iconManuallySet: true })
                         }
+                        title={opt.name}
                         className={`p-2 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors ${
                           liabilityForm.icon === opt.name ? 'border-primary bg-primary/10' : 'border-transparent'
                         }`}

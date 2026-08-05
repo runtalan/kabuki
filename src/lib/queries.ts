@@ -5,12 +5,17 @@ import {
   categories,
   plaidItems,
 } from '@/db/schema';
-import { eq, and, desc, gte, lt, inArray } from 'drizzle-orm';
+import { eq, and, desc, gte, lt, inArray, isNull } from 'drizzle-orm';
 
 // Hidden transactions are excluded from spending totals, budgets, cash
 // flow, and recent activity — but stay visible (dimmed) in the raw
 // transaction list itself.
 const NOT_HIDDEN = eq(transactions.hidden, false);
+// Internal transfers / credit card payments — excluded from income, expense,
+// and cash-flow totals the same way hidden transactions are, so paying your
+// own credit card isn't double-counted as spend on top of the purchases that
+// already hit the card. See transactions.transferType in db/schema.ts.
+const NOT_TRANSFER = isNull(transactions.transferType);
 
 // Get all accounts for a user
 export async function getUserAccounts(userId: string) {
@@ -54,7 +59,8 @@ export async function getSpendingByCategory(userId: string, refDate: Date = new 
         gte(transactions.date, monthStart),
         lt(transactions.date, monthEnd),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -123,7 +129,8 @@ export async function getCashFlowData(userId: string) {
       and(
         gte(transactions.date, sixMonthsAgo),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -247,6 +254,7 @@ export async function getRecentTransactions(userId: string, limit = 10) {
       category: category?.name || 'Uncategorized',
       categoryIcon: category?.icon || null,
       categoryColor: category?.color || null,
+      merchantLogoUrl: tx.merchantLogoUrl || null,
       owner: accountOwnerMap.get(tx.accountId) || 'joint',
       amount: Number(tx.amount),
       date: tx.date,

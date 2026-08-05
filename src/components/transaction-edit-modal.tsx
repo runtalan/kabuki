@@ -28,6 +28,7 @@ interface Transaction {
   date: string;
   pending?: boolean;
   hidden?: boolean;
+  transferType?: 'transfer' | 'credit_card_payment' | null;
   categoryId?: string | null;
   ownerOverride?: string | null;
   account?: {
@@ -59,6 +60,9 @@ export function TransactionEditModal({
   const [categoryId, setCategoryId] = useState(transaction.categoryId || '');
   const [ownerOverride, setOwnerOverride] = useState(transaction.ownerOverride || '');
   const [hidden, setHidden] = useState(!!transaction.hidden);
+  const [transferType, setTransferType] = useState<'transfer' | 'credit_card_payment' | null>(
+    transaction.transferType || null
+  );
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     (transaction.tags || []).map((t) => t.id)
   );
@@ -162,6 +166,7 @@ export function TransactionEditModal({
           ownerOverride: ownerOverride || null,
           tagIds: selectedTagIds,
           hidden,
+          transferType,
           ...overrides,
         }),
       });
@@ -192,6 +197,12 @@ export function TransactionEditModal({
     await persist({ hidden: next });
   };
 
+  const changeTransferType = async (next: 'transfer' | 'credit_card_payment' | null) => {
+    const value = transferType === next ? null : next;
+    setTransferType(value);
+    await persist({ transferType: value });
+  };
+
   const accountLabel = transaction.account
     ? `${transaction.account.displayName || transaction.account.name || 'Account'}${
         transaction.account.mask ? ` ...${transaction.account.mask}` : ''
@@ -218,6 +229,7 @@ export function TransactionEditModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10">
           <button
             onClick={handleClose}
+            title="Close"
             className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -587,6 +599,45 @@ export function TransactionEditModal({
                 )}
               </span>
             </button>
+          </div>
+
+          {/* Transfer / credit card payment classification */}
+          <div className={rowClass}>
+            <div className="flex-1">
+              <p
+                className="text-sm text-foreground inline-flex items-center gap-1.5"
+                title="Categorizing this as a transfer (like paying your credit card) ensures it won't count as an expense or income against your monthly budget."
+              >
+                Transfer
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Money moving between your own accounts — excluded from income, expenses, and
+                budgets so it isn't double-counted (e.g. paying off a credit card).
+              </p>
+              <div className="inline-flex p-0.5 rounded-lg bg-muted border border-border mt-2">
+                {(
+                  [
+                    { value: null, label: 'Normal' },
+                    { value: 'transfer' as const, label: 'Transfer' },
+                    { value: 'credit_card_payment' as const, label: 'Card payment' },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => changeTransferType(opt.value)}
+                    disabled={saving}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      transferType === opt.value
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

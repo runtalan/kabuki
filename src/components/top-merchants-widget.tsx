@@ -3,23 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/format';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 
 interface Transaction {
   id: string;
   name: string;
   merchant?: string | null;
+  merchantLogoUrl?: string | null;
   amount: string;
   type: 'debit' | 'credit';
-}
-
-const PALETTE = ['#0ea5e9', '#f97316', '#14b8a6', '#eab308', '#6366f1', '#ef4444', '#22c55e', '#a855f7'];
-function hashColor(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  return PALETTE[Math.abs(hash) % PALETTE.length];
+  category?: { icon: string | null; color: string | null } | null;
 }
 
 export function TopMerchantsWidget() {
@@ -34,14 +27,23 @@ export function TopMerchantsWidget() {
   }, []);
 
   const topMerchants = useMemo(() => {
-    const totals = new Map<string, number>();
+    const totals = new Map<
+      string,
+      { amount: number; logoUrl: string | null; categoryIcon: string | null; categoryColor: string | null }
+    >();
     for (const tx of transactions) {
       if (tx.type !== 'debit') continue;
       const key = tx.merchant || tx.name;
-      totals.set(key, (totals.get(key) || 0) + Math.abs(parseFloat(tx.amount)));
+      const existing = totals.get(key);
+      totals.set(key, {
+        amount: (existing?.amount || 0) + Math.abs(parseFloat(tx.amount)),
+        logoUrl: existing?.logoUrl ?? tx.merchantLogoUrl ?? null,
+        categoryIcon: existing?.categoryIcon ?? tx.category?.icon ?? null,
+        categoryColor: existing?.categoryColor ?? tx.category?.color ?? null,
+      });
     }
     return Array.from(totals.entries())
-      .map(([name, amount]) => ({ name, amount }))
+      .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
   }, [transactions]);
@@ -63,7 +65,7 @@ export function TopMerchantsWidget() {
   return (
     <div className="space-y-3">
       {topMerchants.map((merchant, i) => {
-        const color = hashColor(merchant.name);
+        const color = merchant.categoryColor || '#6b7280';
         return (
           <Link
             key={merchant.name}
@@ -71,12 +73,12 @@ export function TopMerchantsWidget() {
             className="flex items-center gap-3 group"
           >
             <span className="text-xs font-semibold text-muted-foreground w-4 flex-shrink-0">{i + 1}</span>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-              style={{ backgroundColor: color }}
-            >
-              {merchant.name.slice(0, 2).toUpperCase()}
-            </div>
+            <MerchantAvatar
+              logoUrl={merchant.logoUrl}
+              categoryIcon={merchant.categoryIcon}
+              categoryColor={merchant.categoryColor}
+              name={merchant.name}
+            />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate group-hover:underline">
                 {merchant.name}

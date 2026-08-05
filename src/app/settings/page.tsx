@@ -162,6 +162,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <h2 className="text-lg font-semibold text-foreground">Change password</h2>
           <button
             onClick={onClose}
+            title="Close"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-4 h-4" />

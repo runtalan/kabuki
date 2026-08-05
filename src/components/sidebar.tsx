@@ -8,6 +8,7 @@ import {
   Home,
   Landmark,
   BarChart2,
+  Receipt,
   TrendingUp,
   Shapes,
   Wand2,
@@ -30,7 +31,7 @@ const navSections = [
     items: [
       { href: '/home', label: 'Home', icon: Home },
       { href: '/spending', label: 'Spending', icon: BarChart2 },
-      { href: '/spending/transactions', label: 'Transactions', icon: BarChart2 },
+      { href: '/spending/transactions', label: 'Transactions', icon: Receipt },
       { href: '/accounts', label: 'Accounts', icon: Landmark },
     ],
   },
@@ -178,6 +179,7 @@ export function Sidebar() {
           onClick={() => setMobileOpen(true)}
           className="p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
           aria-label="Open menu"
+          title="Open menu"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -196,6 +198,7 @@ export function Sidebar() {
                 onClick={() => setMobileOpen(false)}
                 className="absolute right-3 top-5 p-1.5 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors z-10"
                 aria-label="Close menu"
+                title="Close menu"
               >
                 <X className="w-4 h-4" />
               </button>

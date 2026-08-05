@@ -178,6 +178,17 @@ export const transactions = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     merchant: varchar("merchant", { length: 255 }),
     merchantCleanedUp: varchar("merchant_cleaned_up", { length: 255 }),
+    // Plaid's stable per-merchant key (shared across all transactions at the
+    // same merchant) — used to dedupe logo caching the same way
+    // plaidItems.institutionId dedupes institution logos.
+    merchantEntityId: varchar("merchant_entity_id", { length: 255 }),
+    merchantLogoUrl: text("merchant_logo_url"),
+    // Plaid's personal_finance_category (already requested via
+    // include_personal_finance_category on every sync) — the primary/only
+    // categorization signal from Plaid itself, mapped to our own categories
+    // as the top tier of "smart" tagging. See lib/smart-categorize.ts.
+    pfcPrimary: varchar("pfc_primary", { length: 50 }),
+    pfcDetailed: varchar("pfc_detailed", { length: 50 }),
     amount: numeric("amount", { precision: 16, scale: 2 }).notNull(),
     type: transactionTypeEnum("type").notNull(),
     date: timestamp("date").notNull(),
@@ -185,6 +196,15 @@ export const transactions = pgTable(
     // Hidden transactions are excluded from spending totals, budgets, and
     // reports but remain visible (dimmed) in the raw transaction list.
     hidden: boolean("hidden").default(false).notNull(),
+    // Null = a normal income/expense transaction. "transfer" or
+    // "credit_card_payment" = money moving between the household's own
+    // accounts (e.g. checking -> credit card) — excluded from income,
+    // expense, cash-flow, and budget totals the same way `hidden` is, so a
+    // credit card payment isn't counted as spend on top of the purchases
+    // that already hit the card. Auto-set from Plaid's personal_finance_category
+    // at sync time (see lib/plaid-sync.ts); user-editable in the transaction
+    // detail panel.
+    transferType: varchar("transfer_type", { length: 20 }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -193,6 +213,7 @@ export const transactions = pgTable(
     index("idx_transactions_account_id").on(table.accountId),
     index("idx_transactions_category_id").on(table.categoryId),
     index("idx_transactions_date").on(table.date),
+    index("idx_transactions_merchant_entity_id").on(table.merchantEntityId),
     uniqueIndex("idx_transactions_plaid_id").on(table.plaidTransactionId),
   ]
 );

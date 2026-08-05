@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 import { OWNERS } from '@/components/owner-badge';
 import { getTypeBadge, LIABILITY_TYPES } from '@/lib/account-types';
 import { formatNumber } from '@/lib/format';
@@ -50,6 +51,7 @@ interface Transaction {
   pending?: boolean;
   categoryId?: string | null;
   category?: Category | null;
+  merchantLogoUrl?: string | null;
   ownerOverride?: string | null;
   account?: { owner?: string | null } | null;
   tags?: { id: string; name: string; color: string }[];
@@ -459,10 +461,22 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                       className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
                     >
                       <td className="px-6 py-3 text-sm text-foreground font-medium">
-                        {tx.name}
-                        {tx.pending && (
-                          <span className="ml-2 text-[10px] text-amber-500 font-medium">Pending</span>
-                        )}
+                        <div className="flex items-center gap-2.5">
+                          <MerchantAvatar
+                            logoUrl={tx.merchantLogoUrl}
+                            categoryIcon={tx.category?.icon}
+                            categoryColor={tx.category?.color}
+                            name={tx.name}
+                            className="w-7 h-7"
+                            iconClassName="w-3 h-3"
+                          />
+                          <span>
+                            {tx.name}
+                            {tx.pending && (
+                              <span className="ml-2 text-[10px] text-amber-500 font-medium">Pending</span>
+                            )}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-3 text-sm">
                         <span

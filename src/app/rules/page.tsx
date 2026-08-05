@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, Trash2, ToggleLeft, X, Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
@@ -36,14 +37,24 @@ interface PreviewTransaction {
 }
 
 export default function RulesPage() {
+  return (
+    <Suspense fallback={null}>
+      <RulesPageInner />
+    </Suspense>
+  );
+}
+
+function RulesPageInner() {
   const isDemo = useIsDemo();
+  const searchParams = useSearchParams();
+  const prefillMerchant = searchParams.get('merchant');
   const [rules, setRules] = useState<Rule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!prefillMerchant);
   const [formData, setFormData] = useState({
-    merchantName: '',
+    merchantName: prefillMerchant || '',
     matchType: 'contains' as 'exact' | 'contains' | 'startsWith',
     categoryId: '',
     priority: 0,
@@ -344,6 +355,7 @@ export default function RulesPage() {
                 </h2>
                 <button
                   onClick={() => setPreview(null)}
+                  title="Close"
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -428,6 +440,7 @@ export default function RulesPage() {
                   <div className="flex items-center gap-4 flex-1">
                     <button
                       onClick={() => handleToggleRule(rule.id, rule.enabled)}
+                      title={rule.enabled ? 'Disable rule' : 'Enable rule'}
                       className={`p-2 rounded transition-colors ${
                         rule.enabled
                           ? 'text-primary bg-primary/10'
@@ -461,6 +474,7 @@ export default function RulesPage() {
                   </div>
                   <button
                     onClick={() => handleDeleteRule(rule.id)}
+                    title="Delete rule"
                     className="p-2 rounded opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
                   >
                     <Trash2 className="w-4 h-4 text-red-600" />

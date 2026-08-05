@@ -19,6 +19,7 @@ import {
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
 import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 import { OwnerBadge, getOwner, OWNERS } from '@/components/owner-badge';
 import { AccountBadge } from '@/components/account-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
@@ -44,6 +45,7 @@ interface Transaction {
   id: string;
   name: string;
   merchant?: string | null;
+  merchantLogoUrl?: string | null;
   amount: string;
   type: 'debit' | 'credit';
   date: string;
@@ -856,15 +858,12 @@ function TransactionsPageContent() {
                       >
                         {/* Merchant / description */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: (tx.category?.color || '#6b7280') + '1f',
-                              color: tx.category?.color || '#6b7280',
-                            }}
-                          >
-                            <CategoryIcon icon={tx.category?.icon} className="w-3.5 h-3.5" />
-                          </div>
+                          <MerchantAvatar
+                            logoUrl={tx.merchantLogoUrl}
+                            categoryIcon={tx.category?.icon}
+                            categoryColor={tx.category?.color}
+                            name={tx.name}
+                          />
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{tx.name}</p>
                             <div className="flex items-center gap-2 flex-wrap mt-0.5">

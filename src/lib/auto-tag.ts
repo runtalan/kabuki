@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { rules, transactions, categories } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { guessCategoryName } from './smart-categorize';
+import { guessCategoryName, mapPfcToCategoryName } from './smart-categorize';
 
 // Override precedence: manual (user click) > rule (user-authored) > smart
 // (built-in merchant guess). A lower-precedence source may only write a
@@ -26,34 +26,38 @@ export function matchesRule(merchantLower: string, rule: { merchantName: string;
   }
 }
 
-// Categorize a single transaction: user rules first, then the built-in smart
-// merchant guesser. Used for brand-new transactions coming out of Plaid sync,
-// where categoryId is still null.
+// Categorize a single transaction: user rules first, then Plaid's own
+// personal_finance_category (most accurate — per-transaction ML, not just a
+// brand-name match), then the built-in smart merchant guesser. Used for
+// brand-new transactions coming out of Plaid sync, where categoryId is still
+// null.
 export async function autoTagTransaction(
   userId: string,
   transactionId: string,
-  merchant?: string | null
+  merchant?: string | null,
+  pfc?: { primary?: string | null; detailed?: string | null }
 ) {
-  if (!merchant) return;
-  const merchantLower = merchant.toLowerCase();
-
   const userRules = await db.query.rules.findMany({
     where: eq(rules.userId, userId),
     orderBy: (rule, { desc }) => desc(rule.priority),
   });
 
-  for (const rule of userRules) {
-    if (!rule.enabled) continue;
-    if (matchesRule(merchantLower, rule)) {
-      await db
-        .update(transactions)
-        .set({ categoryId: rule.categoryId, categorySource: 'rule', updatedAt: new Date() })
-        .where(eq(transactions.id, transactionId));
-      return;
+  if (merchant) {
+    const merchantLower = merchant.toLowerCase();
+    for (const rule of userRules) {
+      if (!rule.enabled) continue;
+      if (matchesRule(merchantLower, rule)) {
+        await db
+          .update(transactions)
+          .set({ categoryId: rule.categoryId, categorySource: 'rule', updatedAt: new Date() })
+          .where(eq(transactions.id, transactionId));
+        return;
+      }
     }
   }
 
-  const guessedName = guessCategoryName(merchant);
+  const guessedName =
+    mapPfcToCategoryName(pfc?.primary, pfc?.detailed) || (merchant ? guessCategoryName(merchant) : null);
   if (!guessedName) return;
 
   const category = await db.query.categories.findFirst({
@@ -145,7 +149,8 @@ export async function runSmartCategorization(userId: string): Promise<number> {
     if (tx.categoryId && tx.categorySource) continue; // already has a source we can't beat
 
     const merchant = tx.merchant || tx.name;
-    const guessedName = guessCategoryName(merchant);
+    const guessedName =
+      mapPfcToCategoryName(tx.pfcPrimary, tx.pfcDetailed) || guessCategoryName(merchant);
     if (!guessedName) continue;
 
     const categoryId = categoryByName.get(guessedName);

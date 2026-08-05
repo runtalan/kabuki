@@ -15,7 +15,7 @@ import {
   CreditCard,
   PiggyBank,
 } from 'lucide-react';
-import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 import { SpendCalendar } from '@/components/spend-calendar';
 import { getTypeBadge } from '@/lib/account-types';
 import { OWNERS, getOwner } from '@/components/owner-badge';
@@ -56,6 +56,7 @@ interface RecentTransaction {
   category: string;
   categoryIcon?: string | null;
   categoryColor?: string | null;
+  merchantLogoUrl?: string | null;
   owner?: string | null;
   amount: number;
   date: string;
@@ -202,15 +203,12 @@ export function HomeOverview({
                   className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
                   style={{ borderLeft: `3px solid ${getOwner(tx.owner).color}` }}
                 >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: (tx.categoryColor || '#6b7280') + '1f',
-                      color: tx.categoryColor || '#6b7280',
-                    }}
-                  >
-                    <CategoryIcon icon={tx.categoryIcon} className="w-3.5 h-3.5" />
-                  </div>
+                  <MerchantAvatar
+                    logoUrl={tx.merchantLogoUrl}
+                    categoryIcon={tx.categoryIcon}
+                    categoryColor={tx.categoryColor}
+                    name={tx.merchant}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">{tx.merchant}</p>
                     <div className="flex items-center gap-2">

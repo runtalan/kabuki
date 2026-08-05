@@ -17,7 +17,7 @@ import {
   Pencil,
   MoreVertical,
 } from 'lucide-react';
-import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar as SharedMerchantAvatar } from '@/components/merchant-avatar';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import {
   FREQUENCY_LABELS,
@@ -77,15 +77,14 @@ function MerchantAvatar({
   const dim = size === 'sm' ? 'w-5 h-5' : 'w-8 h-8';
   const icon = size === 'sm' ? 'w-2.5 h-2.5' : 'w-4 h-4';
   return (
-    <div
-      className={`${dim} rounded-full flex items-center justify-center flex-shrink-0 ring-2 ring-card`}
-      style={{ backgroundColor: (entry.categoryColor || '#6b7280') + '2b' }}
-      title={entry.merchant}
-    >
-      <CategoryIcon
-        icon={entry.categoryIcon}
-        color={entry.categoryColor || '#6b7280'}
-        className={icon}
+    <div className={`${dim} rounded-full ring-2 ring-card flex-shrink-0`} title={entry.merchant}>
+      <SharedMerchantAvatar
+        logoUrl={entry.logoUrl}
+        categoryIcon={entry.categoryIcon}
+        categoryColor={entry.categoryColor}
+        name={entry.merchant}
+        className={`${dim} rounded-full`}
+        iconClassName={icon}
       />
     </div>
   );
@@ -330,12 +329,14 @@ export function RecurringView({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => changeMonth(-1)}
+                  title="Previous month"
                   className="p-2 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => changeMonth(1)}
+                  title="Next month"
                   className="p-2 rounded-lg bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -775,6 +776,7 @@ function DayDetailModal({
           </div>
           <button
             onClick={onClose}
+            title="Close"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-4 h-4" />
@@ -894,6 +896,7 @@ function RecurringFormModal({
           </h2>
           <button
             onClick={onClose}
+            title="Close"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-4 h-4" />

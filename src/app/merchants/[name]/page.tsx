@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Wand2 } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -14,9 +14,9 @@ import {
   Cell,
 } from 'recharts';
 import { AppLayout } from '@/components/app-layout';
-import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 import { AccountBadge } from '@/components/account-badge';
-import { OwnerBadge } from '@/components/owner-badge';
+import { OwnerBadge, getOwner } from '@/components/owner-badge';
 import { formatNumber } from '@/lib/format';
 import { ChartTooltip } from '@/components/charts/chart-tooltip';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
@@ -38,6 +38,7 @@ interface Transaction {
   pending?: boolean;
   categoryId?: string | null;
   category?: Category | null;
+  merchantLogoUrl?: string | null;
   ownerOverride?: string | null;
   account?: {
     id: string;
@@ -110,7 +111,16 @@ export default function MerchantDetailPage({ params }: { params: Promise<{ name:
   );
 
   const color = hashColor(merchantName);
-  const initials = merchantName.slice(0, 2).toUpperCase();
+
+  const headerMerchantInfo = useMemo(() => {
+    const withLogo = transactions.find((tx) => tx.merchantLogoUrl);
+    const withCategory = transactions.find((tx) => tx.category);
+    return {
+      logoUrl: withLogo?.merchantLogoUrl || null,
+      categoryIcon: withCategory?.category?.icon || null,
+      categoryColor: withCategory?.category?.color || null,
+    };
+  }, [transactions]);
 
   const monthlyData = useMemo(() => {
     const totals = new Map<string, number>();
@@ -181,14 +191,25 @@ export default function MerchantDetailPage({ params }: { params: Promise<{ name:
           All transactions
         </Link>
 
-        <div className="flex items-center gap-3 mb-6">
-          <div
-            className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-            style={{ backgroundColor: color }}
-          >
-            {initials}
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <MerchantAvatar
+              logoUrl={headerMerchantInfo.logoUrl}
+              categoryIcon={headerMerchantInfo.categoryIcon}
+              categoryColor={headerMerchantInfo.categoryColor}
+              name={merchantName}
+              className="w-11 h-11"
+              iconClassName="w-5 h-5"
+            />
+            <h1 className="text-2xl font-bold text-foreground">{merchantName}</h1>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">{merchantName}</h1>
+          <Link
+            href={`/rules?merchant=${encodeURIComponent(merchantName)}`}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Wand2 className="w-4 h-4" />
+            Create auto-tag rule
+          </Link>
         </div>
 
         {/* Monthly bar chart */}
@@ -235,20 +256,21 @@ export default function MerchantDetailPage({ params }: { params: Promise<{ name:
                     <div
                       key={tx.id}
                       onClick={() => setEditingTx(tx)}
-                      className="flex items-center gap-3 px-6 py-3 hover:bg-muted/30 cursor-pointer transition-colors border-b border-border last:border-0"
+                      className="flex items-center gap-3 pl-5 pr-6 py-3 hover:bg-muted/30 cursor-pointer transition-colors border-b border-border last:border-0"
+                      style={{ borderLeft: `3px solid ${getOwner(tx.account?.owner).color}` }}
                     >
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                          backgroundColor: (tx.category?.color || '#6b7280') + '1f',
-                          color: tx.category?.color || '#6b7280',
-                        }}
-                      >
-                        <CategoryIcon icon={tx.category?.icon} className="w-3.5 h-3.5" />
-                      </div>
+                      <MerchantAvatar
+                        logoUrl={tx.merchantLogoUrl}
+                        categoryIcon={tx.category?.icon}
+                        categoryColor={tx.category?.color}
+                        name={tx.name}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{tx.name}</p>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p
+                          className="text-[11px] font-medium truncate"
+                          style={{ color: tx.category?.color || '#9ca3af' }}
+                        >
                           {tx.category?.name || 'Untagged'}
                         </p>
                       </div>

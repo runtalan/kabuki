@@ -74,6 +74,7 @@ export function SpendingByCategoryWidget() {
       <div className="flex items-center justify-center gap-2 mb-4">
         <button
           onClick={() => setCursor(new Date(year, month - 1, 1))}
+          title="Previous month"
           className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -81,6 +82,7 @@ export function SpendingByCategoryWidget() {
         <p className="text-sm font-medium text-foreground min-w-36 text-center">{monthLabel}</p>
         <button
           onClick={() => setCursor(new Date(year, month + 1, 1))}
+          title="Next month"
           className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
         >
           <ChevronRight className="w-4 h-4" />

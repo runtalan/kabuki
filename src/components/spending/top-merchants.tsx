@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { CategoryIcon } from '@/components/category-icon';
+import { MerchantAvatar } from '@/components/merchant-avatar';
 
 interface Merchant {
   name: string;
   amount: number;
   categoryIcon: string | null;
   categoryColor: string | null;
+  logoUrl?: string | null;
 }
 
 function money(value: number, decimals = 0) {
@@ -40,16 +41,14 @@ export function TopMerchants({ merchants }: { merchants: Merchant[] }) {
               <span className="text-xs font-semibold text-muted-foreground w-4 flex-shrink-0 text-center">
                 {i + 1}
               </span>
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: (merchant.categoryColor || '#6b7280') + '22' }}
-              >
-                <CategoryIcon
-                  icon={merchant.categoryIcon}
-                  color={merchant.categoryColor}
-                  className="w-4 h-4"
-                />
-              </div>
+              <MerchantAvatar
+                logoUrl={merchant.logoUrl}
+                categoryIcon={merchant.categoryIcon}
+                categoryColor={merchant.categoryColor}
+                name={merchant.name}
+                className="w-9 h-9"
+                iconClassName="w-4 h-4"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate group-hover:underline">
                   {merchant.name}

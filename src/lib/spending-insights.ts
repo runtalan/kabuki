@@ -1,8 +1,11 @@
 import { db } from '@/db';
 import { accounts, transactions, categories, plaidItems } from '@/db/schema';
-import { and, eq, gte, lt, inArray } from 'drizzle-orm';
+import { and, eq, gte, lt, inArray, isNull } from 'drizzle-orm';
 
 const NOT_HIDDEN = eq(transactions.hidden, false);
+// See queries.ts's NOT_TRANSFER for the rationale — internal transfers /
+// credit card payments are excluded from every spend/budget total here too.
+const NOT_TRANSFER = isNull(transactions.transferType);
 
 async function getUserAccountIds(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
@@ -46,7 +49,8 @@ export async function getSpendingOverview(userId: string, refDate: Date = new Da
         gte(transactions.date, sixMonthsAgo),
         lt(transactions.date, windowEnd),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -173,7 +177,8 @@ export async function getMonthlyBudgetHistory(
       and(
         gte(transactions.date, rangeStart),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -227,7 +232,8 @@ export async function getCategoryBudgetSuggestions(
       and(
         gte(transactions.date, threeMonthsAgo),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -269,6 +275,7 @@ export interface TopMerchant {
   amount: number;
   categoryIcon: string | null;
   categoryColor: string | null;
+  logoUrl: string | null;
 }
 
 // Top merchants by spend for a given month (defaults to the current month) —
@@ -293,14 +300,18 @@ export async function getTopMerchants(
         gte(transactions.date, monthStart),
         lt(transactions.date, monthEnd),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
 
-  const totals = new Map<string, { amount: number; categoryIcon: string | null; categoryColor: string | null }>();
+  const totals = new Map<
+    string,
+    { amount: number; categoryIcon: string | null; categoryColor: string | null; logoUrl: string | null }
+  >();
   for (const tx of rows) {
     const amount = Number(tx.amount);
     if (amount > 0) continue; // expenses only
@@ -311,6 +322,7 @@ export async function getTopMerchants(
       amount: (existing?.amount || 0) + Math.abs(amount),
       categoryIcon: existing?.categoryIcon ?? category?.icon ?? null,
       categoryColor: existing?.categoryColor ?? category?.color ?? null,
+      logoUrl: existing?.logoUrl ?? tx.merchantLogoUrl ?? null,
     });
   }
 
@@ -327,6 +339,7 @@ export interface RecurringItem {
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;
+  logoUrl: string | null;
   frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly';
   amount: number; // latest charge
   previousAmount: number | null; // charge before that (for price-change flag)
@@ -376,7 +389,8 @@ export async function getRecurringItems(userId: string): Promise<RecurringItem[]
       and(
         gte(transactions.date, oneYearAgo),
         inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN
+        NOT_HIDDEN,
+        NOT_TRANSFER
       )
     );
 
@@ -446,6 +460,7 @@ export async function getRecurringItems(userId: string): Promise<RecurringItem[]
       categoryName: category?.name || null,
       categoryIcon: category?.icon || null,
       categoryColor: category?.color || null,
+      logoUrl: latest.merchantLogoUrl || null,
       frequency: bucket.label,
       amount: latestAmount,
       previousAmount,

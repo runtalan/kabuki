@@ -10,6 +10,8 @@ import { eq, and } from "drizzle-orm";
 import { plaidClient } from "./plaid";
 import { generateId } from "./id";
 import { autoTagTransaction } from "./auto-tag";
+import { cacheMerchantLogo, slugifyMerchantKey } from "./merchant-logo";
+import { mapPfcToTransferType } from "./smart-categorize";
 
 // Plaid's own account.type — 'credit' and 'loan' carry a balance you owe,
 // everything else (depository, investment, brokerage) is an asset.
@@ -151,6 +153,22 @@ export async function syncTransactions(
       itemAccounts.map((acc) => [acc.plaidAccountId, acc.id])
     );
 
+    // Bounds logo-caching cost to "number of distinct merchants in this
+    // sync," not "number of transactions" — repeat merchants (Starbucks x20)
+    // hit Plaid/Storage once per sync run, not once per transaction.
+    const logoCache = new Map<string, string | null>();
+    async function resolveMerchantLogo(key: string, sourceLogoUrl: string) {
+      if (logoCache.has(key)) return logoCache.get(key)!;
+      let url: string | null = null;
+      try {
+        url = await cacheMerchantLogo(key, sourceLogoUrl);
+      } catch (err) {
+        console.error(`Failed to cache merchant logo for ${key}:`, err);
+      }
+      logoCache.set(key, url);
+      return url;
+    }
+
     // Upsert transactions into DB
     for (const plaidTx of plaidTransactions) {
       const accountId = accountMap.get(plaidTx.account_id);
@@ -160,6 +178,12 @@ export async function syncTransactions(
         );
         continue;
       }
+
+      const merchantKey =
+        plaidTx.merchant_entity_id || (plaidTx.merchant_name ? slugifyMerchantKey(plaidTx.merchant_name) : null);
+      const merchantLogoUrl =
+        merchantKey && plaidTx.logo_url ? await resolveMerchantLogo(merchantKey, plaidTx.logo_url) : null;
+      const pfc = plaidTx.personal_finance_category;
 
       // Plaid's amount convention: positive = money out (expense), negative =
       // money in (income/refund). We store the "friendly" flipped sign
@@ -174,6 +198,13 @@ export async function syncTransactions(
         name: plaidTx.name,
         merchant: plaidTx.merchant_name || null,
         merchantCleanedUp: null,
+        merchantEntityId: merchantKey,
+        merchantLogoUrl,
+        pfcPrimary: pfc?.primary || null,
+        pfcDetailed: pfc?.detailed || null,
+        // Only applied on insert (see below) — never overwrites a user's
+        // manual choice on an existing transaction during re-sync.
+        transferType: mapPfcToTransferType(pfc?.primary, pfc?.detailed),
         amount: (-plaidTx.amount).toString(),
         type: (isExpense ? "debit" : "credit") as "debit" | "credit",
         date: new Date(plaidTx.date),
@@ -194,6 +225,10 @@ export async function syncTransactions(
           .set({
             name: txData.name,
             merchant: txData.merchant,
+            merchantEntityId: txData.merchantEntityId,
+            merchantLogoUrl: txData.merchantLogoUrl,
+            pfcPrimary: txData.pfcPrimary,
+            pfcDetailed: txData.pfcDetailed,
             amount: txData.amount,
             pending: txData.pending,
             date: txData.date,
@@ -203,7 +238,7 @@ export async function syncTransactions(
       } else {
         const inserted = await db.insert(transactions).values(txData).returning();
         if (inserted.length > 0 && finalUserId) {
-          await autoTagTransaction(finalUserId, inserted[0].id, plaidTx.merchant_name);
+          await autoTagTransaction(finalUserId, inserted[0].id, plaidTx.merchant_name, pfc ?? undefined);
         }
       }
     }

@@ -32,6 +32,7 @@ export function MonthToggle({
         onClick={() => go(-1)}
         className="p-1.5 rounded-full hover:bg-muted transition-colors text-muted-foreground"
         aria-label="Previous month"
+        title="Previous month"
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
@@ -43,6 +44,7 @@ export function MonthToggle({
         disabled={isCurrentMonth}
         className="p-1.5 rounded-full hover:bg-muted transition-colors text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
         aria-label="Next month"
+        title="Next month"
       >
         <ChevronRight className="w-4 h-4" />
       </button>

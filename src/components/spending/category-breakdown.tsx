@@ -288,6 +288,7 @@ export function CategoryBreakdown({
               </div>
               <button
                 onClick={() => setDrillCategory(null)}
+                title="Close"
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <X className="w-4 h-4" />

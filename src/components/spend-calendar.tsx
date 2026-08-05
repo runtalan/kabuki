@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { OWNERS, getOwner } from './owner-badge';
-import { CategoryIcon } from './category-icon';
+import { MerchantAvatar } from './merchant-avatar';
 
 interface Transaction {
   id: string;
@@ -13,6 +13,7 @@ interface Transaction {
   type: 'debit' | 'credit';
   date: string;
   hidden?: boolean;
+  merchantLogoUrl?: string | null;
   account?: { owner?: string | null } | null;
   category?: { name: string; color: string; icon: string } | null;
 }
@@ -157,6 +158,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
         <div className="flex items-center gap-1">
           <button
             onClick={() => changeMonth(-1)}
+            title="Previous month"
             className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -166,6 +168,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
           </p>
           <button
             onClick={() => changeMonth(1)}
+            title="Next month"
             className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
           >
             <ChevronRight className="w-4 h-4" />
@@ -217,6 +220,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
           <button
             onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
             disabled={weekOffset === 0}
+            title="Previous week"
             className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -227,6 +231,7 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
           <button
             onClick={() => setWeekOffset((w) => Math.min(weeks.length - 1, w + 1))}
             disabled={weekOffset >= weeks.length - 1}
+            title="Next week"
             className="p-1 rounded hover:bg-muted disabled:opacity-30 transition-colors text-muted-foreground"
           >
             <ChevronRight className="w-4 h-4" />
@@ -325,15 +330,12 @@ export function SpendCalendar({ bare = false }: { bare?: boolean } = {}) {
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
                         style={{ borderLeft: `3px solid ${getOwner(tx.account?.owner).color}` }}
                       >
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            backgroundColor: (tx.category?.color || '#6b7280') + '1f',
-                            color: tx.category?.color || '#6b7280',
-                          }}
-                        >
-                          <CategoryIcon icon={tx.category?.icon} className="w-3.5 h-3.5" />
-                        </div>
+                        <MerchantAvatar
+                          logoUrl={tx.merchantLogoUrl}
+                          categoryIcon={tx.category?.icon}
+                          categoryColor={tx.category?.color}
+                          name={tx.name}
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">{tx.name}</p>
                           <p

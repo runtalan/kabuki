@@ -27,6 +27,7 @@ export interface RecurringEntry {
   categoryName: string | null;
   categoryIcon: string | null;
   categoryColor: string | null;
+  logoUrl: string | null;
   frequency: Frequency;
   amount: number;
   monthlyCost: number;

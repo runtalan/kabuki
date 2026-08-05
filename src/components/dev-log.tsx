@@ -69,6 +69,7 @@ export function DevLog() {
               </button>
               <button
                 onClick={() => setOpen(false)}
+                title="Close"
                 className="p-1.5 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
