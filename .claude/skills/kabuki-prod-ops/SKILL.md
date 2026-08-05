@@ -39,6 +39,47 @@ If this fails, fix the reported key with the `secrets:set` command it
 prints, then jump to "Deploying a secret change" below — updating the
 secret does *nothing* by itself.
 
+## Deploying app changes
+
+The full path from a code change to a verified live deploy:
+
+```bash
+# 1. Confirm you're on sandbox locally and everything compiles (never
+#    deploy something you haven't run these two against)
+npx tsc --noEmit -p .
+npm run build
+
+# 2. Commit, then push — this is what actually triggers the deploy.
+#    There is no separate "deploy" command; Firebase's CI/CD watches
+#    main and builds+deploys on every push to it.
+git push origin main
+
+# 3. Confirm the build succeeded (see "Checking build/deploy status"
+#    below for why apphosting:builds:list doesn't work)
+gcloud builds list --project=buttons-abc4d --region=us-east4 --limit=3 --sort-by=~createTime
+
+# 4. Confirm the new revision is the one actually serving traffic —
+#    a successful build does not guarantee this (see "Deploying a
+#    secret change" below for a case where it silently didn't)
+gcloud run services describe kabuki --project=buttons-abc4d --region=us-east4 \
+  --format="value(status.traffic)"
+
+# 5. Confirm the site is actually up and, ideally, exercise the
+#    specific thing that changed rather than just the homepage
+curl -sS -o /dev/null -w "%{http_code}\n" https://mybuttons.casa/
+```
+
+A normal `git push origin main` deploy (unlike the manual
+`gcloud run services update` path used for secret-only changes) builds
+a fresh container and routes traffic to it as part of one deploy — it
+does not have the traffic-routing gap described below. Still do step 4
+before telling the user it's live; don't assume from the push alone.
+
+If the app change touches Plaid, the database connection, or anything
+env-dependent, run `npm run verify:prod-secrets` too — a code change
+can be perfectly correct and still fail in prod if the secret it reads
+has drifted (see "First move" above).
+
 ## Checking build/deploy status
 
 `npx firebase apphosting:builds:list --backend kabuki` **does not
