@@ -16,7 +16,8 @@
       "PLAID_SECRET",
       "PLAID_ENV",
       "AUTH_URL"
-    ]
+    ],
+    "alwaysDeployFromSource": false
   },
   "emulators": {
     "dataconnect": {

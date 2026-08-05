@@ -7,6 +7,10 @@ config({ path: ".env.local" });
 
 // Use sandbox URL as default for build time, but runtime will override with real DATABASE_URL
 const databaseUrl = process.env.DATABASE_URL || "postgresql://localhost/kabuki_sandbox";
-const client = postgres(databaseUrl);
+const client = postgres(databaseUrl, {
+  connect_timeout: 10,
+  idle_timeout: 30,
+  max_lifetime: 60 * 5,
+});
 
 export const db = drizzle(client, { schema });

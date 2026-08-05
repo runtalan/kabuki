@@ -24,7 +24,7 @@ async function seed() {
   console.log('🌱 Seeding database...');
 
   // Hash passwords
-  const passwordHash = await bcrypt.hash('password', 10);
+  const passwordHash = await bcrypt.hash('br0wnC0wb1!', 10);
 
   const rentoId = generateId();
   const claudiaId = generateId();
