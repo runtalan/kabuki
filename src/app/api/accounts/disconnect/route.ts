@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    if (user.isDemo) {
+      return NextResponse.json({ error: "Demo account is view-only" }, { status: 403 });
+    }
 
     // Get Plaid item (verify ownership)
     const item = await db.query.plaidItems.findFirst({

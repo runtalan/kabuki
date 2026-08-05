@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { ensureDemoDataFresh } from "@/lib/demo-data";
 
 const credentialsSchema = z.object({
   username: z.string().min(1),
@@ -36,10 +37,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         if (!isPasswordValid) return null;
 
+        // Only ever does real work once per real calendar day (no-ops
+        // instantly otherwise) and only for the demo user — real logins
+        // never touch this.
+        if (user.isDemo) {
+          await ensureDemoDataFresh();
+        }
+
         return {
           id: user.id,
           email: user.username,
           name: user.username,
+          isDemo: user.isDemo,
         };
       },
     }),
@@ -53,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        token.isDemo = (user as { isDemo?: boolean }).isDemo ?? false;
       }
       return token;
     },
@@ -61,6 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
+        (session.user as { isDemo?: boolean }).isDemo = token.isDemo as boolean;
       }
       return session;
     },

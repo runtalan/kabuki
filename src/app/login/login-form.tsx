@@ -1,43 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import { LogIn } from 'lucide-react';
+import { LogIn, Sparkles } from 'lucide-react';
+import { DEMO_USERNAME, DEMO_PASSWORD } from '@/lib/demo';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/home';
+  const autoDemo = searchParams.get('demo') === '1';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function signInAs(u: string, p: string) {
     setError('');
-    setIsLoading(true);
-
     try {
       const result = await signIn('credentials', {
-        username,
-        password,
+        username: u,
+        password: p,
         redirect: false,
       });
 
       if (result?.error) {
         setError('Invalid username or password');
+        return false;
       } else if (result?.ok) {
         router.push(callbackUrl);
+        return true;
       }
+      return false;
     } catch (err) {
       setError('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
+      return false;
     }
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoading(true);
+    await signInAs(username, password);
+    setIsLoading(false);
+  }
+
+  async function handleDemoLogin() {
+    setIsDemoLoading(true);
+    await signInAs(DEMO_USERNAME, DEMO_PASSWORD);
+    setIsDemoLoading(false);
+  }
+
+  // Coming from the landing page's "Try the Demo" link (?demo=1) — sign in
+  // as demo immediately, no extra click needed.
+  useEffect(() => {
+    if (autoDemo) {
+      handleDemoLogin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDemo]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -82,11 +106,21 @@ export function LoginForm() {
       {/* Submit */}
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading || isDemoLoading}
         className="w-full mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
       >
         <LogIn className="w-5 h-5" />
         {isLoading ? 'Signing in...' : 'Sign in'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleDemoLogin}
+        disabled={isLoading || isDemoLoading}
+        className="w-full px-4 py-2.5 bg-transparent border border-border text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+      >
+        <Sparkles className="w-5 h-5" />
+        {isDemoLoading ? 'Loading demo...' : 'Try the Demo'}
       </button>
     </form>
   );

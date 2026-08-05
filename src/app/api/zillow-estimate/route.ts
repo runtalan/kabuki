@@ -1,4 +1,4 @@
-import { getUser } from '@/lib/auth';
+import { getUser, assertWriteAccess } from '@/lib/auth';
 
 // Zillow does not offer a public, self-serve API for individual home-value
 // (Zestimate) lookups — that data requires an approved Zillow Partner/MLS
@@ -11,6 +11,8 @@ export async function POST(request: Request) {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { address } = await request.json();
     if (!address || !address.trim()) {

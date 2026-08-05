@@ -33,6 +33,7 @@ const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
 import { LIABILITY_TYPES, ASSET_TYPES, getTypeBadge, suggestIcon } from '@/lib/account-types';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
+import { useIsDemo } from '@/hooks/use-is-demo';
 
 interface Account {
   id: string;
@@ -78,6 +79,7 @@ const ICON_OPTIONS = [
 ];
 
 export default function AccountsPage() {
+  const isDemo = useIsDemo();
   const router = useRouter();
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,7 +442,9 @@ export default function AccountsPage() {
             </div>
             <button
               onClick={() => setShowAddLiability(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground font-semibold rounded-lg hover:bg-muted/80 border border-border transition-all"
+              disabled={isDemo}
+              title={isDemo ? 'View-only in demo mode' : undefined}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground font-semibold rounded-lg hover:bg-muted/80 border border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Add Asset/Liability

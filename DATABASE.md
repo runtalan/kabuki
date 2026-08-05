@@ -38,14 +38,15 @@
 | 2026-08-04 | `0010_category_budgets.sql` | Monthly budget per category |
 | 2026-08-04 | `0011_transaction_hidden.sql` | Per-transaction hide toggle (excluded from totals/budgets/reports) |
 | 2026-08-05 | `0012_recurring_series.sql` | Recurring transactions — review queue, manual entries, calendar projection |
+| 2026-08-05 | `0013_demo_account.sql` | `users.is_demo` flag for the shared, view-only public demo account |
 
 ## Current schema state
 
-Tables as of the last migration above. Reflects sandbox and production alike — both are in sync as of `0012`.
+Tables as of the last migration above. Reflects sandbox and production alike — both are in sync as of `0013`.
 
 | Table | Added in | Notes |
 |---|---|---|
-| `users` | 0000 | Shared household login |
+| `users` | 0000 | Shared household login; +`is_demo` (0013) |
 | `plaid_items` | 0000 | +`is_manual` (0006) |
 | `accounts` | 0000 | +`display_name`,`icon` (0002); +`owner` (0004); +`kind`,`liability_type`,`is_manual` (0006); +`mask` (0007); +`asset_type`,`address` (0009) |
 | `categories` | 0000 | +`monthly_budget` (0010) |

@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+    if (user.isDemo) {
+      return NextResponse.json({ error: "Demo account is view-only" }, { status: 403 });
+    }
 
     console.log("Plaid config:", {
       clientId: plaidConfig.clientId ? "set" : "missing",

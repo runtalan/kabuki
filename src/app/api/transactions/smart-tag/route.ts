@@ -1,4 +1,4 @@
-import { getUser } from '@/lib/auth';
+import { getUser, assertWriteAccess } from '@/lib/auth';
 import { runSmartCategorization } from '@/lib/auto-tag';
 
 // Runs the built-in merchant knowledge base over the user's existing
@@ -10,6 +10,8 @@ export async function POST() {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const tagged = await runSmartCategorization(user.id);
     return Response.json({ tagged });

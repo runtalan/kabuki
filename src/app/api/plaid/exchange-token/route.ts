@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, assertWriteAccess } from "@/lib/auth";
 import { plaidClient } from "@/lib/plaid";
 import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
@@ -15,6 +15,8 @@ const ExchangeTokenSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
     const body = await req.json();
     const { public_token, institution_name } = ExchangeTokenSchema.parse(body);
 

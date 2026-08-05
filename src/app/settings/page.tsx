@@ -5,11 +5,13 @@ import { Moon, Sun, X } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PlaidLinkButton } from '@/components/plaid-link-button';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { useIsDemo } from '@/hooks/use-is-demo';
 
 export default function SettingsPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [username, setUsername] = useState<string | null>(null);
   const [passwordFormOpen, setPasswordFormOpen] = useState(false);
+  const isDemo = useIsDemo();
 
   useEscapeKey(() => setPasswordFormOpen(false), passwordFormOpen);
 
@@ -55,10 +57,14 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setPasswordFormOpen(true)}
-                className="text-sm text-primary hover:underline"
+                disabled={isDemo}
+                className="text-sm text-primary hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
               >
                 Change password
               </button>
+              {isDemo && (
+                <p className="text-xs text-muted-foreground">View-only in demo mode.</p>
+              )}
             </div>
           </div>
 
@@ -91,7 +97,11 @@ export default function SettingsPage() {
         <div className="mt-8 bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Linked Accounts</h2>
           <p className="text-muted-foreground mb-4">Manage your Plaid connections</p>
-          <PlaidLinkButton />
+          {isDemo ? (
+            <p className="text-sm text-muted-foreground">View-only in demo mode — bank linking is disabled.</p>
+          ) : (
+            <PlaidLinkButton />
+          )}
         </div>
       </div>
 

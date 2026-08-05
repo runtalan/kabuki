@@ -5,6 +5,7 @@ import { Plus, Trash2, ToggleLeft } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
+import { useIsDemo } from '@/hooks/use-is-demo';
 
 interface Category {
   id: string;
@@ -24,6 +25,7 @@ interface Rule {
 }
 
 export default function RulesPage() {
+  const isDemo = useIsDemo();
   const [rules, setRules] = useState<Rule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,7 +172,9 @@ export default function RulesPage() {
           </div>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+            disabled={isDemo}
+            title={isDemo ? 'View-only in demo mode' : undefined}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-5 h-5" />
             New Rule

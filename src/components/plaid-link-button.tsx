@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Loader } from 'lucide-react';
+import { useIsDemo } from '@/hooks/use-is-demo';
 
 declare global {
   interface Window {
@@ -10,6 +11,7 @@ declare global {
 }
 
 export function PlaidLinkButton() {
+  const isDemo = useIsDemo();
   const [linkToken, setLinkToken] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -81,8 +83,9 @@ export function PlaidLinkButton() {
   return (
     <button
       onClick={handleClick}
-      disabled={loading}
-      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 active:scale-95 disabled:opacity-50 transition-all duration-200 shadow-md hover:shadow-lg"
+      disabled={loading || isDemo}
+      title={isDemo ? 'View-only in demo mode' : undefined}
+      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
     >
       {loading ? (
         <>

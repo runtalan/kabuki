@@ -1,4 +1,4 @@
-import { getUser } from '@/lib/auth';
+import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -12,6 +12,8 @@ export async function DELETE(
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { id } = await params;
 

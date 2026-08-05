@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, assertWriteAccess } from "@/lib/auth";
 import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -8,6 +8,8 @@ import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     // Get all Plaid items for this user
     const userPlaidItems = await db.query.plaidItems.findMany({

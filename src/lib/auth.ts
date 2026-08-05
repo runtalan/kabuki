@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 export interface AuthUser {
   id: string;
   email: string;
+  isDemo: boolean;
 }
 
 export interface AuthSession {
@@ -32,6 +33,7 @@ export async function getUser(): Promise<AuthUser | null> {
   return {
     id: dbUser.id,
     email: dbUser.username,
+    isDemo: dbUser.isDemo,
   };
 }
 
@@ -42,4 +44,14 @@ export async function requireUser(): Promise<AuthUser> {
     throw new Error("Unauthorized");
   }
   return user;
+}
+
+// The shared demo account is view-only. Call this right after the existing
+// getUser()/401 check in every mutating API route (POST/PATCH/PUT/DELETE)
+// and return its result immediately if non-null.
+export function assertWriteAccess(user: AuthUser): Response | null {
+  if (user.isDemo) {
+    return Response.json({ error: "Demo account is view-only" }, { status: 403 });
+  }
+  return null;
 }

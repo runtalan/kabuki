@@ -1,4 +1,4 @@
-import { getUser } from '@/lib/auth';
+import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { recurringSeries } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -13,6 +13,8 @@ export async function PATCH(
   try {
     const user = await getUser();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { id } = await params;
     const existing = await db.query.recurringSeries.findFirst({
@@ -67,6 +69,8 @@ export async function DELETE(
   try {
     const user = await getUser();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { id } = await params;
     const existing = await db.query.recurringSeries.findFirst({

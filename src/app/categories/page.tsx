@@ -5,6 +5,7 @@ import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2, ChevronUp, Chev
 import { AppLayout } from '@/components/app-layout';
 import { LUCIDE_ICONS } from '@/lib/icons';
 import { CategoryIcon } from '@/components/category-icon';
+import { useIsDemo } from '@/hooks/use-is-demo';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
 
@@ -35,6 +36,7 @@ const COLOR_OPTIONS = [
 const EMPTY_FORM = { name: '', color: '#3b82f6', icon: 'folder' };
 
 export default function CategoriesPage() {
+  const isDemo = useIsDemo();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -248,7 +250,9 @@ export default function CategoriesPage() {
             </div>
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 shadow-sm hover:shadow-md transition-all"
+              disabled={isDemo}
+              title={isDemo ? 'View-only in demo mode' : undefined}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
             >
               <Plus className="w-5 h-5" />
               New Category

@@ -93,12 +93,20 @@ export function LandingPage() {
             Buttons
           </span>
         </div>
-        <Link
-          href="/login"
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 shadow-sm hover:shadow-md transition-all"
-        >
-          Sign in
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/login?demo=1"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Try the Demo
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 shadow-sm hover:shadow-md transition-all"
+          >
+            Sign in
+          </Link>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -131,7 +139,11 @@ export function LandingPage() {
             <ArrowRight className="w-4 h-4" />
           </Link>
           <p className="text-xs text-muted-foreground">
-            No sign-ups here — just the two of us.
+            No sign-ups here — just the two of us.{' '}
+            <Link href="/login?demo=1" className="underline hover:text-foreground transition-colors">
+              Try the demo
+            </Link>{' '}
+            to look around.
           </p>
         </div>
       </section>

@@ -26,6 +26,8 @@ export const users = pgTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     username: varchar("username", { length: 255 }).notNull().unique(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+    // Shared, view-only public demo account — never a real household user.
+    isDemo: boolean("is_demo").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

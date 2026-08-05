@@ -1,4 +1,4 @@
-import { getUser } from '@/lib/auth';
+import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { categories } from '@/db/schema';
 import { generateId } from '@/lib/id';
@@ -25,6 +25,8 @@ export async function POST(request: Request) {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { name, color, icon } = await request.json();
 
