@@ -1,6 +1,6 @@
 # Overnight Progress Report
 
-Autonomous audit/refactor/test run, effort level: medium. Base commit `6a7552d`, final commit `3529075`. 17 files changed, 900 insertions(+), 81 deletions(-), across 6 commits.
+Autonomous audit/refactor/test run, effort level: medium. Base commit `6a7552d`, final commit `e3ba80c`. 18 files changed across 7 commits (see §7 for a post-hand-off fix added after the user asked to double-check the Recurring summary).
 
 **Landing page**: confirmed untouched — `git diff 6a7552d..HEAD -- src/components/landing-page.tsx src/components/interactive-app-demo.tsx` is empty.
 
@@ -56,6 +56,16 @@ Autonomous audit/refactor/test run, effort level: medium. Base commit `6a7552d`,
 
 - `README.md`: added `hooks/` to the project structure listing, and a new "Error handling" section documenting `error.tsx`, `not-found.tsx`, and `FetchErrorBanner`.
 - `DATABASE.md`: **not modified** — no schema changes were made this session (no new migration; `getMonthlyBudgetHistory` and the password-change endpoint are pure query/API additions with no new columns or tables), so the existing migration log is still accurate as of `0012_recurring_series.sql`.
+
+## 7. Post-hand-off fix: Recurring summary counted unconfirmed detections as fact (commit `e3ba80c`)
+
+The user asked "is the summary on recurring correct?" after reading this report. It wasn't — found a real bug, not just a wording nit.
+
+The Summary sentence ("Your recurring income of $X/mo comfortably covers $Y/mo in recurring bills..."), the "Monthly outflow"/"Monthly income" totals, the calendar's per-day dollar amounts, and "Upcoming this month" were all computed from the full `entries` list — which includes detections still sitting unanswered in the "Is this recurring?" review queue (`needsReview: true`). A detection is a same-merchant/roughly-steady-interval guess; the review queue exists specifically to catch false positives before they're treated as settled. Instead, an unconfirmed item's full monthly cost was silently folded into the headline totals and the natural-language summary before the user ever answered Yes/No on it.
+
+**Fixed:** added `confirmedEntries = entries.filter(e => !e.needsReview)`, switched the calendar, upcoming list, bills/income totals, and Summary sentence to derive from it. The List view still intentionally shows every entry including pending ones (that's where the review queue lives) — added a "Pending review" badge there so it's clear why an item isn't in the totals.
+
+**Verified by reproducing the exact bug, not just re-reading the code:** deleted the `recurring_series` row for "Rocket Mortgage" in the sandbox DB (putting it back into unconfirmed/`needsReview` state), confirmed via a live request that the rendered Summary sentence's monthly outflow dropped from $2,789/mo to $727/mo and the bill count from 5 to 4 — i.e., confirmed Rocket Mortgage's $2,062.24/mo really had been counted while unconfirmed — then confirmed it still correctly appears in the "Is this recurring?" queue, then restored it via the review API.
 
 ## Known limitation (by design, not a bug)
 
