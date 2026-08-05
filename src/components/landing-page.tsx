@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
+import { InteractiveAppDemo } from './interactive-app-demo';
 
 export function LandingPage() {
   return (
@@ -64,73 +65,9 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Product preview mockup */}
-      <section className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="relative rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-          {/* fake window chrome */}
-          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border bg-muted/40">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
-          </div>
-
-          <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-1 space-y-2 hidden md:block">
-              {['Dashboard', 'Accounts', 'Transactions', 'Reports', 'Categories'].map(
-                (item, i) => (
-                  <div
-                    key={item}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium ${
-                      i === 0
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground'
-                    }`}
-                  >
-                    {item}
-                  </div>
-                )
-              )}
-            </div>
-
-            <div className="md:col-span-3 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 p-4 text-white">
-                  <p className="text-[10px] uppercase tracking-wide text-blue-100 mb-1">
-                    Net Worth
-                  </p>
-                  <p className="text-xl font-bold">$128,402</p>
-                </div>
-                <div className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-4 text-white">
-                  <p className="text-[10px] uppercase tracking-wide text-emerald-100 mb-1">
-                    Income
-                  </p>
-                  <p className="text-xl font-bold">$8,240</p>
-                </div>
-                <div className="rounded-xl bg-gradient-to-br from-purple-600 to-purple-700 p-4 text-white">
-                  <p className="text-[10px] uppercase tracking-wide text-purple-100 mb-1">
-                    Saved
-                  </p>
-                  <p className="text-xl font-bold">31%</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border p-4">
-                <p className="text-xs font-semibold text-muted-foreground mb-3">
-                  Spending by Category
-                </p>
-                <div className="flex items-end gap-2 h-20">
-                  {[40, 65, 30, 80, 50, 25, 60].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t-md bg-gradient-to-t from-primary to-accent"
-                      style={{ height: `${h}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Interactive Product Demo */}
+      <section className="max-w-6xl mx-auto px-6 pb-24">
+        <InteractiveAppDemo />
       </section>
 
       {/* Explore cards */}
