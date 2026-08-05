@@ -4,10 +4,9 @@ import { ButtonsLogo } from './buttons-logo';
 import { InteractiveAppDemo } from './interactive-app-demo';
 
 function LaurelBranch() {
-  // Classic laurel crescent: stem bulges outward through the middle and
-  // curves back inward at both ends, lined with flat, pointed leaves.
-  const leaves = Array.from({ length: 6 }, (_, i) => 0.05 + i * (0.9 / 5));
-
+  // Central spine sweeping outward then curving back in — same crescent
+  // as an award badge — with slender, pointed leaves in mirrored pairs
+  // along both sides, evenly spaced base to tip.
   const stemPath = 'M 22 102 Q -14 70 -2 40 Q 8 12 46 -2';
 
   const pointAt = (t: number) => {
@@ -24,25 +23,39 @@ function LaurelBranch() {
     return { x, y, angle };
   };
 
-  // Flat, broad leaf blade: wide relative to its length, rounded rather than needle-thin.
-  const leafLen = 22;
-  const leafWidth = 8;
+  // Slender, pointed leaf blade — narrow relative to its length.
+  const leafLen = 19;
+  const leafWidth = 3.6;
+  const leaf = `M 0 0 Q ${leafWidth} ${leafLen * 0.4} 0 ${leafLen} Q ${-leafWidth} ${leafLen * 0.4} 0 0 Z`;
+
+  // Evenly spaced pairs from base to tip.
+  const pairs = Array.from({ length: 5 }, (_, i) => 0.1 + i * (0.78 / 4));
 
   return (
     <>
-      <path d={stemPath} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
-      {leaves.map((t, i) => {
+      <path d={stemPath} stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      {pairs.map((t, i) => {
         const { x, y, angle } = pointAt(t);
-        const outward = angle - 62;
+        // One leaf angled toward the outside of the curve, one toward the
+        // inside — both tilted upward, forming a mirrored pair at this point.
+        const outer = angle - 58;
+        const inner = angle - 122;
         return (
-          <g key={i} transform={`translate(${x} ${y}) rotate(${outward})`}>
-            <path
-              d={`M 0 0 Q ${leafWidth} ${leafLen * 0.28} ${leafWidth * 0.55} ${leafLen * 0.55} Q ${leafWidth * 0.15} ${leafLen * 0.85} 0 ${leafLen} Q ${-leafWidth * 0.15} ${leafLen * 0.85} ${-leafWidth * 0.55} ${leafLen * 0.55} Q ${-leafWidth} ${leafLen * 0.28} 0 0 Z`}
-              fill="currentColor"
-            />
+          <g key={i} transform={`translate(${x} ${y})`}>
+            <path d={leaf} fill="currentColor" transform={`rotate(${outer})`} />
+            <path d={leaf} fill="currentColor" transform={`rotate(${inner})`} />
           </g>
         );
       })}
+      {/* Small terminal bud at the tip */}
+      <path
+        d={leaf}
+        fill="currentColor"
+        transform={(() => {
+          const { x, y, angle } = pointAt(0.97);
+          return `translate(${x} ${y}) rotate(${angle}) scale(0.65)`;
+        })()}
+      />
     </>
   );
 }
@@ -51,7 +64,7 @@ function LaurelWreath({ flip = false }: { flip?: boolean }) {
   return (
     <svg
       viewBox="-28 -10 88 122"
-      className={`w-16 h-28 shrink-0 text-gray-400 dark:text-gray-600 ${flip ? 'scale-x-[-1]' : ''}`}
+      className={`w-16 h-28 shrink-0 text-[#cccccc] dark:text-gray-600 ${flip ? 'scale-x-[-1]' : ''}`}
     >
       <LaurelBranch />
     </svg>
