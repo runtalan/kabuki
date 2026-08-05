@@ -183,6 +183,9 @@ Don't. Sandbox is fully functional and safe. If you absolutely must test product
 
 ## Database Setup (First Time)
 
+**For adding a new migration to an existing setup, see [DATABASE.md](./DATABASE.md) instead** — the workflow and full migration log live there.
+
+
 ### For sandbox (local throwaway DB)
 ```bash
 createdb kabuki_sandbox

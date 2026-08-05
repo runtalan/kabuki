@@ -54,10 +54,9 @@ npm run dev
 
 Schema lives in `src/db/schema.ts`, connection client in `src/db/index.ts`.
 
+**Migrations are hand-written SQL, not `drizzle-kit generate`/`migrate`.** See [DATABASE.md](./DATABASE.md) for the migration workflow and the full log of what ran where.
+
 ```bash
-npm run db:generate   # generate SQL migrations from schema changes
-npm run db:migrate    # apply migrations
-npm run db:push       # push schema directly (dev convenience)
 npm run db:studio     # browse data in Drizzle Studio
 ```
 
