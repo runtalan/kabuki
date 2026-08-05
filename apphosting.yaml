@@ -23,7 +23,7 @@ env:
       - RUNTIME
 
   - variable: AUTH_URL
-    value: "https://kabuki--buttons-abc4d.us-east4.hosted.app"
+    secret: AUTH_URL
     availability:
       - RUNTIME
 
