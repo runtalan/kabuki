@@ -5,11 +5,8 @@ import * as schema from "./schema";
 
 config({ path: ".env.local" });
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
-}
-
+// Use sandbox URL as default for build time, but runtime will override with real DATABASE_URL
+const databaseUrl = process.env.DATABASE_URL || "postgresql://localhost/kabuki_sandbox";
 const client = postgres(databaseUrl);
 
 export const db = drizzle(client, { schema });
