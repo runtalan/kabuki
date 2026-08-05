@@ -205,8 +205,8 @@ export function InteractiveAppDemo() {
           {/* Net Worth Card */}
           <div className="rounded-lg border border-border p-6 bg-card">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">NET WORTH</p>
-            <p className="text-5xl font-bold text-foreground">-$40,452</p>
-            <p className="text-xs text-muted-foreground mt-3">Building history — deltas appear after a month of syncs</p>
+            <p className="text-5xl font-bold text-foreground">$182,554</p>
+            <p className="text-xs text-muted-foreground mt-3">Up 4.2% this month</p>
             <p className="text-sm text-primary mt-4 cursor-pointer">View full net worth →</p>
           </div>
 
@@ -216,7 +216,9 @@ export function InteractiveAppDemo() {
             <div className="rounded-lg border border-border p-6 bg-card">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">SPENT IN JULY</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
+                    SPENT IN {new Date().toLocaleDateString('en-US', { month: 'long' }).toUpperCase()}
+                  </p>
                   <p className="text-3xl font-bold text-foreground">$11.1K</p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
@@ -228,9 +230,9 @@ export function InteractiveAppDemo() {
 
               {/* Mini calendar */}
               <div className="grid grid-cols-7 gap-1 text-xs text-center">
-                {[...Array(31)].map((_, i) => {
+                {[...Array(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())].map((_, i) => {
                   const day = i + 1;
-                  const isToday = day === 11;
+                  const isToday = day === new Date().getDate();
                   const isWeekend = (i % 7) > 4;
 
                   return (
