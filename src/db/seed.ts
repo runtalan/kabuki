@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries } from './schema';
+import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings } from './schema';
 import { eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/lib/id';
@@ -339,6 +339,94 @@ async function seed() {
     console.log('✓ Household manual accounts + 6mo balance history ensured (renato, claudia)');
   } catch (error) {
     console.error('Error creating household accounts:', error);
+  }
+
+  // Joint investment brokerage account with VTI/VXUS/BND holdings (~$42k
+  // total). Task 16's renatoManualItemId is scoped to its own try block, so
+  // the shared manual plaid_item id is resolved here by reading it back off
+  // an already-seeded account row instead (accounts-only lookup — never
+  // touches users). Additive-only — idempotent, safe to re-run.
+  try {
+    const [renatoCheckingRow] = await db
+      .select({ plaidItemId: accounts.plaidItemId })
+      .from(accounts)
+      .where(eq(accounts.id, 'seed-acct-renato-checking'))
+      .limit(1);
+    if (!renatoCheckingRow) {
+      throw new Error(
+        "seed-acct-renato-checking not found — Task 16's household accounts block must run first"
+      );
+    }
+    const sharedManualItemId = renatoCheckingRow.plaidItemId;
+
+    const brokerageAccountId = 'seed-acct-brokerage';
+    await db
+      .insert(accounts)
+      .values({
+        id: brokerageAccountId,
+        plaidItemId: sharedManualItemId,
+        plaidAccountId: brokerageAccountId,
+        name: 'Joint Brokerage',
+        owner: 'joint',
+        type: 'brokerage',
+        subtype: 'brokerage',
+        kind: 'asset',
+        isManual: true,
+        currentBalance: '42062.60',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing({ target: accounts.plaidAccountId });
+
+    // Share counts chosen so shares * currentPrice sums to ~$42,063, split
+    // roughly 55% VTI / 20% VXUS / 25% BND by value:
+    //   VTI:  81 * 285.50 = 23,125.50  (55.0%)
+    //   VXUS: 135 * 62.30 =  8,410.50  (20.0%)
+    //   BND:  146 * 72.10 = 10,526.60  (25.0%)
+    //   total = 42,062.60
+    const holdingsSeed = [
+      { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', assetClass: 'us_stock', shares: 81, costBasis: 15800, currentPrice: 285.5 },
+      { symbol: 'VXUS', name: 'Vanguard Total International Stock ETF', assetClass: 'intl_stock', shares: 135, costBasis: 6900, currentPrice: 62.3 },
+      { symbol: 'BND', name: 'Vanguard Total Bond Market ETF', assetClass: 'bond', shares: 146, costBasis: 10600, currentPrice: 72.1 },
+    ];
+
+    // holdings has no unique constraint to hang onConflictDoNothing off of
+    // (only an index on account_id), so — matching Task 16's precedent for
+    // accountBalanceHistory — clear and re-insert scoped to this account id
+    // on every run.
+    await db.delete(holdings).where(eq(holdings.accountId, brokerageAccountId));
+    await db.insert(holdings).values(
+      holdingsSeed.map((h) => ({
+        id: generateId(),
+        accountId: brokerageAccountId,
+        symbol: h.symbol,
+        name: h.name,
+        assetClass: h.assetClass,
+        shares: h.shares.toFixed(4),
+        costBasis: h.costBasis.toFixed(2),
+        currentPrice: h.currentPrice.toFixed(4),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+    );
+
+    // 6 months of gently-rising portfolio value so the brokerage account
+    // chart isn't empty on first load. Same clear-and-reinsert idempotency
+    // pattern as above.
+    await db.delete(accountBalanceHistory).where(eq(accountBalanceHistory.accountId, brokerageAccountId));
+    const now = new Date();
+    const brokerageHistory: { id: string; accountId: string; balance: string; recordedAt: Date }[] = [];
+    for (let monthsAgo = 6; monthsAgo >= 0; monthsAgo--) {
+      const recordedAt = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 15);
+      const balance = 42062.6 * (1 - monthsAgo * 0.015);
+      brokerageHistory.push({ id: generateId(), accountId: brokerageAccountId, balance: balance.toFixed(2), recordedAt });
+    }
+    await db.insert(accountBalanceHistory).values(brokerageHistory);
+
+    console.log('✓ Investment brokerage account + holdings ensured');
+  } catch (error) {
+    console.error('Error creating investment holdings:', error);
   }
 
   console.log('✅ Seed complete!');
