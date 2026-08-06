@@ -118,10 +118,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="h-full bg-sidebar flex flex-col">
       {/* Header */}
-      <div className="px-5 py-5 border-b border-sidebar-border">
+      <div className="px-5 py-5 border-b border-sidebar-border/80 bg-gradient-to-b from-sidebar-accent/25 to-transparent">
         <div className="flex items-center gap-3">
-          <ButtonsLogo className="w-9 h-9" />
-          <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+          <ButtonsLogo className="w-9 h-9 drop-shadow-sm" />
+          <h1
+            className="text-lg font-semibold text-sidebar-foreground"
+            style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.015em' }}
+          >
             Buttons
           </h1>
         </div>
@@ -131,7 +134,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navSections.map((section) => (
           <div key={section.label} className="mb-5">
-            <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+            <p className="px-3 mb-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
               {section.label}
             </p>
             <ul className="space-y-0.5">
@@ -157,14 +160,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       <Link
                         href={item.href}
                         onClick={onNavigate}
-                        className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all min-w-0 ${
+                        className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 min-w-0 ${
                           isRootActive
-                            ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
+                            ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-sm'
                             : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
                         }`}
                       >
                         <Icon
-                          className={`w-[18px] h-[18px] flex-shrink-0 ${
+                          className={`w-[18px] h-[18px] flex-shrink-0 transition-colors duration-200 ${
                             isRootActive ? 'text-primary' : 'text-muted-foreground'
                           }`}
                         />
@@ -174,19 +177,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                         <button
                           type="button"
                           onClick={() => setManualOpen((prev) => ({ ...prev, [item.label]: !isOpen }))}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors flex-shrink-0"
+                          className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-200 flex-shrink-0"
                           aria-label={isOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
                           aria-expanded={isOpen}
                         >
                           <ChevronDown
-                            className={`w-3.5 h-3.5 transition-transform ${isOpen ? '' : '-rotate-90'}`}
+                            className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
                           />
                         </button>
                       )}
                     </div>
 
                     {hasChildren && isOpen && (
-                      <ul className="mt-0.5 mb-1 ml-[35px] pl-4 border-l border-sidebar-border space-y-0.5">
+                      <ul className="mt-0.5 mb-1 ml-[35px] pl-4 border-l border-sidebar-border/70 space-y-0.5">
                         {item.children!.map((child) => {
                           const active = isChildActive(pathname, child);
                           return (
@@ -194,9 +197,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                               <Link
                                 href={child.href}
                                 onClick={onNavigate}
-                                className={`block px-3 py-1.5 rounded-lg text-sm transition-all truncate ${
+                                className={`block px-3 py-1.5 rounded-lg text-sm transition-all duration-200 truncate ${
                                   active
-                                    ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
+                                    ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold'
                                     : 'text-muted-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
                                 }`}
                               >
@@ -216,9 +219,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Footer: user profile + sign out */}
-      <div className="px-3 py-3 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg">
-          <div className="w-[42px] h-[42px] rounded-full bg-muted/70 border border-border flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
+      <div className="px-3 py-3 border-t border-sidebar-border/80">
+        <div className="flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors duration-200 hover:bg-sidebar-accent/60">
+          <div className="w-[42px] h-[42px] rounded-full bg-gradient-to-br from-muted to-muted/60 ring-2 ring-sidebar-border shadow-sm flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarSrc} alt={displayName || 'User'} className="w-full h-full object-cover" />
@@ -226,12 +229,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               '👤'
             )}
           </div>
-          <span className="flex-1 text-lg font-medium text-sidebar-foreground truncate">
+          <span className="flex-1 text-lg font-semibold text-sidebar-foreground tracking-tight truncate">
             {displayName || '...'}
           </span>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all flex-shrink-0"
+            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200 flex-shrink-0"
             title="Sign out"
           >
             <LogOut className="w-4 h-4" />
@@ -259,19 +262,19 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile: sticky top bar */}
-      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
+      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border/80 shadow-sm">
         <div className="flex items-center gap-2">
-          <ButtonsLogo className="w-8 h-8" />
+          <ButtonsLogo className="w-8 h-8 drop-shadow-sm" />
           <span
-            className="text-base font-bold text-sidebar-foreground tracking-tight"
-            style={{ fontFamily: 'var(--font-display)' }}
+            className="text-base font-semibold text-sidebar-foreground"
+            style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.015em' }}
           >
             Buttons
           </span>
         </div>
         <button
           onClick={() => setMobileOpen(true)}
-          className="p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          className="p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-200"
           aria-label="Open menu"
           title="Open menu"
         >
@@ -290,7 +293,7 @@ export function Sidebar() {
             <div className="relative h-full">
               <button
                 onClick={() => setMobileOpen(false)}
-                className="absolute right-3 top-5 p-1.5 rounded-lg text-muted-foreground hover:bg-sidebar-accent transition-colors z-10"
+                className="absolute right-3 top-5 p-1.5 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 z-10"
                 aria-label="Close menu"
                 title="Close menu"
               >
