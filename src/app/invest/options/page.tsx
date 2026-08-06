@@ -1,6 +1,9 @@
 'use client';
 
+import { Search } from 'lucide-react';
+
 import { AppLayout } from '@/components/app-layout';
+import { Tooltip } from '@/components/ui/tooltip';
 
 const OPTIONS_PLAYS = [
   { symbol: 'AAPL', strategy: 'Call Spread', strike: '$230/$235', expiry: '08/16', premium: '-$45', roi: '+180%', status: 'Open' as const },
@@ -16,6 +19,17 @@ export default function OptionsPage() {
       <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Options</h1>
         <p className="text-muted-foreground mb-8">Manage your options positions and derivatives strategies</p>
+
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search options plays..."
+            className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground"
+            disabled
+          />
+        </div>
 
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -86,7 +100,21 @@ export default function OptionsPage() {
         {/* Strategy Guide */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="rounded-lg border border-border p-6 bg-card">
-            <h3 className="font-semibold text-foreground mb-4">Bullish Strategies</h3>
+            <Tooltip
+              content={
+                <div className="space-y-1">
+                  <p className="font-semibold text-emerald-600">Bullish Execution</p>
+                  <p className="text-muted-foreground">
+                    Buy calls to profit from upside, or sell cash-secured puts to collect premium while targeting a
+                    lower entry price.
+                  </p>
+                </div>
+              }
+            >
+              <h3 className="font-semibold text-foreground mb-4 inline-flex items-center gap-1.5 rounded-md px-1 -mx-1 bg-emerald-500/10">
+                Bullish Strategies
+              </h3>
+            </Tooltip>
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-foreground">Call Spread</p>
@@ -104,7 +132,21 @@ export default function OptionsPage() {
           </div>
 
           <div className="rounded-lg border border-border p-6 bg-card">
-            <h3 className="font-semibold text-foreground mb-4">Bearish Strategies</h3>
+            <Tooltip
+              content={
+                <div className="space-y-1">
+                  <p className="font-semibold text-red-600">Bearish Execution</p>
+                  <p className="text-muted-foreground">
+                    Buy puts to profit from downside, or sell covered calls against existing shares to collect
+                    premium while capping upside.
+                  </p>
+                </div>
+              }
+            >
+              <h3 className="font-semibold text-foreground mb-4 inline-flex items-center gap-1.5 rounded-md px-1 -mx-1 bg-red-500/10">
+                Bearish Strategies
+              </h3>
+            </Tooltip>
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-foreground">Put Spread</p>
