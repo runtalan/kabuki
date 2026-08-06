@@ -218,7 +218,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Footer: user profile + sign out */}
       <div className="px-3 py-3 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg">
-          <div className="w-8 h-8 rounded-full bg-muted/70 border border-border flex items-center justify-center text-base flex-shrink-0 overflow-hidden">
+          <div className="w-[42px] h-[42px] rounded-full bg-muted/70 border border-border flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarSrc} alt={displayName || 'User'} className="w-full h-full object-cover" />
@@ -226,7 +226,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               '👤'
             )}
           </div>
-          <span className="flex-1 text-sm font-medium text-sidebar-foreground truncate">
+          <span className="flex-1 text-lg font-medium text-sidebar-foreground truncate">
             {displayName || '...'}
           </span>
           <button
