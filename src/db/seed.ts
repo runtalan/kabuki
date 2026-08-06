@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings, properties, propertyValueHistory } from './schema';
+import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings, properties, propertyValueHistory, transactions } from './schema';
 import { eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/lib/id';
@@ -495,6 +495,55 @@ async function seed() {
     console.log('✓ Properties + 6mo value history ensured (Primary Home, Rental Condo)');
   } catch (error) {
     console.error('Error creating properties:', error);
+  }
+
+  try {
+    const categoryRows = await db.query.categories.findMany();
+    const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
+    const now = new Date();
+    const txnRows = [];
+
+    for (let monthsAgo = 6; monthsAgo >= 0; monthsAgo--) {
+      const month = now.getMonth() - monthsAgo;
+      const pattern = [
+        { merchant: 'Employer Payroll', categoryName: 'Income', amount: 5200, day: 1, accountId: 'seed-acct-renato-checking', type: 'credit' as const },
+        { merchant: 'Employer Payroll', categoryName: 'Income', amount: 4800, day: 15, accountId: 'seed-acct-claudia-checking', type: 'credit' as const },
+        { merchant: 'Whole Foods', categoryName: 'Groceries', amount: -145, day: 3, accountId: monthsAgo % 2 === 0 ? 'seed-acct-renato-credit' : 'seed-acct-claudia-credit', type: 'debit' as const },
+        { merchant: "Trader Joe's", categoryName: 'Groceries', amount: -85, day: 17, accountId: 'seed-acct-claudia-credit', type: 'debit' as const },
+        { merchant: 'Chipotle', categoryName: 'Dining', amount: -32, day: 5, accountId: 'seed-acct-renato-credit', type: 'debit' as const },
+        { merchant: 'Local Bistro', categoryName: 'Dining', amount: -78, day: 20, accountId: 'seed-acct-claudia-credit', type: 'debit' as const },
+        { merchant: 'Shell Gas', categoryName: 'Transport', amount: -55, day: 8, accountId: 'seed-acct-renato-credit', type: 'debit' as const },
+        { merchant: 'City Utilities', categoryName: 'Utilities', amount: -180, day: 10, accountId: 'seed-acct-renato-checking', type: 'debit' as const },
+        { merchant: 'Amazon', categoryName: 'Shopping', amount: -120, day: 12, accountId: 'seed-acct-claudia-credit', type: 'debit' as const },
+        { merchant: 'Netflix', categoryName: 'Subscription', amount: -15.99, day: 2, accountId: 'seed-acct-renato-credit', type: 'debit' as const },
+        { merchant: 'Planet Fitness', categoryName: 'Fitness', amount: -24.99, day: 4, accountId: 'seed-acct-claudia-credit', type: 'debit' as const },
+      ];
+
+      for (const entry of pattern) {
+        txnRows.push({
+          id: generateId(),
+          accountId: entry.accountId,
+          categoryId: categoryIdByName.get(entry.categoryName) ?? null,
+          categorySource: 'rule',
+          plaidTransactionId: `seed-txn-${entry.merchant.replace(/\s+/g, '-')}-${entry.day}-${monthsAgo}`,
+          name: entry.merchant,
+          merchant: entry.merchant,
+          merchantCleanedUp: entry.merchant,
+          amount: entry.amount.toFixed(2),
+          type: entry.type,
+          date: new Date(now.getFullYear(), month, entry.day),
+          pending: false,
+          hidden: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    await db.insert(transactions).values(txnRows).onConflictDoNothing({ target: transactions.plaidTransactionId });
+    console.log(`✓ ${txnRows.length} household transactions seeded across 6 months`);
+  } catch (error) {
+    console.error('Error creating household transactions:', error);
   }
 
   console.log('✅ Seed complete!');
