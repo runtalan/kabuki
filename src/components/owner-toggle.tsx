@@ -42,18 +42,18 @@ export function OwnerToggle({
   };
 
   return (
-    <div className="flex items-center gap-1 bg-muted/40 rounded-full p-1">
+    <div className="flex items-center gap-1.5 bg-muted/40 rounded-full p-1.5">
       {SEGMENTS.map((seg) => (
         <button
           key={seg.value}
           onClick={() => setOwner(seg.value)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
             value === seg.value
               ? 'bg-background text-foreground shadow-sm border border-border'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <OwnerAvatar owner={seg.value === 'all' ? 'joint' : seg.value} className="w-4 h-4" />
+          <OwnerAvatar owner={seg.value === 'all' ? 'joint' : seg.value} className="w-6 h-6" />
           {seg.label}
         </button>
       ))}
