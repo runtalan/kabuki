@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { integrationTokens, transactions } from '@/db/schema';
+import { integrationTokens, transactions, apiRequestLogs } from '@/db/schema';
 import { eq, and, gte, count } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 import { hashToken } from '@/lib/integration-tokens';
@@ -19,6 +19,14 @@ function sanitizeMerchant(raw: unknown): string {
     .slice(0, 255);
 }
 
+function sanitizeCard(raw: unknown): string | null {
+  const value = String(raw ?? '')
+    .replace(/[\x00-\x1F\x7F<>]/g, '')
+    .trim()
+    .slice(0, 100);
+  return value || null;
+}
+
 function parseAmount(raw: unknown): number | null {
   const value = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '').replace(/[^0-9.\-]/g, ''));
   return Number.isFinite(value) ? value : null;
@@ -29,12 +37,74 @@ function startOfTodayUTC(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+function headersToObject(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    out[key] = value;
+  });
+  return out;
+}
+
+// The payload shape from the Shortcut is still being dialed in, so field
+// lookup is deliberately permissive: checks query params, then body, then
+// headers, and tries every known alias for a given field (case-insensitive)
+// before giving up.
+function pickField(aliases: string[], sources: Record<string, unknown>[]): unknown {
+  for (const source of sources) {
+    for (const alias of aliases) {
+      const key = Object.keys(source).find((k) => k.toLowerCase() === alias);
+      if (key !== undefined && source[key] !== undefined && source[key] !== '') {
+        return source[key];
+      }
+    }
+  }
+  return undefined;
+}
+
 // Personal transaction-ingest endpoint for the Apple Card Sync Shortcut —
 // see Settings > Integrations for the setup flow and payload shape. Auth is
 // a per-user token (query string, by design — Shortcuts' URL action can't
 // set custom headers) checked against a stored hash, not a session cookie;
-// this route is deliberately outside normal auth middleware.
-export async function POST(request: Request) {
+// this route is deliberately outside normal auth middleware. Every request
+// (success or failure) is logged to `api_request_logs` — see the debug
+// panel in Settings — so mis-shaped Shortcut payloads can be diagnosed
+// without SSH-ing into anything.
+async function handle(request: Request, method: 'GET' | 'POST') {
+  const url = new URL(request.url);
+  const query: Record<string, string> = {};
+  url.searchParams.forEach((value, key) => {
+    if (key !== 'token') query[key] = value;
+  });
+  const headerObj = headersToObject(request.headers);
+
+  let owner: string | null = null;
+  let parsed: Record<string, unknown> = {};
+  let errorMsg: string | null = null;
+  let transactionId: string | null = null;
+  let rawBody = '';
+
+  const respond = async (body: unknown, status: number) => {
+    try {
+      await db.insert(apiRequestLogs).values({
+        id: generateId(),
+        provider: PROVIDER,
+        method,
+        owner,
+        statusCode: status,
+        headers: JSON.stringify(headerObj),
+        queryParams: Object.keys(query).length ? JSON.stringify(query) : null,
+        body: rawBody || null,
+        parsed: Object.keys(parsed).length ? JSON.stringify(parsed) : null,
+        error: errorMsg,
+        transactionId,
+        createdAt: new Date(),
+      });
+    } catch (logError) {
+      console.error('Error writing Apple Card request log:', logError);
+    }
+    return Response.json(body as object, { status });
+  };
+
   try {
     // Cloud Run/App Hosting terminates TLS and forwards over plain HTTP
     // internally, setting this header for the original scheme — reject
@@ -42,20 +112,25 @@ export async function POST(request: Request) {
     // `http://localhost` still works for local testing.
     const proto = request.headers.get('x-forwarded-proto');
     if (process.env.NODE_ENV === 'production' && proto && proto !== 'https') {
-      return Response.json({ error: 'HTTPS required' }, { status: 403 });
+      errorMsg = 'HTTPS required';
+      return respond({ error: errorMsg }, 403);
     }
 
-    const token = new URL(request.url).searchParams.get('token');
+    const token = url.searchParams.get('token');
     if (!token) {
-      return Response.json({ error: 'Missing token' }, { status: 401 });
+      errorMsg = 'Missing token';
+      return respond({ error: errorMsg }, 401);
     }
 
     const integration = await db.query.integrationTokens.findFirst({
       where: and(eq(integrationTokens.tokenHash, hashToken(token)), eq(integrationTokens.provider, PROVIDER)),
+      with: { user: true },
     });
     if (!integration || !integration.accountId) {
-      return Response.json({ error: 'Invalid token' }, { status: 401 });
+      errorMsg = 'Invalid token';
+      return respond({ error: errorMsg }, 401);
     }
+    owner = integration.user?.username ?? null;
 
     const [{ value: todayCount }] = await db
       .select({ value: count() })
@@ -64,39 +139,57 @@ export async function POST(request: Request) {
         and(eq(transactions.accountId, integration.accountId), gte(transactions.createdAt, startOfTodayUTC()))
       );
     if (todayCount >= DAILY_LIMIT) {
-      return Response.json(
-        { error: `Daily limit of ${DAILY_LIMIT} transactions reached` },
-        { status: 429 }
-      );
+      errorMsg = `Daily limit of ${DAILY_LIMIT} transactions reached`;
+      return respond({ error: errorMsg }, 429);
     }
 
-    let body: Record<string, unknown>;
-    try {
-      body = await request.json();
-    } catch {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    let bodyFields: Record<string, unknown> = {};
+    if (method === 'POST') {
+      rawBody = await request.text();
+      if (rawBody) {
+        try {
+          bodyFields = JSON.parse(rawBody);
+        } catch {
+          try {
+            // Some Shortcut configs send form-encoded bodies instead of JSON.
+            bodyFields = Object.fromEntries(new URLSearchParams(rawBody));
+          } catch {
+            errorMsg = 'Invalid body';
+            return respond({ error: errorMsg }, 400);
+          }
+        }
+      }
     }
 
-    const merchant = sanitizeMerchant(body.merchant ?? body.name);
+    const sources = [query, bodyFields, headerObj];
+    const merchant = sanitizeMerchant(pickField(['transaction', 'merchant', 'name'], sources));
+    const card = sanitizeCard(pickField(['card'], sources));
+    const amount = parseAmount(pickField(['amount'], sources));
+    const dateRaw = pickField(['date'], sources);
+    const date =
+      typeof dateRaw === 'string' && !Number.isNaN(Date.parse(dateRaw)) ? new Date(dateRaw) : new Date();
+    const typeRaw = pickField(['type'], sources);
+    const isCredit = typeof typeRaw === 'string' && typeRaw.toLowerCase() === 'credit';
+
+    parsed = { merchant, amount, date: date.toISOString(), card, type: isCredit ? 'credit' : 'debit' };
+
     if (!merchant) {
-      return Response.json({ error: 'merchant is required' }, { status: 400 });
+      errorMsg = 'merchant/transaction is required';
+      return respond({ error: errorMsg }, 400);
     }
-    const amount = parseAmount(body.amount);
     if (amount === null) {
-      return Response.json({ error: 'amount must be a number' }, { status: 400 });
+      errorMsg = 'amount must be a number';
+      return respond({ error: errorMsg }, 400);
     }
-    const isCredit = body.type === 'credit';
-    const date = typeof body.date === 'string' && !Number.isNaN(Date.parse(body.date))
-      ? new Date(body.date)
-      : new Date();
 
-    const transactionId = generateId();
+    transactionId = generateId();
     await db.insert(transactions).values({
       id: transactionId,
       accountId: integration.accountId,
       plaidTransactionId: `apple-card-${transactionId}`,
       name: merchant,
       merchant,
+      notes: card ? `Card: ${card}` : null,
       amount: (isCredit ? Math.abs(amount) : -Math.abs(amount)).toString(),
       type: isCredit ? 'credit' : 'debit',
       date,
@@ -111,9 +204,23 @@ export async function POST(request: Request) {
       .set({ lastUsedAt: new Date() })
       .where(eq(integrationTokens.id, integration.id));
 
-    return Response.json({ ok: true, id: transactionId }, { status: 201 });
+    return respond({ ok: true, id: transactionId }, 201);
   } catch (error) {
-    console.error('Error ingesting Apple Card transaction:', error);
-    return Response.json({ error: 'Failed to record transaction' }, { status: 500 });
+    console.error('Error handling Apple Card request:', error);
+    errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    return respond({ error: 'Failed to record transaction' }, 500);
   }
+}
+
+export async function POST(request: Request) {
+  return handle(request, 'POST');
+}
+
+// GET support exists for debugging Shortcut configs that end up sending a
+// GET instead of POST (e.g. a misconfigured "Get Contents of URL" action) —
+// it accepts the same fields via query params and logs headers exactly like
+// POST does, rather than silently 405-ing and leaving no trace of what
+// arrived.
+export async function GET(request: Request) {
+  return handle(request, 'GET');
 }

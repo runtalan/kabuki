@@ -338,6 +338,35 @@ export const integrationTokens = pgTable(
   ]
 );
 
+// Debug/audit log of every request hitting the public integration ingest
+// endpoints (Apple Card Sync today) — dev tooling only, so the Settings UI
+// can show exactly what a Shortcut actually sent (headers included) while
+// getting the payload shape dialed in. Not tied to a user FK since a bad
+// token means we may not know who sent it.
+export const apiRequestLogs = pgTable(
+  "api_request_logs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    provider: varchar("provider", { length: 30 }).notNull(),
+    method: varchar("method", { length: 10 }).notNull(),
+    owner: varchar("owner", { length: 20 }), // resolved from the token, if valid
+    statusCode: integer("status_code").notNull(),
+    headers: text("headers").notNull(), // JSON-stringified header map
+    queryParams: text("query_params"), // JSON-stringified
+    body: text("body"), // raw request body as received
+    parsed: text("parsed"), // JSON-stringified {merchant, amount, date, card}
+    error: text("error"),
+    transactionId: varchar("transaction_id", { length: 36 }).references(
+      () => transactions.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_api_request_logs_provider_created").on(table.provider, table.createdAt),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
