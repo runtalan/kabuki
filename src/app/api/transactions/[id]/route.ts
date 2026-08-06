@@ -67,11 +67,13 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden, transferType } = body;
+    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden, transferType, notes } =
+      body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
+    if (notes !== undefined) updates.notes = typeof notes === 'string' && notes.trim() ? notes.trim() : null;
     if (date) updates.date = new Date(date);
     if (categoryId !== undefined) {
       updates.categoryId = categoryId || null;

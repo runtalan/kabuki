@@ -32,6 +32,7 @@ interface Transaction {
   transferType?: 'transfer' | 'credit_card_payment' | null;
   categoryId?: string | null;
   ownerOverride?: string | null;
+  notes?: string | null;
   account?: {
     owner?: string | null;
     name?: string;
@@ -67,6 +68,7 @@ export function TransactionEditModal({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     (transaction.tags || []).map((t) => t.id)
   );
+  const [notes, setNotes] = useState(transaction.notes || '');
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagSearch, setTagSearch] = useState('');
@@ -178,6 +180,7 @@ export function TransactionEditModal({
           tagIds: selectedTagIds,
           hidden,
           transferType,
+          notes,
           ...overrides,
         }),
       });
@@ -786,6 +789,19 @@ export function TransactionEditModal({
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Notes — private to this transaction; shown only in this panel,
+              never in the transaction list/table views. */}
+          <div className="px-5 py-3.5">
+            <span className="text-sm text-foreground mb-2 block">Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add a note — only visible here"
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
           </div>
         </div>
 
