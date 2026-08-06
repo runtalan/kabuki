@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
-import { OWNERS, getOwner } from './owner-badge';
+import { getOwner } from './owner-badge';
 import { MerchantAvatar } from './merchant-avatar';
 
 interface Transaction {
@@ -46,17 +46,23 @@ function heatClasses(net: number, maxMagnitude: number) {
 export function SpendCalendar({
   bare = false,
   onSelectTransaction,
-}: { bare?: boolean; onSelectTransaction?: (id: string) => void } = {}) {
+  ownerFilter = 'all',
+}: {
+  bare?: boolean;
+  onSelectTransaction?: (id: string) => void;
+  ownerFilter?: 'renato' | 'claudia' | 'all';
+} = {}) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(() => new Date());
   const [granularity, setGranularity] = useState<Granularity>('month');
   const [weekOffset, setWeekOffset] = useState(0); // which 7-day chunk within the month, week view only
-  const [ownerFilter, setOwnerFilter] = useState('all');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/transactions')
+    const params = new URLSearchParams();
+    if (ownerFilter !== 'all') params.set('owner', ownerFilter);
+    fetch(`/api/transactions?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const txs: Transaction[] = data?.transactions || [];
@@ -79,22 +85,16 @@ export function SpendCalendar({
         }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [ownerFilter]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const totalDays = daysInMonth(year, month);
   const monthLabel = cursor.toLocaleDateString('en-US', { month: 'long' });
 
-  const filtered = useMemo(
-    () =>
-      transactions.filter(
-        (tx) =>
-          !tx.hidden &&
-          (ownerFilter === 'all' || (tx.account?.owner || 'joint') === ownerFilter)
-      ),
-    [transactions, ownerFilter]
-  );
+  // The API request above already scopes to `ownerFilter` (account-level);
+  // hidden transactions still need filtering client-side.
+  const filtered = useMemo(() => transactions.filter((tx) => !tx.hidden), [transactions]);
 
   // Spend-only totals — drives the "Spent in {month}" headline number.
   const dailyTotals = useMemo(() => {
@@ -197,16 +197,6 @@ export function SpendCalendar({
               </button>
             ))}
           </div>
-          <select
-            value={ownerFilter}
-            onChange={(e) => setOwnerFilter(e.target.value)}
-            className="text-xs px-2 py-1.5 rounded-lg border border-border bg-card text-foreground"
-          >
-            <option value="all">Everyone</option>
-            <option value="renato">{OWNERS.renato.emoji} Renato</option>
-            <option value="claudia">{OWNERS.claudia.emoji} Claudia</option>
-            <option value="joint">{OWNERS.joint.emoji} Joint</option>
-          </select>
           <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
             <Sparkles className="w-3.5 h-3.5" />
           </div>

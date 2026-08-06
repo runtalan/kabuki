@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { accountBalanceHistory } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { getUserAccounts } from './queries';
+import type { OwnerFilter } from './owner-filter';
 
 export type NetWorthRange = '1m' | '3m' | '6m' | 'ytd' | '1y' | 'all';
 
@@ -40,8 +41,12 @@ export function rangeToSinceDate(range: NetWorthRange): Date | null {
 // add, liabilities subtract, using each account's most recent known balance
 // as of that day (carried forward between syncs). Replaces the old
 // fabricated linear trend with the household's actual history.
-export async function getNetWorthSeries(userId: string, range: NetWorthRange) {
-  const userAccounts = await getUserAccounts(userId);
+export async function getNetWorthSeries(
+  userId: string,
+  range: NetWorthRange,
+  ownerFilter: OwnerFilter = 'all'
+) {
+  const userAccounts = await getUserAccounts(userId, ownerFilter);
   const accountIds = userAccounts.map((a) => a.id);
   if (accountIds.length === 0) return [];
 
@@ -116,8 +121,8 @@ export async function getNetWorthSeries(userId: string, range: NetWorthRange) {
 }
 
 // Current net worth: sum of asset balances minus liability balances.
-export async function getCurrentNetWorth(userId: string) {
-  const userAccounts = await getUserAccounts(userId);
+export async function getCurrentNetWorth(userId: string, ownerFilter: OwnerFilter = 'all') {
+  const userAccounts = await getUserAccounts(userId, ownerFilter);
   return userAccounts.reduce((sum, acc) => {
     const balance = Number(acc.currentBalance);
     return sum + (acc.kind === 'liability' ? -balance : balance);

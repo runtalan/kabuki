@@ -44,10 +44,12 @@ export function CategoryBreakdown({
   spendingByCategory,
   budgetCategories,
   refDate,
+  ownerFilter = 'all',
 }: {
   spendingByCategory: SpendingData[];
   budgetCategories: BudgetCategory[];
   refDate: string;
+  ownerFilter?: 'renato' | 'claudia' | 'all';
 }) {
   const [tab, setTab] = useState<'expenses' | 'budget'>('expenses');
   const [expanded, setExpanded] = useState(false);
@@ -107,7 +109,10 @@ export function CategoryBreakdown({
     const monthStart = new Date(refMonth.getFullYear(), refMonth.getMonth(), 1);
     const monthEnd = new Date(refMonth.getFullYear(), refMonth.getMonth() + 1, 1);
 
-    fetch(`/api/transactions?category=${encodeURIComponent(drillCategory.id)}`)
+    const params = new URLSearchParams({ category: drillCategory.id });
+    if (ownerFilter !== 'all') params.set('owner', ownerFilter);
+
+    fetch(`/api/transactions?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const all: DrillTransaction[] = data?.transactions || [];
@@ -118,7 +123,7 @@ export function CategoryBreakdown({
         setDrillTxs(inMonth);
       })
       .finally(() => setDrillLoading(false));
-  }, [drillCategory, refDate]);
+  }, [drillCategory, refDate, ownerFilter]);
 
   const monthLabel = new Date(refDate).toLocaleDateString('en-US', {
     month: 'long',

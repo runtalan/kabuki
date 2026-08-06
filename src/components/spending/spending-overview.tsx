@@ -59,6 +59,7 @@ export function SpendingOverview({
   topMerchants,
   isCurrentMonth = true,
   refDate,
+  ownerFilter = 'all',
 }: {
   overview: Overview;
   spendingByCategory: SpendingData[];
@@ -66,6 +67,7 @@ export function SpendingOverview({
   topMerchants: Merchant[];
   isCurrentMonth?: boolean;
   refDate: string;
+  ownerFilter?: 'renato' | 'claudia' | 'all';
 }) {
   const { spentThisMonth, monthlyAverage, daysElapsed, daysInMonth, velocity } = overview;
 
@@ -128,9 +130,71 @@ export function SpendingOverview({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Merchants */}
-        <div className="lg:col-span-2">
+        {/* Top Merchants + Spending Velocity, stacked in the wider column */}
+        <div className="lg:col-span-2 space-y-6">
           <TopMerchants merchants={topMerchants} />
+
+          <div className="bg-card border border-border rounded-2xl p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
+              Spending Velocity
+            </p>
+            {velocity.length > 0 ? (
+              <>
+                <div className="w-full h-36">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={velocity} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis
+                        dataKey="day"
+                        stroke="hsl(var(--muted-foreground))"
+                        tick={{ fontSize: 12 }}
+                        minTickGap={30}
+                      />
+                      <YAxis
+                        stroke="hsl(var(--muted-foreground))"
+                        tickFormatter={(value) => `$${formatNumber(value)}`}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' }}
+                        content={<ChartTooltip />}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="previous"
+                        name="Last month"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeWidth={1.5}
+                        strokeDasharray="5 5"
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="current"
+                        name="This month"
+                        stroke="#3b82f6"
+                        strokeWidth={2.5}
+                        dot={false}
+                        connectNulls={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center gap-5 mt-3">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="w-4 h-0.5 rounded bg-blue-500" /> This month (cumulative)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="w-4 h-0.5 rounded bg-muted-foreground" style={{ borderTop: '2px dashed' }} /> Last month
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground py-10 text-center">
+                Not enough transaction history to chart daily spend yet.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Category Breakdown */}
@@ -139,71 +203,9 @@ export function SpendingOverview({
             spendingByCategory={spendingByCategory}
             budgetCategories={budgetCategories}
             refDate={refDate}
+            ownerFilter={ownerFilter}
           />
         </div>
-      </div>
-
-      {/* Spending Velocity */}
-      <div className="bg-card border border-border rounded-2xl p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
-          Spending Velocity
-        </p>
-        {velocity.length > 0 ? (
-          <>
-            <div className="w-full h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={velocity} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="day"
-                    stroke="hsl(var(--muted-foreground))"
-                    tick={{ fontSize: 12 }}
-                    minTickGap={30}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    tickFormatter={(value) => `$${formatNumber(value)}`}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' }}
-                    content={<ChartTooltip />}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="previous"
-                    name="Last month"
-                    stroke="hsl(var(--muted-foreground))"
-                    strokeWidth={1.5}
-                    strokeDasharray="5 5"
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="current"
-                    name="This month"
-                    stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    dot={false}
-                    connectNulls={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center gap-5 mt-3">
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-4 h-0.5 rounded bg-blue-500" /> This month (cumulative)
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-4 h-0.5 rounded bg-muted-foreground" style={{ borderTop: '2px dashed' }} /> Last month
-              </span>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground py-10 text-center">
-            Not enough transaction history to chart daily spend yet.
-          </p>
-        )}
       </div>
     </div>
   );

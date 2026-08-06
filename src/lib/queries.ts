@@ -6,6 +6,11 @@ import {
   plaidItems,
 } from '@/db/schema';
 import { eq, and, desc, gte, lt, inArray, isNull } from 'drizzle-orm';
+import {
+  type OwnerFilter,
+  filterAccountsByOwner,
+  matchesOwnerFilter,
+} from './owner-filter';
 
 // Hidden transactions are excluded from spending totals, budgets, cash
 // flow, and recent activity — but stay visible (dimmed) in the raw
@@ -18,7 +23,7 @@ const NOT_HIDDEN = eq(transactions.hidden, false);
 const NOT_TRANSFER = isNull(transactions.transferType);
 
 // Get all accounts for a user
-export async function getUserAccounts(userId: string) {
+export async function getUserAccounts(userId: string, ownerFilter: OwnerFilter = 'all') {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -27,13 +32,18 @@ export async function getUserAccounts(userId: string) {
   if (itemIds.length === 0) return [];
 
   // Fetch accounts for all items
-  return await db.query.accounts.findMany({
+  const userAccounts = await db.query.accounts.findMany({
     where: inArray(accounts.plaidItemId, itemIds),
   });
+  return filterAccountsByOwner(userAccounts, ownerFilter);
 }
 
 // Get spending by category for a given month (defaults to the current month)
-export async function getSpendingByCategory(userId: string, refDate: Date = new Date()) {
+export async function getSpendingByCategory(
+  userId: string,
+  refDate: Date = new Date(),
+  ownerFilter: OwnerFilter = 'all'
+) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -50,19 +60,24 @@ export async function getSpendingByCategory(userId: string, refDate: Date = new 
 
   const accountIds = userAccounts.map((acc) => acc.id);
   if (accountIds.length === 0) return [];
+  const ownerByAccount = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
-  const monthTransactions = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, monthStart),
-        lt(transactions.date, monthEnd),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const monthTransactions = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, monthStart),
+          lt(transactions.date, monthEnd),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   // Get categories and aggregate
   const allCategories = await db.query.categories.findMany();
@@ -104,7 +119,7 @@ export async function getSpendingByCategory(userId: string, refDate: Date = new 
 }
 
 // Get cash flow data (last 6 months)
-export async function getCashFlowData(userId: string) {
+export async function getCashFlowData(userId: string, ownerFilter: OwnerFilter = 'all') {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -118,21 +133,26 @@ export async function getCashFlowData(userId: string) {
 
   const accountIds = userAccounts.map((acc) => acc.id);
   if (accountIds.length === 0) return [];
+  const ownerByAccount = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
-  const allTransactions = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, sixMonthsAgo),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const allTransactions = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, sixMonthsAgo),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const monthData: Record<
     string,
@@ -190,7 +210,11 @@ const MONTH_NAMES = [
 // Monthly income/expense/savings series for the Cash Flow chart — longer
 // trailing window than getCashFlowData (which only feeds the Home widget's
 // "this month" snapshot).
-export async function getCashFlowSeries(userId: string, months = 24) {
+export async function getCashFlowSeries(
+  userId: string,
+  months = 24,
+  ownerFilter: OwnerFilter = 'all'
+) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -204,21 +228,26 @@ export async function getCashFlowSeries(userId: string, months = 24) {
 
   const accountIds = userAccounts.map((acc) => acc.id);
   if (accountIds.length === 0) return [];
+  const ownerByAccount = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
   const now = new Date();
   const rangeStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
 
-  const allTransactions = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, rangeStart),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const allTransactions = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, rangeStart),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const monthData: Record<string, { income: number; expenses: number }> = {};
   const order: { key: string; year: number; monthIndex: number }[] = [];
@@ -259,7 +288,10 @@ export async function getCashFlowSeries(userId: string, months = 24) {
 // Get every income/expense transaction in the current calendar month, with
 // enough relations loaded to drive the edit modal — powers the Home →
 // Income/Expense page that the "Cash Flow This Month" card links to.
-export async function getCurrentMonthTransactions(userId: string) {
+export async function getCurrentMonthTransactions(
+  userId: string,
+  ownerFilter: OwnerFilter = 'all'
+) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -277,7 +309,7 @@ export async function getCurrentMonthTransactions(userId: string) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  return db.query.transactions.findMany({
+  const rows = await db.query.transactions.findMany({
     where: and(
       gte(transactions.date, monthStart),
       inArray(transactions.accountId, accountIds),
@@ -293,6 +325,8 @@ export async function getCurrentMonthTransactions(userId: string) {
     },
     orderBy: desc(transactions.date),
   });
+
+  return rows.filter((tx) => matchesOwnerFilter(tx.ownerOverride, tx.account?.owner, ownerFilter));
 }
 
 // Get net worth trend (last 6 months)
@@ -332,7 +366,11 @@ export async function getNetWorthTrend(userId: string) {
 }
 
 // Get recent transactions
-export async function getRecentTransactions(userId: string, limit = 10) {
+export async function getRecentTransactions(
+  userId: string,
+  limit = 10,
+  ownerFilter: OwnerFilter = 'all'
+) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
@@ -346,17 +384,28 @@ export async function getRecentTransactions(userId: string, limit = 10) {
 
   const accountIds = userAccounts.map((acc) => acc.id);
   if (accountIds.length === 0) return [];
+  const accountOwnerMap = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
-  const allTransactions = await db
-    .select()
-    .from(transactions)
-    .where(and(inArray(transactions.accountId, accountIds), NOT_HIDDEN))
-    .orderBy(desc(transactions.date))
-    .limit(limit);
+  // Owner filtering happens after the SQL LIMIT, so over-fetch when a filter
+  // is active — otherwise "Renato only" could come back with fewer than
+  // `limit` rows even when plenty of his transactions exist further back.
+  const fetchLimit = ownerFilter === 'all' ? limit : limit * 6;
+
+  const allTransactions = (
+    await db
+      .select()
+      .from(transactions)
+      .where(and(inArray(transactions.accountId, accountIds), NOT_HIDDEN))
+      .orderBy(desc(transactions.date))
+      .limit(fetchLimit)
+  )
+    .filter((tx) =>
+      matchesOwnerFilter(tx.ownerOverride, accountOwnerMap.get(tx.accountId), ownerFilter)
+    )
+    .slice(0, limit);
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
-  const accountOwnerMap = new Map(userAccounts.map((acc) => [acc.id, acc.owner]));
 
   return allTransactions.map((tx) => {
     const category = tx.categoryId ? categoryMap.get(tx.categoryId) : null;

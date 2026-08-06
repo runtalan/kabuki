@@ -36,6 +36,10 @@ export async function GET(request: Request) {
       where: inArray(accounts.plaidItemId, itemIds),
     });
 
+    // Account-level only — doesn't account for a transaction's own
+    // `ownerOverride`. Fixing that needs `accounts` joined into this
+    // paginated query, which is a bigger change than this filter warrants;
+    // the household owner toggle on this page accepts that gap.
     let accountIds = userAccounts.map((acc) => acc.id);
     if (owner) {
       accountIds = userAccounts

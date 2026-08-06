@@ -22,6 +22,7 @@ import { SpendCalendar } from '@/components/spend-calendar';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { getTypeBadge } from '@/lib/account-types';
 import { OWNERS, getOwner } from '@/components/owner-badge';
+import type { OwnerFilter } from '@/lib/owner-filter';
 
 const ACCOUNT_ICONS: Record<string, typeof Wallet> = { Wallet, CreditCard, PiggyBank, TrendingUp };
 
@@ -104,11 +105,13 @@ export function HomeOverview({
   cashFlowData,
   accounts,
   recentTransactions,
+  ownerFilter,
 }: {
   netWorthSeries: NetWorthPoint[];
   cashFlowData: CashFlowMonth[];
   accounts: AccountInfo[];
   recentTransactions: RecentTransaction[];
+  ownerFilter: OwnerFilter;
 }) {
   const netWorth = accounts.reduce(
     (sum, acc) => sum + (acc.kind === 'liability' ? -acc.balance : acc.balance),
@@ -223,7 +226,7 @@ export function HomeOverview({
 
         {/* Spent this month (calendar) */}
         <div className="bg-card border border-border rounded-2xl p-6">
-          <SpendCalendar bare onSelectTransaction={openTransaction} />
+          <SpendCalendar bare onSelectTransaction={openTransaction} ownerFilter={ownerFilter} />
         </div>
 
         {/* Recent Activity */}

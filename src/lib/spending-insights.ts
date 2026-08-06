@@ -1,22 +1,32 @@
 import { db } from '@/db';
 import { accounts, transactions, categories, plaidItems } from '@/db/schema';
 import { and, eq, gte, lt, inArray, isNull } from 'drizzle-orm';
+import { type OwnerFilter, matchesOwnerFilter } from './owner-filter';
 
 const NOT_HIDDEN = eq(transactions.hidden, false);
 // See queries.ts's NOT_TRANSFER for the rationale — internal transfers /
 // credit card payments are excluded from every spend/budget total here too.
 const NOT_TRANSFER = isNull(transactions.transferType);
 
-async function getUserAccountIds(userId: string) {
+// All of a user's account ids (unfiltered — owner filtering happens after
+// fetching transactions, since it must respect each transaction's own
+// `ownerOverride`, not just the owning account's `owner`) plus an
+// accountId -> owner lookup for that filtering step.
+async function getUserAccountContext(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
     where: eq(plaidItems.userId, userId),
   });
   const itemIds = userItems.map((item) => item.id);
-  if (itemIds.length === 0) return [];
+  if (itemIds.length === 0) {
+    return { accountIds: [] as string[], ownerByAccount: new Map<string, string | null>() };
+  }
   const userAccounts = await db.query.accounts.findMany({
     where: inArray(accounts.plaidItemId, itemIds),
   });
-  return userAccounts.map((acc) => acc.id);
+  return {
+    accountIds: userAccounts.map((acc) => acc.id),
+    ownerByAccount: new Map(userAccounts.map((acc) => [acc.id, acc.owner])),
+  };
 }
 
 // Spending overview: a given month's total, prior-months average, and a
@@ -24,8 +34,12 @@ async function getUserAccountIds(userId: string) {
 // Defaults to the real current month; pass refDate to view any other month
 // (e.g. so sandbox/demo data from a past month isn't stuck looking empty
 // just because it's not the calendar's current month).
-export async function getSpendingOverview(userId: string, refDate: Date = new Date()) {
-  const accountIds = await getUserAccountIds(userId);
+export async function getSpendingOverview(
+  userId: string,
+  refDate: Date = new Date(),
+  ownerFilter: OwnerFilter = 'all'
+) {
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
   const emptyDaysInMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate();
   const empty = {
     spentThisMonth: 0,
@@ -41,18 +55,22 @@ export async function getSpendingOverview(userId: string, refDate: Date = new Da
   // Exclusive upper bound so viewing a past month never pulls in later data.
   const windowEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const rows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, sixMonthsAgo),
-        lt(transactions.date, windowEnd),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, sixMonthsAgo),
+          lt(transactions.date, windowEnd),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
   const thisMonthKey = monthKey(now);
@@ -139,9 +157,10 @@ export interface MonthlyBudgetHistoryPoint {
 // them out instead of implying a suspiciously perfect $0 month.
 export async function getMonthlyBudgetHistory(
   userId: string,
-  monthsBack = 12
+  monthsBack = 12,
+  ownerFilter: OwnerFilter = 'all'
 ): Promise<MonthlyBudgetHistoryPoint[]> {
-  const accountIds = await getUserAccountIds(userId);
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
 
   const allCategories = await db.query.categories.findMany();
   const budgetedCategoryIds = new Set(
@@ -170,17 +189,21 @@ export async function getMonthlyBudgetHistory(
 
   if (accountIds.length === 0 || budgetedCategoryIds.size === 0) return points;
 
-  const rows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, rangeStart),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, rangeStart),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const byMonthKey = new Map<string, { spent: number; hasData: boolean }>();
   for (const point of points) {
@@ -216,26 +239,31 @@ export async function getMonthlyBudgetHistory(
 // a single one-off month (e.g. a big one-time purchase) shouldn't anchor a
 // recurring budget.
 export async function getCategoryBudgetSuggestions(
-  userId: string
+  userId: string,
+  ownerFilter: OwnerFilter = 'all'
 ): Promise<Record<string, number>> {
-  const accountIds = await getUserAccountIds(userId);
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
   if (accountIds.length === 0) return {};
 
   const now = new Date();
   const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const rows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, threeMonthsAgo),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, threeMonthsAgo),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
@@ -284,26 +312,31 @@ export interface TopMerchant {
 export async function getTopMerchants(
   userId: string,
   refDate: Date = new Date(),
-  limit = 5
+  limit = 5,
+  ownerFilter: OwnerFilter = 'all'
 ): Promise<TopMerchant[]> {
-  const accountIds = await getUserAccountIds(userId);
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
   if (accountIds.length === 0) return [];
 
   const monthStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
   const monthEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1);
 
-  const rows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, monthStart),
-        lt(transactions.date, monthEnd),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, monthStart),
+          lt(transactions.date, monthEnd),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
@@ -375,24 +408,31 @@ export function normalizeMerchant(raw: string) {
 // Detects recurring charges from real history: same merchant, evenly spaced
 // intervals matching a known cadence, broadly similar amounts. Heuristic, not
 // Plaid's recurring API — good enough to surface subscriptions and bills.
-export async function getRecurringItems(userId: string): Promise<RecurringItem[]> {
-  const accountIds = await getUserAccountIds(userId);
+export async function getRecurringItems(
+  userId: string,
+  ownerFilter: OwnerFilter = 'all'
+): Promise<RecurringItem[]> {
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
   if (accountIds.length === 0) return [];
 
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-  const rows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        gte(transactions.date, oneYearAgo),
-        inArray(transactions.accountId, accountIds),
-        NOT_HIDDEN,
-        NOT_TRANSFER
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.date, oneYearAgo),
+          inArray(transactions.accountId, accountIds),
+          NOT_HIDDEN,
+          NOT_TRANSFER
+        )
       )
-    );
+  ).filter((tx) =>
+    matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
+  );
 
   const allCategories = await db.query.categories.findMany();
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));

@@ -15,9 +15,12 @@ import {
   SlidersHorizontal,
   Eye,
   EyeOff,
+  Calendar,
 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
+import { OwnerToggle } from '@/components/owner-toggle';
+import type { OwnerFilter } from '@/lib/owner-filter';
 import { CategoryIcon } from '@/components/category-icon';
 import { MerchantAvatar } from '@/components/merchant-avatar';
 import { OwnerBadge, getOwner, OWNERS } from '@/components/owner-badge';
@@ -120,7 +123,7 @@ function TransactionsPageContent() {
 
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [selectedOwner, setSelectedOwner] = useState('all');
+  const [selectedOwner, setSelectedOwner] = useState(searchParams.get('owner') || 'all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedTag, setSelectedTag] = useState('all');
   const [allTags, setAllTags] = useState<TagInfo[]>([]);
@@ -133,10 +136,15 @@ function TransactionsPageContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(!!(initialStart || initialCategory !== 'all'));
 
-  // Date range state
+  // Date range state — draftDateStart/End are the modal's in-progress inputs;
+  // customDateStart/End are the applied range that actually filters the
+  // list and shows in the Date range stat. Keeping them separate means
+  // Cancel can discard edits instead of clobbering an already-applied range.
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [customDateStart, setCustomDateStart] = useState(initialStart);
   const [customDateEnd, setCustomDateEnd] = useState(initialEnd);
+  const [draftDateStart, setDraftDateStart] = useState(initialStart);
+  const [draftDateEnd, setDraftDateEnd] = useState(initialEnd);
 
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
 
@@ -327,18 +335,27 @@ function TransactionsPageContent() {
     }
   };
 
+  // "Week"/"Month" mean the calendar week/month containing today (e.g. Aug
+  // 1–31), not a rolling N-day window ending at the exact query instant —
+  // the rolling window silently dropped anything dated even slightly ahead
+  // of "now" (clock skew, timezone, pending-transaction timestamps), which
+  // made "This Month" appear to show last month's data instead.
+  const startOfWeek = (d: Date) => {
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    date.setDate(date.getDate() - date.getDay());
+    return date;
+  };
+  const endOfWeek = (d: Date) => {
+    const end = startOfWeek(d);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  };
+
   const getTimeRangeDate = () => {
     const now = new Date();
-    if (timeRange === 'week') {
-      const date = new Date(now);
-      date.setDate(date.getDate() - 7);
-      return date;
-    }
-    if (timeRange === 'month') {
-      const date = new Date(now);
-      date.setMonth(date.getMonth() - 1);
-      return date;
-    }
+    if (timeRange === 'week') return startOfWeek(now);
+    if (timeRange === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
     if (customDateStart) {
       return parseLocalDate(customDateStart);
     }
@@ -349,7 +366,10 @@ function TransactionsPageContent() {
     if (customDateEnd) {
       return endOfLocalDay(customDateEnd);
     }
-    return new Date();
+    const now = new Date();
+    if (timeRange === 'week') return endOfWeek(now);
+    if (timeRange === 'month') return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return now;
   };
 
   const visibleTransactions = transactions.filter((tx) => {
@@ -361,11 +381,16 @@ function TransactionsPageContent() {
   const groups = groupByDay(visibleTransactions);
 
   const dateRangeLabel = (() => {
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    // A custom range is a deliberate choice — show exactly what was picked,
+    // not the min/max of whatever transactions happened to match it.
+    if (customDateStart && customDateEnd) {
+      return `${fmt(parseLocalDate(customDateStart))} - ${fmt(parseLocalDate(customDateEnd))}`;
+    }
     if (visibleTransactions.length === 0) return '—';
     const dates = visibleTransactions.map((tx) => new Date(tx.date).getTime());
     const min = new Date(Math.min(...dates));
     const max = new Date(Math.max(...dates));
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     return `${fmt(min)} - ${fmt(max)}`;
   })();
 
@@ -453,7 +478,15 @@ function TransactionsPageContent() {
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
-        <h1 className="text-3xl font-bold text-foreground mb-4">Spending</h1>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <h1 className="text-3xl font-bold text-foreground">Spending</h1>
+          <OwnerToggle
+            value={(selectedOwner === 'renato' || selectedOwner === 'claudia'
+              ? selectedOwner
+              : 'all') as OwnerFilter}
+            onChange={(next) => setSelectedOwner(next)}
+          />
+        </div>
         <PageTabs tabs={SPENDING_TABS} />
 
         {loadError && (
@@ -526,7 +559,32 @@ function TransactionsPageContent() {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
                 Date range
               </p>
-              <p className="text-sm font-semibold text-foreground truncate">{stats.dateRangeLabel}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-foreground truncate">{stats.dateRangeLabel}</p>
+                <button
+                  onClick={() => {
+                    setDraftDateStart(customDateStart);
+                    setDraftDateEnd(customDateEnd);
+                    setShowDatePicker(true);
+                  }}
+                  title="Pick a custom date range"
+                  className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+                {customDateStart && customDateEnd && (
+                  <button
+                    onClick={() => {
+                      setCustomDateStart('');
+                      setCustomDateEnd('');
+                    }}
+                    title="Clear custom date range"
+                    className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="px-5 py-3">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
@@ -592,20 +650,17 @@ function TransactionsPageContent() {
                 <select
                   value={timeRange}
                   onChange={(e) => {
-                    const val = e.target.value as 'week' | 'month' | 'all' | 'custom';
-                    if (val === 'custom') {
-                      setShowDatePicker(true);
-                    } else {
-                      setTimeRange(val);
-                      setShowDatePicker(false);
-                    }
+                    // Choosing a preset supersedes any custom range that was
+                    // applied via the calendar icon on the Date range stat.
+                    setTimeRange(e.target.value as 'week' | 'month' | 'all');
+                    setCustomDateStart('');
+                    setCustomDateEnd('');
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
                 >
                   <option value="all">All Time</option>
                   <option value="month">This Month</option>
                   <option value="week">This Week</option>
-                  <option value="custom">Custom Range</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
               </div>
@@ -628,29 +683,6 @@ function TransactionsPageContent() {
             </div>
           )}
         </div>
-
-        {/* Custom Date Range Info */}
-        {customDateStart && customDateEnd && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
-            <p className="text-sm text-foreground">
-              Custom date range:{' '}
-              <span className="font-semibold">
-                {parseLocalDate(customDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} -{' '}
-                {parseLocalDate(customDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
-            </p>
-            <button
-              onClick={() => {
-                setCustomDateStart('');
-                setCustomDateEnd('');
-                setTimeRange('all');
-              }}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              Clear
-            </button>
-          </div>
-        )}
 
         {/* Tag total, when a tag filter is active */}
         {selectedTag !== 'all' && (
@@ -687,8 +719,8 @@ function TransactionsPageContent() {
                   </label>
                   <input
                     type="date"
-                    value={customDateStart}
-                    onChange={(e) => setCustomDateStart(e.target.value)}
+                    value={draftDateStart}
+                    onChange={(e) => setDraftDateStart(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
@@ -699,8 +731,8 @@ function TransactionsPageContent() {
                   </label>
                   <input
                     type="date"
-                    value={customDateEnd}
-                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                    value={draftDateEnd}
+                    onChange={(e) => setDraftDateEnd(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
@@ -708,23 +740,20 @@ function TransactionsPageContent() {
                 <div className="flex gap-2 pt-4">
                   <button
                     onClick={() => {
-                      if (customDateStart && customDateEnd) {
+                      if (draftDateStart && draftDateEnd) {
+                        setCustomDateStart(draftDateStart);
+                        setCustomDateEnd(draftDateEnd);
                         setTimeRange('all');
                         setShowDatePicker(false);
-                        // Custom range is applied via the getTimeRangeDate logic
                       }
                     }}
-                    disabled={!customDateStart || !customDateEnd}
+                    disabled={!draftDateStart || !draftDateEnd}
                     className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     Apply
                   </button>
                   <button
-                    onClick={() => {
-                      setShowDatePicker(false);
-                      setCustomDateStart('');
-                      setCustomDateEnd('');
-                    }}
+                    onClick={() => setShowDatePicker(false)}
                     className="flex-1 px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
                   >
                     Cancel

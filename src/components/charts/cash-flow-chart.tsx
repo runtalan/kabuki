@@ -88,16 +88,53 @@ function CashFlowTooltip({
 function CurrentMonthDot(props: { cx?: number; cy?: number; payload?: MonthPoint }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined) return null;
-  if (!payload?.isCurrentMonth) return <circle cx={cx} cy={cy} r={3} fill="hsl(var(--foreground))" />;
+  if (!payload?.isCurrentMonth) return <circle cx={cx} cy={cy} r={3} fill="var(--foreground)" />;
   return (
     <circle
       cx={cx}
       cy={cy}
       r={4}
-      fill="hsl(var(--card))"
-      stroke="hsl(var(--foreground))"
+      fill="var(--card)"
+      stroke="var(--foreground)"
       strokeWidth={2}
     />
+  );
+}
+
+// Net cash flow amount rendered directly above each point on the line, e.g.
+// "+$1,000" or "-$88" — so the sign/size reads at a glance without hovering.
+// Drawn on a small pill background since the dot often sits inside the
+// income/expense bars, where plain text would be unreadable.
+function NetLabel(props: { x?: number; y?: number; value?: number }) {
+  const { x, y, value } = props;
+  if (x === undefined || y === undefined || value === undefined) return null;
+  const positive = value >= 0;
+  const text = `${positive ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
+  const width = text.length * 6 + 10;
+  const baseline = y - 14;
+  return (
+    <g>
+      <rect
+        x={x - width / 2}
+        y={baseline - 10}
+        width={width}
+        height={14}
+        rx={7}
+        fill="var(--card)"
+        stroke="var(--border)"
+        strokeWidth={1}
+      />
+      <text
+        x={x}
+        y={baseline}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill={positive ? '#10b981' : '#ef4444'}
+      >
+        {text}
+      </text>
+    </g>
   );
 }
 
@@ -142,22 +179,22 @@ export function CashFlowChart({ series }: { series: MonthPoint[] }) {
         </div>
       </div>
 
-      <div className="w-full h-72">
+      <div className="w-full h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <ComposedChart data={chartData} margin={{ top: 30, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
             <XAxis
               dataKey="month"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               tick={{ fontSize: 12 }}
               minTickGap={15}
             />
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               tickFormatter={(value) => `$${formatNumber(value)}`}
               tick={{ fontSize: 12 }}
             />
-            <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} content={<CashFlowTooltip />} />
+            <Tooltip cursor={{ fill: 'var(--muted)', opacity: 0.3 }} content={<CashFlowTooltip />} />
             <Bar dataKey="income" name="Income" stackId="cf" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={28} />
             <Bar
               dataKey="expensesNeg"
@@ -171,10 +208,12 @@ export function CashFlowChart({ series }: { series: MonthPoint[] }) {
               type="monotone"
               dataKey="savings"
               name="Savings"
-              stroke="hsl(var(--foreground))"
+              stroke="var(--foreground)"
               strokeWidth={2}
               dot={<CurrentMonthDot />}
               activeDot={{ r: 5 }}
+              label={<NetLabel />}
+              isAnimationActive={false}
             />
           </ComposedChart>
         </ResponsiveContainer>

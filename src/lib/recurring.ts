@@ -3,13 +3,17 @@ import { recurringSeries } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getRecurringItems, normalizeMerchant } from './spending-insights';
 import { isoDay, PER_MONTH, type Frequency, type RecurringEntry } from './recurring-shared';
+import type { OwnerFilter } from './owner-filter';
 
 // Merges heuristic detection with the user's own decisions and manual entries.
 // Dismissed series drop out entirely; manual entries are appended; everything
 // else keeps detection's numbers unless the user overrode them.
-export async function getRecurringEntries(userId: string): Promise<RecurringEntry[]> {
+export async function getRecurringEntries(
+  userId: string,
+  ownerFilter: OwnerFilter = 'all'
+): Promise<RecurringEntry[]> {
   const [detected, overrides, allCategories] = await Promise.all([
-    getRecurringItems(userId),
+    getRecurringItems(userId, ownerFilter),
     db.query.recurringSeries.findMany({ where: eq(recurringSeries.userId, userId) }),
     db.query.categories.findMany(),
   ]);

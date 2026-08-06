@@ -2,9 +2,11 @@ import { AppLayout } from '@/components/app-layout';
 import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
 import { SpendingOverview } from '@/components/spending/spending-overview';
 import { MonthToggle } from '@/components/spending/month-toggle';
+import { OwnerToggle } from '@/components/owner-toggle';
 import { getUser } from '@/lib/auth';
 import { getSpendingByCategory } from '@/lib/queries';
 import { getSpendingOverview, getTopMerchants } from '@/lib/spending-insights';
+import { parseOwnerFilter } from '@/lib/owner-filter';
 import { db } from '@/db';
 
 export const dynamic = 'force-dynamic';
@@ -27,18 +29,19 @@ function parseMonthParam(value: string | undefined): Date {
 export default async function SpendingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; owner?: string }>;
 }) {
   const user = await getUser();
-  const { month } = await searchParams;
+  const { month, owner } = await searchParams;
   const refDate = parseMonthParam(month);
+  const ownerFilter = parseOwnerFilter(owner);
 
   const [overview, spendingByCategory, allCategories, topMerchants] = user
     ? await Promise.all([
-        getSpendingOverview(user.id, refDate),
-        getSpendingByCategory(user.id, refDate),
+        getSpendingOverview(user.id, refDate, ownerFilter),
+        getSpendingByCategory(user.id, refDate, ownerFilter),
         db.query.categories.findMany(),
-        getTopMerchants(user.id, refDate),
+        getTopMerchants(user.id, refDate, 5, ownerFilter),
       ])
     : [
         {
@@ -62,7 +65,10 @@ export default async function SpendingPage({
       <div className="p-4 md:p-8">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h1 className="text-3xl font-bold text-foreground">Spending</h1>
-          <MonthToggle refDate={refDate.toISOString()} isCurrentMonth={isCurrentMonth} />
+          <div className="flex items-center gap-3 flex-wrap">
+            <OwnerToggle value={ownerFilter} />
+            <MonthToggle refDate={refDate.toISOString()} isCurrentMonth={isCurrentMonth} />
+          </div>
         </div>
         <PageTabs tabs={SPENDING_TABS} />
         <SpendingOverview
@@ -78,6 +84,7 @@ export default async function SpendingPage({
           isCurrentMonth={isCurrentMonth}
           topMerchants={topMerchants}
           refDate={refDate.toISOString()}
+          ownerFilter={ownerFilter}
         />
       </div>
     </AppLayout>
