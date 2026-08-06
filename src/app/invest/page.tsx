@@ -1,11 +1,15 @@
 import { AppLayout } from '@/components/app-layout';
 import { HoldingsView } from '@/components/invest/holdings-view';
+import { getUser } from '@/lib/auth';
 import { getAllHoldings, getAllocation } from '@/lib/holdings';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InvestPage() {
-  const [holdings, allocation] = await Promise.all([getAllHoldings(), getAllocation()]);
+  const user = await getUser();
+
+  const [holdings, allocation] =
+    user && !user.isDemo ? await Promise.all([getAllHoldings(), getAllocation()]) : [[], []];
 
   return (
     <AppLayout>

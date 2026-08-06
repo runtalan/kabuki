@@ -1,12 +1,15 @@
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, PROPERTIES_TABS } from '@/components/page-tabs';
 import { ManagePropertiesView } from '@/components/properties/manage-properties-view';
+import { getUser } from '@/lib/auth';
 import { getAllProperties } from '@/lib/properties';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ManagePropertiesPage() {
-  const properties = await getAllProperties();
+  const user = await getUser();
+
+  const properties = user && !user.isDemo ? await getAllProperties() : [];
 
   return (
     <AppLayout>

@@ -1,12 +1,15 @@
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, PROPERTIES_TABS } from '@/components/page-tabs';
 import { PayAheadCalculator } from '@/components/properties/pay-ahead-calculator';
+import { getUser } from '@/lib/auth';
 import { getAllProperties } from '@/lib/properties';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PayAheadPage() {
-  const properties = await getAllProperties();
+  const user = await getUser();
+
+  const properties = user && !user.isDemo ? await getAllProperties() : [];
 
   return (
     <AppLayout>
