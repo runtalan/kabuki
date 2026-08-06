@@ -48,3 +48,10 @@ export const SPENDING_TABS: PageTab[] = [
   { href: '/spending/transactions', label: 'Transactions' },
   { href: '/spending/recurring', label: 'Recurring' },
 ];
+
+export const PROPERTIES_TABS: PageTab[] = [
+  { href: '/properties', label: 'Overview' },
+  { href: '/properties/manage', label: 'Manage' },
+  { href: '/properties/pay-ahead', label: 'Pay-Ahead Calculator' },
+  { href: '/properties/loan-calculator', label: 'Loan Calculator' },
+];

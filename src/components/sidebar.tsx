@@ -8,6 +8,7 @@ import {
   Home,
   Landmark,
   BarChart2,
+  Building2,
   TrendingUp,
   Shapes,
   Wand2,
@@ -64,6 +65,15 @@ const navSections: { label: string; items: NavItem[] }[] = [
         ],
       },
       { href: '/accounts', label: 'Accounts', icon: Landmark },
+    ],
+  },
+  {
+    label: 'Properties',
+    items: [
+      { href: '/properties', label: 'Overview', icon: Building2 },
+      { href: '/properties/manage', label: 'Manage', icon: Building2 },
+      { href: '/properties/pay-ahead', label: 'Pay-Ahead Calculator', icon: Building2 },
+      { href: '/properties/loan-calculator', label: 'Loan Calculator', icon: Building2 },
     ],
   },
   {
