@@ -150,7 +150,14 @@ export async function POST(request: Request) {
       });
     }
 
-    const origin = new URL(request.url).origin;
+    // Cloud Run's container listens on :8080 internally — `request.url`'s
+    // origin can reflect that internal port depending on how the request
+    // reached this route, which would hand back an endpoint the Shortcut
+    // can't actually reach. Production always has one real public origin,
+    // so hard-code it there instead of deriving it; local dev still derives
+    // from the request so `localhost:3000` etc. keeps working.
+    const origin =
+      process.env.NODE_ENV === 'production' ? 'https://mybuttons.casa' : new URL(request.url).origin;
     return Response.json({ owner, token, endpoint: `${origin}/api/v1/apple-card?token=${token}` });
   } catch (error) {
     console.error('Error generating Apple Card token:', error);

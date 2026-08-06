@@ -145,17 +145,44 @@ async function handle(request: Request, method: 'GET' | 'POST') {
 
     let bodyFields: Record<string, unknown> = {};
     if (method === 'POST') {
-      rawBody = await request.text();
-      if (rawBody) {
+      const contentType = (request.headers.get('content-type') || '').toLowerCase();
+      if (contentType.includes('multipart/form-data')) {
+        // Shortcuts' "Form" request body can send multipart instead of
+        // urlencoded depending on config — formData() parses either, but
+        // needs the untouched request (can't also read it as text first).
         try {
-          bodyFields = JSON.parse(rawBody);
+          const form = await request.formData();
+          bodyFields = Object.fromEntries(form.entries()) as Record<string, unknown>;
+          rawBody = JSON.stringify(bodyFields);
         } catch {
-          try {
-            // Some Shortcut configs send form-encoded bodies instead of JSON.
+          errorMsg = 'Invalid form body';
+          return respond({ error: errorMsg }, 400);
+        }
+      } else {
+        rawBody = await request.text();
+        if (rawBody) {
+          if (contentType.includes('application/json')) {
+            try {
+              bodyFields = JSON.parse(rawBody);
+            } catch {
+              errorMsg = 'Invalid JSON body';
+              return respond({ error: errorMsg }, 400);
+            }
+          } else {
+            // application/x-www-form-urlencoded — Shortcuts' "Form" request
+            // body type — or no content-type at all. Try form-encoding
+            // first (URLSearchParams never throws), then JSON as a fallback
+            // for any client that skipped the header.
             bodyFields = Object.fromEntries(new URLSearchParams(rawBody));
-          } catch {
-            errorMsg = 'Invalid body';
-            return respond({ error: errorMsg }, 400);
+            if (Object.keys(bodyFields).length === 0) {
+              try {
+                bodyFields = JSON.parse(rawBody);
+              } catch {
+                // Leave bodyFields empty — field lookup below will report
+                // "merchant/transaction is required" rather than a generic
+                // parse error, which is more actionable for debugging.
+              }
+            }
           }
         }
       }
