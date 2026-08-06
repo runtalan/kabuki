@@ -23,8 +23,8 @@ import { ButtonsLogo } from './buttons-logo';
 import { OWNERS } from './owner-badge';
 
 const USER_AVATARS: Record<string, string> = {
-  renato: OWNERS.renato.avatar,
-  claudia: OWNERS.claudia.avatar,
+  renato: OWNERS.renato.avatar!,
+  claudia: OWNERS.claudia.avatar!,
 };
 
 interface NavChild {
@@ -70,18 +70,34 @@ const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Properties',
     items: [
-      { href: '/properties', label: 'Overview', icon: Building2 },
-      { href: '/properties/manage', label: 'Manage', icon: Building2 },
-      { href: '/properties/pay-ahead', label: 'Pay-Ahead Calculator', icon: Building2 },
-      { href: '/properties/loan-calculator', label: 'Loan Calculator', icon: Building2 },
+      {
+        href: '/properties',
+        label: 'Properties',
+        icon: Building2,
+        // Overview is the root (the "Properties" link itself) — these are
+        // its sub-pages, not a duplicate "Overview" entry.
+        children: [
+          { href: '/properties/manage', label: 'Manage' },
+          { href: '/properties/pay-ahead', label: 'Pay-Ahead Calculator' },
+          { href: '/properties/loan-calculator', label: 'Loan Calculator' },
+        ],
+      },
     ],
   },
   {
     label: 'Invest',
     items: [
-      { href: '/invest', label: 'Holdings', icon: TrendingUp },
-      { href: '/invest/options', label: 'Options', icon: TrendingUp },
-      { href: '/invest/predictions', label: 'Predictions', icon: TrendingUp },
+      {
+        href: '/invest',
+        label: 'Invest',
+        icon: TrendingUp,
+        // Holdings is the root (the "Invest" link itself) — these are its
+        // sub-pages, not a duplicate "Holdings" entry.
+        children: [
+          { href: '/invest/options', label: 'Options' },
+          { href: '/invest/predictions', label: 'Predictions' },
+        ],
+      },
     ],
   },
   {
@@ -231,7 +247,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Footer: user profile + sign out */}
       <div className="px-3 py-3 border-t border-sidebar-border/80">
         <div className="flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors duration-200 hover:bg-sidebar-accent/60">
-          <div className="w-[42px] h-[42px] rounded-full bg-gradient-to-br from-muted to-muted/60 ring-2 ring-sidebar-border shadow-sm flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-muted to-muted/60 ring-2 ring-sidebar-border shadow-sm flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarSrc} alt={displayName || 'User'} className="w-full h-full object-cover" />

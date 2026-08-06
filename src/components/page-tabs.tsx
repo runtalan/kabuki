@@ -55,3 +55,9 @@ export const PROPERTIES_TABS: PageTab[] = [
   { href: '/properties/pay-ahead', label: 'Pay-Ahead Calculator' },
   { href: '/properties/loan-calculator', label: 'Loan Calculator' },
 ];
+
+export const INVEST_TABS: PageTab[] = [
+  { href: '/invest', label: 'Holdings' },
+  { href: '/invest/options', label: 'Options' },
+  { href: '/invest/predictions', label: 'Predictions' },
+];

@@ -75,66 +75,132 @@ function buildSparkline(property: PropertyWithComputed) {
   return points;
 }
 
+// Custom tooltip in a fixed Value / Loan balance / Equity row order. The
+// underlying chart draws `totalLoanBalance` twice (once as an invisible
+// stacking base for the band, once as the visible boundary line) — Recharts'
+// default tooltip would show both as separate rows with the same number, so
+// this dedupes by dataKey instead of using a generic formatter.
+interface EquityTooltipPayloadEntry {
+  dataKey?: string;
+  value?: number | string;
+}
+
+interface EquityTooltipProps {
+  active?: boolean;
+  payload?: EquityTooltipPayloadEntry[];
+  label?: string;
+}
+
+function EquityTooltip({ active, payload, label }: EquityTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const byKey = new Map(payload.map((p) => [p.dataKey, Number(p.value)]));
+  const rows: { label: string; value: number | undefined; swatch: string }[] = [
+    { label: 'Est. value', value: byKey.get('totalValue'), swatch: 'var(--foreground)' },
+    { label: 'Loan balance', value: byKey.get('totalLoanBalance'), swatch: 'var(--muted-foreground)' },
+    { label: 'Equity', value: byKey.get('totalEquity'), swatch: 'var(--primary)' },
+  ];
+
+  return (
+    <div
+      className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md"
+      style={{ minWidth: 160 }}
+    >
+      <p className="font-medium text-foreground mb-1.5">{label}</p>
+      <div className="space-y-1">
+        {rows.map((row) =>
+          row.value === undefined ? null : (
+            <div key={row.label} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: row.swatch }} />
+                {row.label}
+              </span>
+              <span className="font-medium text-foreground tabular-nums">{money(row.value)}</span>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A range/band chart: the shaded band is the gap between the property
+// value line (top edge) and the loan balance line (bottom edge) — its
+// height *is* equity, so equity reads directly off the fill rather than
+// competing with two other lines for attention. Built with Recharts'
+// stacked-area trick: an invisible area for the loan balance sets the
+// floor, then the visible equity area stacks on top of it up to the value
+// line.
 function CombinedEquityChart({ equitySeries }: { equitySeries: EquitySeriesPoint[] }) {
   if (equitySeries.length < 2) {
     return (
-      <div className="w-full h-80">
-        <EmptyChartState message="Not enough history yet to chart equity over time" height={320} />
+      <div className="w-full h-72">
+        <EmptyChartState message="Not enough history yet to chart equity over time" height={288} />
       </div>
     );
   }
 
   return (
-    <div className="w-full h-80">
+    <div className="w-full h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={equitySeries} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <ComposedChart data={equitySeries} margin={{ top: 5, right: 8, left: 0, bottom: 5 }}>
           <defs>
-            <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.7} />
-              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.05} />
+            <linearGradient id="colorEquityBand" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.08} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="label" stroke="var(--muted-foreground)" tick={{ fontSize: 12 }} />
+          <XAxis
+            dataKey="label"
+            stroke="var(--muted-foreground)"
+            tick={{ fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+          />
           <YAxis
             stroke="var(--muted-foreground)"
             tickFormatter={(value) => money(value)}
             tick={{ fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            width={64}
           />
           <Tooltip
             cursor={{ stroke: 'var(--muted-foreground)', strokeDasharray: '4 4' }}
-            formatter={(value, name) => [money(Number(value)), String(name)]}
-            contentStyle={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
+            content={<EquityTooltip />}
           />
           <Area
-            type="monotone"
+            dataKey="totalLoanBalance"
+            stackId="band"
+            stroke="none"
+            fill="transparent"
+            isAnimationActive={false}
+          />
+          <Area
             dataKey="totalEquity"
-            name="Equity"
+            stackId="band"
             stroke="var(--primary)"
-            fill="url(#colorEquity)"
             strokeWidth={2}
+            fill="url(#colorEquityBand)"
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
             dataKey="totalValue"
-            name="Est. value"
-            stroke="var(--chart-3)"
-            strokeWidth={2}
+            stroke="var(--foreground)"
+            strokeOpacity={0.35}
+            strokeWidth={1.5}
             dot={false}
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
             dataKey="totalLoanBalance"
-            name="Loan balance"
-            stroke="var(--chart-4)"
-            strokeWidth={2}
+            stroke="var(--muted-foreground)"
+            strokeWidth={1.5}
+            strokeDasharray="3 3"
             dot={false}
-            strokeDasharray="4 3"
+            isAnimationActive={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -143,10 +209,13 @@ function CombinedEquityChart({ equitySeries }: { equitySeries: EquitySeriesPoint
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'var(--primary)' }} /> Equity
         </span>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'var(--chart-3)' }} /> Est. value
+          <span className="inline-block w-3 border-t-[1.5px]" style={{ borderColor: 'var(--foreground)', opacity: 0.35 }} /> Est. value
         </span>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'var(--chart-4)' }} /> Loan balance
+          <span
+            className="inline-block w-3 border-t-[1.5px] border-dashed"
+            style={{ borderColor: 'var(--muted-foreground)' }}
+          /> Loan balance
         </span>
       </div>
     </div>
@@ -390,10 +459,22 @@ export function PropertiesOverview({
     );
   }
 
+  const latest = equitySeries[equitySeries.length - 1];
+
   return (
     <div className="space-y-6">
       <div className="bg-card border border-border rounded-lg p-4">
-        <h2 className="text-sm font-semibold text-foreground mb-3">Combined equity</h2>
+        <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Combined equity</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Across {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</p>
+          </div>
+          {latest && (
+            <p className={`text-2xl font-bold ${latest.totalEquity >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {money(latest.totalEquity)}
+            </p>
+          )}
+        </div>
         <CombinedEquityChart equitySeries={equitySeries} />
       </div>
 

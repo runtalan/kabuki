@@ -2,6 +2,7 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AppLayout } from '@/components/app-layout';
+import { PageTabs, INVEST_TABS } from '@/components/page-tabs';
 
 // Prediction data
 const PREDICTIONS = [
@@ -26,7 +27,8 @@ export default function PredictionsPage() {
     <AppLayout>
       <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Predictions</h1>
-        <p className="text-muted-foreground mb-8">AI-powered price predictions and market analysis</p>
+        <p className="text-muted-foreground mb-4">AI-powered price predictions and market analysis</p>
+        <PageTabs tabs={INVEST_TABS} />
 
         {/* Disclaimer */}
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 mb-8">

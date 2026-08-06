@@ -3,6 +3,7 @@
 import { Search } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-layout';
+import { PageTabs, INVEST_TABS } from '@/components/page-tabs';
 import { Tooltip } from '@/components/ui/tooltip';
 
 const OPTIONS_PLAYS = [
@@ -18,7 +19,8 @@ export default function OptionsPage() {
     <AppLayout>
       <div className="p-4 md:p-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Options</h1>
-        <p className="text-muted-foreground mb-8">Manage your options positions and derivatives strategies</p>
+        <p className="text-muted-foreground mb-4">Manage your options positions and derivatives strategies</p>
+        <PageTabs tabs={INVEST_TABS} />
 
         {/* Search */}
         <div className="relative mb-4">
