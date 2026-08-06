@@ -19,10 +19,11 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
+import { OWNERS } from './owner-badge';
 
 const USER_AVATARS: Record<string, string> = {
-  renato: '👦',
-  claudia: '👧',
+  renato: OWNERS.renato.avatar,
+  claudia: OWNERS.claudia.avatar,
 };
 
 interface NavChild {
@@ -112,7 +113,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const displayName = username
     ? username.charAt(0).toUpperCase() + username.slice(1)
     : null;
-  const avatar = (username && USER_AVATARS[username]) || '👤';
+  const avatarSrc = username ? USER_AVATARS[username] : undefined;
 
   return (
     <div className="h-full bg-sidebar flex flex-col">
@@ -217,8 +218,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Footer: user profile + sign out */}
       <div className="px-3 py-3 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg">
-          <div className="w-8 h-8 rounded-full bg-muted/70 border border-border flex items-center justify-center text-base flex-shrink-0">
-            {avatar}
+          <div className="w-8 h-8 rounded-full bg-muted/70 border border-border flex items-center justify-center text-base flex-shrink-0 overflow-hidden">
+            {avatarSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarSrc} alt={displayName || 'User'} className="w-full h-full object-cover" />
+            ) : (
+              '👤'
+            )}
           </div>
           <span className="flex-1 text-sm font-medium text-sidebar-foreground truncate">
             {displayName || '...'}

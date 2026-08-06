@@ -28,7 +28,7 @@ import {
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
 import { MerchantAvatar } from '@/components/merchant-avatar';
-import { OWNERS } from '@/components/owner-badge';
+import { OWNERS, OwnerAvatar } from '@/components/owner-badge';
 import { getTypeBadge, LIABILITY_TYPES } from '@/lib/account-types';
 import { formatNumber } from '@/lib/format';
 import { ChartTooltip } from '@/components/charts/chart-tooltip';
@@ -284,7 +284,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                     className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full"
                     style={{ backgroundColor: ownerInfo.color + '1a', color: ownerInfo.color }}
                   >
-                    <span>{ownerInfo.emoji}</span>
+                    <OwnerAvatar owner={account.owner} className="w-3.5 h-3.5" />
                     {ownerInfo.label}
                   </span>
                 </div>
@@ -570,7 +570,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                           : 'border-border hover:bg-muted text-muted-foreground'
                       }`}
                     >
-                      <span>{info.emoji}</span>
+                      <OwnerAvatar owner={value} className="w-3.5 h-3.5" />
                       {info.label}
                     </button>
                   )

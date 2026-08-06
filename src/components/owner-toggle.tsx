@@ -2,11 +2,12 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { OwnerFilter } from '@/lib/owner-filter';
+import { OwnerAvatar } from '@/components/owner-badge';
 
-const SEGMENTS: { value: OwnerFilter; label: string; emoji: string }[] = [
-  { value: 'renato', label: 'Renato', emoji: '👦' },
-  { value: 'claudia', label: 'Claudia', emoji: '👧' },
-  { value: 'all', label: 'All', emoji: '🤝' },
+const SEGMENTS: { value: OwnerFilter; label: string }[] = [
+  { value: 'renato', label: 'Renato' },
+  { value: 'claudia', label: 'Claudia' },
+  { value: 'all', label: 'All' },
 ];
 
 // Household-wide "who's spending" filter shown top-right on Home, Spending,
@@ -52,7 +53,7 @@ export function OwnerToggle({
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <span>{seg.emoji}</span>
+          <OwnerAvatar owner={seg.value === 'all' ? 'joint' : seg.value} className="w-4 h-4" />
           {seg.label}
         </button>
       ))}

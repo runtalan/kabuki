@@ -21,7 +21,7 @@ import { MerchantAvatar } from '@/components/merchant-avatar';
 import { SpendCalendar } from '@/components/spend-calendar';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { getTypeBadge } from '@/lib/account-types';
-import { OWNERS, getOwner } from '@/components/owner-badge';
+import { OWNERS, getOwner, OwnerAvatar } from '@/components/owner-badge';
 import type { OwnerFilter } from '@/lib/owner-filter';
 
 const ACCOUNT_ICONS: Record<string, typeof Wallet> = { Wallet, CreditCard, PiggyBank, TrendingUp };
@@ -383,10 +383,17 @@ export function HomeOverview({
                         <p className="text-sm font-medium text-foreground truncate">
                           {account.name}
                         </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {badge.label}
-                          {account.mask && ` ••${account.mask}`}
-                          {ownerInfo && ` · ${ownerInfo.emoji}`}
+                        <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                          <span>
+                            {badge.label}
+                            {account.mask && ` ••${account.mask}`}
+                          </span>
+                          {ownerInfo && (
+                            <>
+                              <span>·</span>
+                              <OwnerAvatar owner={account.owner} className="w-3 h-3" />
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>

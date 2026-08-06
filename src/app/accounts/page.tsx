@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PlaidLinkButton } from '@/components/plaid-link-button';
-import { OWNERS, type OwnerKey } from '@/components/owner-badge';
+import { OWNERS, OwnerAvatar, type OwnerKey } from '@/components/owner-badge';
 import { formatRelativeTime } from '@/lib/format';
 
 // Display order for the collapsible owner sections on the accounts overview.
@@ -534,12 +534,16 @@ export default function AccountsPage() {
                     className="w-full flex items-center justify-between px-1 py-2 mb-3 group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
-                        style={{ backgroundColor: ownerInfo.color + '1a' }}
-                      >
-                        {ownerInfo.emoji}
-                      </span>
+                      {ownerInfo.avatar ? (
+                        <OwnerAvatar owner={ownerKey} className="w-8 h-8" />
+                      ) : (
+                        <span
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                          style={{ backgroundColor: ownerInfo.color + '1a' }}
+                        >
+                          {ownerInfo.emoji}
+                        </span>
+                      )}
                       <h2 className="text-lg font-semibold text-foreground">{ownerInfo.label}</h2>
                       <span className="text-xs text-muted-foreground">
                         {accountCount} account{accountCount === 1 ? '' : 's'}
@@ -646,7 +650,8 @@ export default function AccountsPage() {
                               color: OWNERS[(item.addedByUsername as keyof typeof OWNERS) || 'joint']?.color,
                             }}
                           >
-                            Added by {OWNERS[(item.addedByUsername as keyof typeof OWNERS) || 'joint']?.emoji}{' '}
+                            Added by{' '}
+                            <OwnerAvatar owner={item.addedByUsername} className="w-3 h-3" />{' '}
                             {OWNERS[(item.addedByUsername as keyof typeof OWNERS) || 'joint']?.label}
                           </span>
                         )}
@@ -774,7 +779,7 @@ export default function AccountsPage() {
                                     : 'border-border hover:bg-muted text-muted-foreground'
                                 }`}
                               >
-                                <span>{opt.emoji}</span>
+                                <OwnerAvatar owner={opt.value} className="w-3.5 h-3.5" />
                                 {opt.label}
                               </button>
                             ))}
@@ -813,12 +818,12 @@ export default function AccountsPage() {
                           </div>
                           <div className="flex items-center gap-1">
                             <span
-                              className="text-sm px-2 py-0.5 rounded-full bg-muted/60 border border-border"
+                              className="w-6 h-6 flex items-center justify-center text-sm rounded-full bg-muted/60 border border-border"
                               title={`Owner: ${
                                 OWNER_OPTIONS.find((o) => o.value === (account.owner || 'joint'))?.label
                               }`}
                             >
-                              {OWNER_OPTIONS.find((o) => o.value === (account.owner || 'joint'))?.emoji}
+                              <OwnerAvatar owner={account.owner} className="w-5 h-5" />
                             </span>
                             <button
                               onClick={(e) => startEditing(account, e)}
@@ -918,12 +923,12 @@ export default function AccountsPage() {
                         </div>
 
                         <span
-                          className="text-sm px-2 py-0.5 rounded-full bg-muted/60 border border-border flex-shrink-0 hidden sm:inline-block"
+                          className="w-6 h-6 flex items-center justify-center text-sm rounded-full bg-muted/60 border border-border flex-shrink-0 hidden sm:inline-flex"
                           title={`Owner: ${
                             OWNER_OPTIONS.find((o) => o.value === (account.owner || 'joint'))?.label
                           }`}
                         >
-                          {OWNER_OPTIONS.find((o) => o.value === (account.owner || 'joint'))?.emoji}
+                          <OwnerAvatar owner={account.owner} className="w-5 h-5" />
                         </span>
 
                         <p
@@ -1137,7 +1142,7 @@ export default function AccountsPage() {
                           : 'border-border hover:bg-muted text-muted-foreground'
                       }`}
                     >
-                      <span>{opt.emoji}</span>
+                      <OwnerAvatar owner={opt.value} className="w-3.5 h-3.5" />
                       {opt.label}
                     </button>
                   ))}

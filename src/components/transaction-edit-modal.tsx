@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2 } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
-import { OWNERS } from './owner-badge';
+import { OWNERS, OwnerAvatar } from './owner-badge';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 
@@ -666,9 +666,14 @@ export function TransactionEditModal({
             >
               <span className="text-sm text-foreground">Owner</span>
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                {ownerOverride
-                  ? `${OWNERS[ownerOverride as keyof typeof OWNERS].emoji} ${OWNERS[ownerOverride as keyof typeof OWNERS].label}`
-                  : `Account default (${OWNERS[(transaction.account?.owner as keyof typeof OWNERS) || 'joint'].label})`}
+                {ownerOverride ? (
+                  <>
+                    <OwnerAvatar owner={ownerOverride} className="w-4 h-4" />
+                    {OWNERS[ownerOverride as keyof typeof OWNERS].label}
+                  </>
+                ) : (
+                  `Account default (${OWNERS[(transaction.account?.owner as keyof typeof OWNERS) || 'joint'].label})`
+                )}
                 <ChevronRight className={`w-3.5 h-3.5 transition-transform ${ownerSectionOpen ? 'rotate-90' : ''}`} />
               </span>
             </button>
@@ -703,7 +708,7 @@ export function TransactionEditModal({
                           : 'border-border hover:bg-muted text-muted-foreground'
                       }`}
                     >
-                      <span>{info.emoji}</span>
+                      <OwnerAvatar owner={value} className="w-4 h-4" />
                       {info.label}
                     </button>
                   )

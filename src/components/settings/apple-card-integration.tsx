@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronDown, Copy, Check, RefreshCw, Trash2, Loader } from 'lucide-react';
-import { OWNERS } from '@/components/owner-badge';
+import { OWNERS, OwnerAvatar } from '@/components/owner-badge';
 
 type Owner = 'renato' | 'claudia';
 
@@ -113,7 +113,7 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <span>{OWNERS[owner].emoji}</span>
+                <OwnerAvatar owner={owner} className="w-4 h-4" />
                 {OWNERS[owner].label}
               </button>
             ))}
