@@ -47,6 +47,8 @@
 | 2026-08-06 | `0017_apple_card_integration.sql` | `integration_tokens` table — per-user hashed API tokens for personal transaction-ingest integrations (Apple Card Sync) |
 | 2026-08-06 | `0018_api_request_logs.sql` | `api_request_logs` table — dev/debug log of every request to public ingest endpoints (Apple Card Sync), headers included |
 | 2026-08-06 | `0019_properties_and_holdings.sql` | `properties`, `property_value_history`, `holdings` tables — real estate tracking (excluded from net worth) and investment holdings |
+| 2026-08-06 | `0020_trading_and_options.sql` | `trading_orders` and `option_holdings` tables — trade execution history and active option contracts |
+| 2026-08-06 | `0021_add_email_column.sql` | Add `users.email` column + populate for existing users; make `users.password_hash` optional (for Google OIDC migration) |
 
 ## Current schema state
 
@@ -54,7 +56,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 
 | Table | Added in | Notes |
 |---|---|---|
-| `users` | 0000 | Shared household login; +`is_demo` (0013) |
+| `users` | 0000 | Shared household login; +`is_demo` (0013); +`email` (0021); `password_hash` now optional (0021) |
 | `plaid_items` | 0000 | +`is_manual` (0006) |
 | `accounts` | 0000 | +`display_name`,`icon` (0002); +`owner` (0004); +`kind`,`liability_type`,`is_manual` (0006); +`mask` (0007); +`asset_type`,`address` (0009) |
 | `categories` | 0000 | +`monthly_budget` (0010) |
