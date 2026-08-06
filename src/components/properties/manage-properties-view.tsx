@@ -6,7 +6,7 @@ import { Home as HomeIcon, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { OWNERS, OwnerBadge, type OwnerKey } from '@/components/owner-badge';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { useIsDemo } from '@/hooks/use-is-demo';
-import { formatCurrency } from '@/lib/format';
+import { formatFullCurrency } from '@/lib/format';
 import type { PropertyWithComputed } from '@/lib/properties';
 
 const OWNER_OPTIONS = Object.entries(OWNERS) as [OwnerKey, (typeof OWNERS)[OwnerKey]][];
@@ -364,7 +364,7 @@ export function ManagePropertiesView({ properties }: { properties: PropertyWithC
               </div>
 
               <p className="text-sm font-semibold text-foreground flex-shrink-0 w-28 text-right">
-                {formatCurrency(property.estimatedValue)}
+                {formatFullCurrency(property.estimatedValue)}
               </p>
 
               <div className="flex items-center gap-1 flex-shrink-0">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatCurrency } from '@/lib/format';
+import { formatFullCurrency } from '@/lib/format';
 import type { AmortizationRow } from '@/lib/loan-amortization';
 
 interface AmortizationTableProps {
@@ -31,11 +31,11 @@ export function AmortizationTable({ rows }: AmortizationTableProps) {
               className="border-b border-border hover:bg-muted/20 cursor-pointer transition-colors last:border-0"
             >
               <td className="px-4 py-3 font-semibold text-foreground">{row.month}</td>
-              <td className="px-4 py-3 text-right text-foreground">{formatCurrency(row.payment)}</td>
-              <td className="px-4 py-3 text-right text-foreground">{formatCurrency(row.principalPaid)}</td>
-              <td className="px-4 py-3 text-right text-foreground">{formatCurrency(row.interestPaid)}</td>
+              <td className="px-4 py-3 text-right text-foreground">{formatFullCurrency(row.payment)}</td>
+              <td className="px-4 py-3 text-right text-foreground">{formatFullCurrency(row.principalPaid)}</td>
+              <td className="px-4 py-3 text-right text-foreground">{formatFullCurrency(row.interestPaid)}</td>
               <td className="px-4 py-3 text-right font-semibold text-foreground">
-                {formatCurrency(row.balance)}
+                {formatFullCurrency(row.balance)}
               </td>
             </tr>
           ))}

@@ -17,16 +17,10 @@ import {
 import { Pencil, Check, X, Home as HomeIcon } from 'lucide-react';
 import { OwnerBadge } from '@/components/owner-badge';
 import { EmptyChartState } from '@/components/charts/empty-chart-state';
+import { useIsDemo } from '@/hooks/use-is-demo';
 import { buildAmortizationSchedule, monthsElapsedSince } from '@/lib/loan-amortization';
+import { formatFullCurrency as money } from '@/lib/format';
 import type { PropertyWithComputed, EquitySeriesPoint } from '@/lib/properties';
-
-function money(value: number, decimals = 0) {
-  const sign = value < 0 ? '-' : '';
-  return `${sign}$${Math.abs(value).toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })}`;
-}
 
 function toDateInputValue(iso: string) {
   return iso.slice(0, 10);
@@ -184,6 +178,7 @@ function PropertySparkline({ property }: { property: PropertyWithComputed }) {
 
 function PropertyCard({ property }: { property: PropertyWithComputed }) {
   const router = useRouter();
+  const isDemo = useIsDemo();
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<EditState>(() => editStateFor(property));
   const [isSaving, setIsSaving] = useState(false);
@@ -266,8 +261,9 @@ function PropertyCard({ property }: { property: PropertyWithComputed }) {
           <button
             type="button"
             onClick={startEdit}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Edit loan details"
+            disabled={isDemo}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isDemo ? 'View-only in demo mode' : 'Edit loan details'}
             aria-label="Edit loan details"
           >
             <Pencil className="w-4 h-4" />

@@ -13,16 +13,9 @@ import {
 } from 'recharts';
 import { Home as HomeIcon } from 'lucide-react';
 import { EmptyChartState } from '@/components/charts/empty-chart-state';
-import { buildAmortizationSchedule, calculatePayoffWithExtra } from '@/lib/loan-amortization';
+import { buildAmortizationSchedule, calculatePayoffWithExtra, monthsElapsedSince } from '@/lib/loan-amortization';
+import { formatFullCurrency as money } from '@/lib/format';
 import type { PropertyWithComputed } from '@/lib/properties';
-
-function money(value: number, decimals = 0) {
-  const sign = value < 0 ? '-' : '';
-  return `${sign}$${Math.abs(value).toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })}`;
-}
 
 function monthsToYearsMonths(totalMonths: number): string {
   const years = Math.floor(totalMonths / 12);
@@ -174,38 +167,49 @@ export function PayAheadCalculator({ properties }: { properties: PropertyWithCom
 
   const extraAmount = Math.max(0, Number(extraMonthly) || 0);
 
+  // Amortize from today's actual remaining balance/term, not loan
+  // origination — all seeded properties originated years ago, so starting
+  // from originalLoanAmount/loanTermYears would answer "what if extra
+  // payments had started at closing" instead of "what if I start today."
+  const remainingMonths = useMemo(() => {
+    if (!property) return 0;
+    const elapsed = monthsElapsedSince(new Date(property.loanStartDate));
+    return Math.max(property.loanTermYears * 12 - elapsed, 0);
+  }, [property]);
+  const remainingYears = remainingMonths / 12;
+
   const comparison = useMemo(() => {
     if (!property) return null;
     return calculatePayoffWithExtra(
-      property.originalLoanAmount,
+      property.remainingBalance,
       property.interestRate,
-      property.loanTermYears,
+      remainingYears,
       extraAmount
     );
-  }, [property, extraAmount]);
+  }, [property, remainingYears, extraAmount]);
 
   const chartData = useMemo(() => {
     if (!property) return [];
     const originalBalances = buildAmortizationSchedule(
-      property.originalLoanAmount,
+      property.remainingBalance,
       property.interestRate,
-      property.loanTermYears
+      remainingYears
     ).map((row) => row.balance);
     const extraBalances = buildExtraPaymentBalances(
-      property.originalLoanAmount,
+      property.remainingBalance,
       property.interestRate,
-      property.loanTermYears,
+      remainingYears,
       extraAmount
     );
     return buildComparisonSeries(originalBalances, extraBalances);
-  }, [property, extraAmount]);
+  }, [property, remainingYears, extraAmount]);
 
   const newPayoffDate = useMemo(() => {
-    if (!property || !comparison) return null;
-    const date = new Date(property.loanStartDate);
+    if (!comparison) return null;
+    const date = new Date();
     date.setMonth(date.getMonth() + comparison.newMonths);
     return date;
-  }, [property, comparison]);
+  }, [comparison]);
 
   if (properties.length === 0) {
     return (

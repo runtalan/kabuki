@@ -18,6 +18,18 @@ export function formatCurrency(value: number | string): string {
   return '$' + num.toFixed(0);
 }
 
+export function formatFullCurrency(value: number | string): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+
+  if (isNaN(num)) return '$0';
+
+  const sign = num < 0 ? '-' : '';
+  return sign + '$' + Math.abs(num).toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
 export function formatRelativeTime(date: string | Date): string {
   const then = typeof date === 'string' ? new Date(date) : date;
   const seconds = Math.max(0, Math.floor((Date.now() - then.getTime()) / 1000));
