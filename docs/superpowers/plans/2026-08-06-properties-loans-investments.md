@@ -286,7 +286,7 @@ git commit -m "feat(db): migration 0019 — properties, property_value_history, 
   - `calculateRemainingBalance(principal: number, annualRatePct: number, termYears: number, paymentsMade: number): number`
   - `monthsElapsedSince(startDate: Date, asOf?: Date): number`
   - `buildAmortizationSchedule(principal: number, annualRatePct: number, termYears: number): AmortizationRow[]` where `AmortizationRow = { month: number; payment: number; principalPaid: number; interestPaid: number; balance: number }`
-  - `calculatePayoffWithExtra(principal: number, annualRatePct: number, termYears: number, extraMonthly: number): PayoffComparison` where `PayoffComparison = { originalMonths: number; originalTotalInterest: number; newMonths: number; newTotalInterest: number; monthsSaved: number; interestSaved: number; newPayoffDate: (startDate: Date) => Date }`
+  - `calculatePayoffWithExtra(principal: number, annualRatePct: number, termYears: number, extraMonthly: number): PayoffComparison` where `PayoffComparison = { originalMonths: number; originalTotalInterest: number; newMonths: number; newTotalInterest: number; monthsSaved: number; interestSaved: number }` (no `newPayoffDate` method — consumers compute the new payoff date locally from `loanStartDate + newMonths`, as Task 10 does; see the code block in Task 3 Step 1, which is authoritative over this prose line)
 
 - [ ] **Step 1: Write the module**
 
