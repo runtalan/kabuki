@@ -44,6 +44,7 @@
 | 2026-08-05 | `0014_institution_logo.sql` | `plaid_items.institution_id` + `institution_logo_url` (cached Plaid logo, uploaded to Supabase Storage) |
 | 2026-08-05 | `0015_transaction_merchant_logo_and_pfc.sql` | `transactions.merchant_entity_id`, `merchant_logo_url` (cached Plaid merchant logo), `pfc_primary`, `pfc_detailed` (Plaid's personal_finance_category) |
 | 2026-08-05 | `0016_transaction_transfer_type.sql` | `transactions.transfer_type` — marks internal transfers/credit card payments so they're excluded from income, expense, cash-flow, and budget totals |
+| 2026-08-06 | `0017_apple_card_integration.sql` | `integration_tokens` table — per-user hashed API tokens for personal transaction-ingest integrations (Apple Card Sync) |
 
 ## Current schema state
 
@@ -63,6 +64,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `transaction_tags` | 0008 | join table |
 | `recurring_series` | 0012 | User overrides + manual entries layered on heuristic detection |
 | `plaid_items` | 0000 | +`is_manual` (0006); +`institution_id`,`institution_logo_url` (0014) |
+| `integration_tokens` | 0017 | Hashed per-user tokens for personal transaction-ingest integrations |
 
 ## Quick reference
 

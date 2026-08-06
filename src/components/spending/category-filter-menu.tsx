@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, Plus, Search } from 'lucide-react';
 import { CategoryIcon } from '@/components/category-icon';
 import { LUCIDE_ICONS } from '@/lib/icons';
-import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '@/lib/category-colors';
+import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR, getColorName } from '@/lib/category-colors';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 
 interface Category {
@@ -227,13 +227,13 @@ export function CategoryFilterMenu({
                     className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
-                <div className="grid grid-cols-8 gap-1.5">
+                <div className="grid grid-cols-5 gap-1.5 w-fit">
                   {CATEGORY_COLORS.map((color) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setNewColor(color)}
-                      title={color}
+                      title={getColorName(color)}
                       className={`w-6 h-6 rounded-md transition-transform hover:scale-105 ${
                         newColor === color ? 'scale-110 ring-2 ring-offset-1 ring-offset-card ring-foreground' : ''
                       }`}

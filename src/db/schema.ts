@@ -308,10 +308,52 @@ export const recurringSeries = pgTable(
   ]
 );
 
+// Per-user API tokens for personal transaction-ingest integrations (Apple
+// Card Sync today; `provider` leaves room for more later). Only a SHA-256
+// hash of the token is stored — the plaintext is shown once at generation
+// time and can't be recovered, only rotated. `accountId` is the manual
+// account new transactions from this integration post to.
+export const integrationTokens = pgTable(
+  "integration_tokens",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 30 }).notNull(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    accountId: varchar("account_id", { length: 36 }).references(
+      () => accounts.id,
+      { onDelete: "set null" }
+    ),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_integration_tokens_user_provider").on(
+      table.userId,
+      table.provider
+    ),
+    uniqueIndex("idx_integration_tokens_hash").on(table.tokenHash),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
   recurringSeries: many(recurringSeries),
+  integrationTokens: many(integrationTokens),
+}));
+
+export const integrationTokensRelations = relations(integrationTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [integrationTokens.userId],
+    references: [users.id],
+  }),
+  account: one(accounts, {
+    fields: [integrationTokens.accountId],
+    references: [accounts.id],
+  }),
 }));
 
 export const recurringSeriesRelations = relations(recurringSeries, ({ one }) => ({

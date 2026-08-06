@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Moon, Sun, X } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { PlaidLinkButton } from '@/components/plaid-link-button';
+import { AppleCardIntegration } from '@/components/settings/apple-card-integration';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { useIsDemo } from '@/hooks/use-is-demo';
 
@@ -102,6 +103,11 @@ export default function SettingsPage() {
           ) : (
             <PlaidLinkButton />
           )}
+        </div>
+
+        <div className="mt-8 bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Integrations</h2>
+          <AppleCardIntegration isDemo={isDemo} />
         </div>
       </div>
 

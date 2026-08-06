@@ -185,7 +185,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     </div>
 
                     {hasChildren && isOpen && (
-                      <ul className="mt-0.5 mb-1 ml-[27px] pl-3 border-l border-sidebar-border space-y-0.5">
+                      <ul className="mt-0.5 mb-1 ml-[35px] pl-4 border-l border-sidebar-border space-y-0.5">
                         {item.children!.map((child) => {
                           const active = isChildActive(pathname, child);
                           return (
@@ -196,7 +196,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                                 className={`block px-3 py-1.5 rounded-lg text-sm transition-all truncate ${
                                   active
                                     ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
-                                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
+                                    : 'text-muted-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
                                 }`}
                               >
                                 {child.label}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Trash2, Pencil, X, Tags as TagsIcon, Receipt, Loader, List, Table2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR, getColorName } from '@/lib/category-colors';
 
 interface Tag {
   id: string;
@@ -19,19 +20,13 @@ interface Transaction {
   date: string;
 }
 
-const COLOR_OPTIONS = [
-  '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#10b981',
-  '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#d946ef', '#ec4899', '#f43f5e', '#64748b',
-];
-
 export default function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'table'>('table');
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', color: '#6366f1' });
+  const [form, setForm] = useState({ name: '', color: DEFAULT_CATEGORY_COLOR });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,7 +67,7 @@ export default function TagsPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: '', color: '#6366f1' });
+    setForm({ name: '', color: DEFAULT_CATEGORY_COLOR });
     setError('');
     setFormOpen(true);
   };
@@ -322,14 +317,15 @@ export default function TagsPage() {
               />
               <div>
                 <p className="text-sm font-medium text-foreground mb-2">Color</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {COLOR_OPTIONS.map((color) => (
+                <div className="grid grid-cols-5 gap-2 w-fit">
+                  {CATEGORY_COLORS.map((color) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setForm({ ...form, color })}
-                      className={`w-8 h-8 rounded-lg border-2 transition-transform ${
-                        form.color === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-105'
+                      title={getColorName(color)}
+                      className={`w-8 h-8 rounded-lg border-2 transition-transform hover:scale-105 ${
+                        form.color === color ? 'border-foreground scale-110' : 'border-transparent'
                       }`}
                       style={{ backgroundColor: color }}
                     />

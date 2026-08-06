@@ -8,7 +8,7 @@ import { CategoryIcon } from '@/components/category-icon';
 import { useIsDemo } from '@/hooks/use-is-demo';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
-import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR, isValidHexColor } from '@/lib/category-colors';
+import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR, getColorName, isValidHexColor } from '@/lib/category-colors';
 
 interface Category {
   id: string;
@@ -493,7 +493,7 @@ export default function CategoriesPage() {
 
               <div>
                 <p className="text-sm font-medium text-foreground mb-2">Color</p>
-                <div className="grid grid-cols-8 gap-2">
+                <div className="grid grid-cols-5 gap-2 w-fit">
                   {CATEGORY_COLORS.map((color) => (
                     <button
                       key={color}
@@ -502,7 +502,7 @@ export default function CategoriesPage() {
                         setForm({ ...form, color });
                         setHexInput(color);
                       }}
-                      title={color}
+                      title={getColorName(color)}
                       className={`relative w-8 h-8 rounded-lg transition-transform hover:scale-105 ${
                         form.color.toLowerCase() === color ? 'scale-110 ring-2 ring-offset-2 ring-offset-card ring-foreground' : ''
                       }`}
