@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const dbUser = await db.query.users.findFirst({ where: eq(users.username, user.email) });
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, user.id) });
     if (!dbUser) {
       return Response.json({ error: 'User not found' }, { status: 404 });
     }

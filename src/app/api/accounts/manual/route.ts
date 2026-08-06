@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const finalKind = VALID_KINDS.includes(kind) ? kind : 'liability';
     // Default to whoever's adding it rather than a generic "joint" label.
-    const finalOwner = VALID_OWNERS.includes(owner) ? owner : user.email;
+    const finalOwner = VALID_OWNERS.includes(owner) ? owner : user.username;
 
     const manualItem = await getOrCreateManualPlaidItem(user.id);
     const accountId = generateId();

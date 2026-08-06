@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     // Sync accounts and transactions immediately after linking — new
     // accounts default to whoever linked them, not a generic "joint" label.
-    await syncAccounts(plaidItemId, accessToken, user.email);
+    await syncAccounts(plaidItemId, accessToken, user.username);
     await syncTransactions(plaidItemId, accessToken, user.id);
 
     // Best-effort: cache the institution's logo. Never block linking on this.

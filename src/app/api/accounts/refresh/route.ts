@@ -8,7 +8,7 @@ import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     // Get user
     const user = await db.query.users.findFirst({
-      where: eq(users.username, session.user.email),
+      where: eq(users.id, session.user.id),
     });
 
     if (!user) {

@@ -24,7 +24,7 @@ export default function SettingsPage() {
     fetch('/api/auth/session')
       .then((res) => (res.ok ? res.json() : null))
       .then((session) => {
-        const name = session?.user?.email || session?.user?.name;
+        const name = session?.user?.username || session?.user?.email;
         if (name) setUsername(name);
       })
       .catch(() => {});

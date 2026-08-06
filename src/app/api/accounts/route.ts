@@ -8,13 +8,13 @@ import { eq } from "drizzle-orm";
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get user
     const user = await db.query.users.findFirst({
-      where: eq(users.username, session.user.email),
+      where: eq(users.id, session.user.id),
     });
 
     if (!user) {

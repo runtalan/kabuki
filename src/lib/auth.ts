@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 export interface AuthUser {
   id: string;
   email: string;
+  username: string;
   isDemo: boolean;
 }
 
@@ -15,7 +16,7 @@ export interface AuthSession {
 
 // Get the authenticated user from the session, resolved against the database.
 // The JWT can hold a stale user ID (e.g. after a reseed), so we always look up
-// the canonical row by username. Returns null if not authenticated or not found.
+// the canonical row by email. Returns null if not authenticated or not found.
 export async function getUser(): Promise<AuthUser | null> {
   const session = (await auth()) as AuthSession | null;
   if (!session?.user?.email) {
@@ -23,7 +24,7 @@ export async function getUser(): Promise<AuthUser | null> {
   }
 
   const dbUser = await db.query.users.findFirst({
-    where: eq(users.username, session.user.email),
+    where: eq(users.email, session.user.email),
   });
 
   if (!dbUser) {
@@ -32,7 +33,8 @@ export async function getUser(): Promise<AuthUser | null> {
 
   return {
     id: dbUser.id,
-    email: dbUser.username,
+    email: dbUser.email,
+    username: dbUser.username,
     isDemo: dbUser.isDemo,
   };
 }

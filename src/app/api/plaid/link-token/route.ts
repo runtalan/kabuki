@@ -18,19 +18,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const username = session.user.email || session.user.name;
-    console.log("Username from session:", username);
+    const userId = session.user.id;
+    console.log("User id from session:", userId);
 
-    if (!username) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "No username in session" },
+        { error: "No user id in session" },
         { status: 401 }
       );
     }
 
     // Get user from database
     const user = await db.query.users.findFirst({
-      where: eq(users.username, username),
+      where: eq(users.id, userId),
     });
     console.log("User found:", user?.id);
 
