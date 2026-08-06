@@ -1,5 +1,6 @@
 import { db } from './index';
-import { users, categories, plaidItems, accounts, recurringSeries } from './schema';
+import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries } from './schema';
+import { eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/lib/id';
 import { normalizeMerchant } from '@/lib/spending-insights';
@@ -204,6 +205,140 @@ async function seed() {
     console.log('✓ Demo account ensured (demo)');
   } catch (error) {
     console.error('Error creating demo account:', error);
+  }
+
+  // Household manual accounts (Renato & Claudia): checking/savings/credit
+  // cards per user plus a joint auto loan, with 6 months of gently-trending
+  // balance history so charts aren't empty on first load. Additive-only —
+  // idempotent, safe to re-run.
+  try {
+    // rentoId/claudiaId above are freshly generated on every run of seed(),
+    // but the users insert above is onConflictDoNothing keyed on username —
+    // so on a re-run against an already-seeded database those local
+    // variables won't match the *actual* stored user ids, and any FK insert
+    // against them would violate the users FK constraint. Resolve the real
+    // ids by joining accounts.owner -> plaid_items.user_id (never touching
+    // the users table itself), falling back to the freshly generated id only
+    // for a genuinely fresh database where no such account exists yet.
+    async function resolveRealUserId(fallbackId: string, owner: 'renato' | 'claudia'): Promise<string> {
+      const [row] = await db
+        .select({ userId: plaidItems.userId })
+        .from(accounts)
+        .innerJoin(plaidItems, eq(plaidItems.id, accounts.plaidItemId))
+        .where(eq(accounts.owner, owner))
+        .limit(1);
+      return row?.userId ?? fallbackId;
+    }
+
+    const realRentoId = await resolveRealUserId(rentoId, 'renato');
+    const realClaudiaId = await resolveRealUserId(claudiaId, 'claudia');
+
+    const renatoManualItemId = generateId();
+    const claudiaManualItemId = generateId();
+
+    await db
+      .insert(plaidItems)
+      .values([
+        {
+          id: renatoManualItemId,
+          userId: realRentoId,
+          itemId: `manual-${realRentoId}`,
+          accessToken: 'manual',
+          institutionName: 'Manual Accounts',
+          isManual: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: claudiaManualItemId,
+          userId: realClaudiaId,
+          itemId: `manual-${realClaudiaId}`,
+          accessToken: 'manual',
+          institutionName: 'Manual Accounts',
+          isManual: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ])
+      .onConflictDoNothing({ target: plaidItems.itemId });
+
+    // The insert above may have no-op'd on conflict (itemId already exists
+    // from a prior seed run), leaving the freshly generated *ManualItemId
+    // dangling with no matching row. Resolve the actual stored plaid_items.id
+    // so the accounts FK below is always valid.
+    const [renatoItemRow] = await db
+      .select({ id: plaidItems.id })
+      .from(plaidItems)
+      .where(eq(plaidItems.itemId, `manual-${realRentoId}`))
+      .limit(1);
+    const [claudiaItemRow] = await db
+      .select({ id: plaidItems.id })
+      .from(plaidItems)
+      .where(eq(plaidItems.itemId, `manual-${realClaudiaId}`))
+      .limit(1);
+    const realRenatoManualItemId = renatoItemRow?.id ?? renatoManualItemId;
+    const realClaudiaManualItemId = claudiaItemRow?.id ?? claudiaManualItemId;
+
+    const householdAccounts = [
+      { id: 'seed-acct-renato-checking', plaidItemId: realRenatoManualItemId, name: 'Renato Checking', owner: 'renato', type: 'depository', subtype: 'checking', kind: 'asset', balance: 6200 },
+      { id: 'seed-acct-renato-savings', plaidItemId: realRenatoManualItemId, name: 'Renato Savings', owner: 'renato', type: 'depository', subtype: 'savings', kind: 'asset', balance: 4800 },
+      { id: 'seed-acct-claudia-checking', plaidItemId: realClaudiaManualItemId, name: 'Claudia Checking', owner: 'claudia', type: 'depository', subtype: 'checking', kind: 'asset', balance: 4100 },
+      { id: 'seed-acct-claudia-savings', plaidItemId: realClaudiaManualItemId, name: 'Claudia Savings', owner: 'claudia', type: 'depository', subtype: 'savings', kind: 'asset', balance: 3300 },
+      { id: 'seed-acct-renato-credit', plaidItemId: realRenatoManualItemId, name: 'Renato Credit Card', owner: 'renato', type: 'credit', subtype: 'credit card', kind: 'liability', liabilityType: 'credit_card', balance: -1850 },
+      { id: 'seed-acct-claudia-credit', plaidItemId: realClaudiaManualItemId, name: 'Claudia Credit Card', owner: 'claudia', type: 'credit', subtype: 'credit card', kind: 'liability', liabilityType: 'credit_card', balance: -1350 },
+      { id: 'seed-acct-auto-loan', plaidItemId: realRenatoManualItemId, name: 'Auto Loan', owner: 'joint', type: 'loan', subtype: 'auto', kind: 'liability', liabilityType: 'other', balance: -14500 },
+    ] as const;
+
+    await db
+      .insert(accounts)
+      .values(
+        householdAccounts.map((a) => ({
+          id: a.id,
+          plaidItemId: a.plaidItemId,
+          plaidAccountId: a.id,
+          name: a.name,
+          owner: a.owner,
+          type: a.type,
+          subtype: a.subtype,
+          kind: a.kind,
+          liabilityType: 'liabilityType' in a ? a.liabilityType : null,
+          isManual: true,
+          currentBalance: a.balance.toFixed(2),
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }))
+      )
+      .onConflictDoNothing({ target: accounts.plaidAccountId });
+
+    // 6 months of gently-trending balance history so every account chart has
+    // data on first load. Cleared and re-inserted per run (there's no unique
+    // constraint on this table to hang onConflictDoNothing off of) so re-running
+    // the seed never duplicates history rows.
+    const accountIds = householdAccounts.map((a) => a.id);
+    await db.delete(accountBalanceHistory).where(inArray(accountBalanceHistory.accountId, accountIds));
+
+    const now = new Date();
+    const historyRows: { id: string; accountId: string; balance: string; recordedAt: Date }[] = [];
+    for (const acct of householdAccounts) {
+      for (let monthsAgo = 6; monthsAgo >= 0; monthsAgo--) {
+        const recordedAt = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 15);
+        // Liabilities trend slightly down (being paid off); assets trend slightly up (saving).
+        const drift = acct.kind === 'liability' ? monthsAgo * 0.015 : -monthsAgo * 0.02;
+        const balance = acct.balance * (1 + drift);
+        historyRows.push({
+          id: generateId(),
+          accountId: acct.id,
+          balance: balance.toFixed(2),
+          recordedAt,
+        });
+      }
+    }
+    await db.insert(accountBalanceHistory).values(historyRows);
+
+    console.log('✓ Household manual accounts + 6mo balance history ensured (renato, claudia)');
+  } catch (error) {
+    console.error('Error creating household accounts:', error);
   }
 
   console.log('✅ Seed complete!');
