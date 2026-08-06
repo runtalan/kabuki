@@ -381,6 +381,16 @@ export function TransactionEditModal({
             </span>
           </div>
 
+          {/* Account / card row */}
+          {accountLabel && (
+            <div className={rowClass}>
+              <span className="text-sm text-foreground">Card</span>
+              <span className="text-sm text-muted-foreground truncate max-w-[220px] text-right">
+                {accountLabel}
+              </span>
+            </div>
+          )}
+
           {/* Category */}
           <div className="px-5 py-3.5">
             <div className="flex items-center justify-between mb-2">
@@ -823,13 +833,6 @@ export function TransactionEditModal({
             Cancel
           </button>
         </div>
-
-        {/* Account footer */}
-        {accountLabel && (
-          <div className="px-5 py-3 border-t border-border text-center">
-            <p className="text-xs text-muted-foreground">{accountLabel}</p>
-          </div>
-        )}
       </div>
     </div>
   );
