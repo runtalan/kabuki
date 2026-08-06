@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings } from './schema';
+import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings, properties, propertyValueHistory } from './schema';
 import { eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/lib/id';
@@ -427,6 +427,74 @@ async function seed() {
     console.log('✓ Investment brokerage account + holdings ensured');
   } catch (error) {
     console.error('Error creating investment holdings:', error);
+  }
+
+  try {
+    // Real estate lives in its own properties/propertyValueHistory tables,
+    // deliberately unconnected to accounts/users — real estate is excluded
+    // from net worth by design.
+    const propertySeed = [
+      {
+        id: 'seed-property-primary-home',
+        name: 'Primary Home',
+        address: '482 Maple Ridge Dr',
+        owner: 'joint',
+        estimatedValue: 385000,
+        originalLoanAmount: 310000,
+        interestRate: 6.2,
+        loanTermYears: 30,
+        loanStartDate: new Date(new Date().getFullYear() - 2, 2, 1),
+      },
+      {
+        id: 'seed-property-rental-condo',
+        name: 'Rental Condo',
+        address: '17 Harborview Unit 4B',
+        owner: 'joint',
+        estimatedValue: 220000,
+        originalLoanAmount: 175000,
+        interestRate: 5.5,
+        loanTermYears: 30,
+        loanStartDate: new Date(new Date().getFullYear() - 3, 8, 1),
+      },
+    ];
+
+    await db.insert(properties).values(
+      propertySeed.map((p) => ({
+        id: p.id,
+        name: p.name,
+        address: p.address,
+        owner: p.owner,
+        estimatedValue: p.estimatedValue.toFixed(2),
+        originalLoanAmount: p.originalLoanAmount.toFixed(2),
+        interestRate: p.interestRate.toFixed(3),
+        loanTermYears: p.loanTermYears,
+        loanStartDate: p.loanStartDate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+    ).onConflictDoNothing({ target: properties.id });
+
+    // propertyValueHistory has no unique constraint to hang
+    // onConflictDoNothing off of, so — matching Task 16/17's precedent for
+    // accountBalanceHistory — clear and re-insert scoped to each property id
+    // on every run.
+    const now = new Date();
+    for (const p of propertySeed) {
+      await db.delete(propertyValueHistory).where(eq(propertyValueHistory.propertyId, p.id));
+    }
+    const valueHistoryRows: { id: string; propertyId: string; value: string; recordedAt: Date }[] = [];
+    for (const p of propertySeed) {
+      for (let monthsAgo = 6; monthsAgo >= 0; monthsAgo--) {
+        const recordedAt = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 10);
+        const value = p.estimatedValue * (1 - monthsAgo * 0.004);
+        valueHistoryRows.push({ id: generateId(), propertyId: p.id, value: value.toFixed(2), recordedAt });
+      }
+    }
+    await db.insert(propertyValueHistory).values(valueHistoryRows);
+
+    console.log('✓ Properties + 6mo value history ensured (Primary Home, Rental Condo)');
+  } catch (error) {
+    console.error('Error creating properties:', error);
   }
 
   console.log('✅ Seed complete!');
