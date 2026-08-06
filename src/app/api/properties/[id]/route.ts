@@ -7,12 +7,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  const demoBlock = assertWriteAccess(user);
-  if (demoBlock) return demoBlock;
-
   try {
+    const user = await getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
+
     const { id } = await params;
     const body = await request.json();
     const updates: Partial<PropertyInput> = {};
@@ -44,12 +44,12 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  const demoBlock = assertWriteAccess(user);
-  if (demoBlock) return demoBlock;
-
   try {
+    const user = await getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
+
     const { id } = await params;
     await deleteProperty(id);
     return Response.json({ success: true });

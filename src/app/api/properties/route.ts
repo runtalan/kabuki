@@ -4,10 +4,10 @@ import { getAllProperties, createProperty, type PropertyInput } from '@/lib/prop
 const VALID_OWNERS = ['renato', 'claudia', 'joint'];
 
 export async function GET() {
-  const user = await getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
   try {
+    const user = await getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     const properties = await getAllProperties();
     return Response.json(properties);
   } catch (error) {
@@ -17,12 +17,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getUser();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  const demoBlock = assertWriteAccess(user);
-  if (demoBlock) return demoBlock;
-
   try {
+    const user = await getUser();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
+
     const body = await request.json();
     const { name, address, owner, estimatedValue, originalLoanAmount, interestRate, loanTermYears, loanStartDate, notes } = body;
 
