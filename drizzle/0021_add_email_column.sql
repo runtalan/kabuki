@@ -8,7 +8,7 @@ UPDATE users SET email = 'claudiapuente00@outlook.com' WHERE username = 'claudia
 
 -- Make email NOT NULL and UNIQUE
 ALTER TABLE users ALTER COLUMN email SET NOT NULL;
-ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE(email);
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email);
 
 -- Make password_hash optional for Google OIDC migration
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
