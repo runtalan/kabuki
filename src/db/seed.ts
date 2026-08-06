@@ -1,6 +1,6 @@
 import { db } from './index';
 import { users, categories, plaidItems, accounts, accountBalanceHistory, recurringSeries, holdings, properties, propertyValueHistory, transactions } from './schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/lib/id';
 import { normalizeMerchant } from '@/lib/spending-insights';
@@ -47,6 +47,12 @@ async function seed() {
   const claudiaId = generateId();
 
   // Upsert users — never delete (cascades would wipe linked Plaid items)
+  // Map users to emails for NextAuth Google OIDC migration
+  const emailMap = {
+    renato: 'renatountalan@gmail.com',
+    claudia: 'claudiapuente00@outlook.com',
+  };
+
   try {
     await db
       .insert(users)
@@ -54,6 +60,7 @@ async function seed() {
         {
           id: rentoId,
           username: 'renato',
+          email: emailMap.renato,
           passwordHash: passwordHash,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -61,12 +68,19 @@ async function seed() {
         {
           id: claudiaId,
           username: 'claudia',
+          email: emailMap.claudia,
           passwordHash: passwordHash,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       ])
-      .onConflictDoNothing({ target: users.username });
+      .onConflictDoUpdate({
+        target: users.username,
+        set: {
+          email: sql`excluded.email`,
+          updatedAt: new Date(),
+        },
+      });
     console.log('✓ Users ensured (renato, claudia)');
   } catch (error) {
     console.error('Error creating users:', error);
@@ -101,12 +115,19 @@ async function seed() {
       .values({
         id: DEMO_USER_ID,
         username: DEMO_USERNAME,
+        email: `${DEMO_USERNAME}@demo.local`,
         passwordHash: demoPasswordHash,
         isDemo: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .onConflictDoNothing({ target: users.username });
+      .onConflictDoUpdate({
+        target: users.username,
+        set: {
+          email: sql`excluded.email`,
+          updatedAt: new Date(),
+        },
+      });
 
     await db
       .insert(plaidItems)
