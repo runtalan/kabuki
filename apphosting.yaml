@@ -27,6 +27,22 @@ env:
     availability:
       - RUNTIME
 
+  - variable: AUTH_TRUST_HOST
+    value: "true"
+    availability:
+      - RUNTIME
+
+  # Google OAuth (OIDC)
+  - variable: AUTH_GOOGLE_ID
+    secret: AUTH_GOOGLE_ID
+    availability:
+      - RUNTIME
+
+  - variable: AUTH_GOOGLE_SECRET
+    secret: AUTH_GOOGLE_SECRET
+    availability:
+      - RUNTIME
+
   # Plaid secrets
   - variable: PLAID_CLIENT_ID
     secret: PLAID_CLIENT_ID
