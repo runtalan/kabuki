@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronDown, Copy, Check, RefreshCw, Trash2, Loader } from 'lucide-react';
+import { OWNERS } from '@/components/owner-badge';
 
-interface Status {
+type Owner = 'renato' | 'claudia';
+
+interface OwnerStatus {
+  owner: Owner;
   configured: boolean;
   lastUsedAt: string | null;
   accountName: string | null;
@@ -17,17 +21,28 @@ function formatLastUsed(iso: string | null) {
 
 export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
   const [helpOpen, setHelpOpen] = useState(false);
-  const [status, setStatus] = useState<Status | null>(null);
+  const [selectedOwner, setSelectedOwner] = useState<Owner>('renato');
+  const [statuses, setStatuses] = useState<Record<Owner, OwnerStatus | null>>({
+    renato: null,
+    claudia: null,
+  });
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [revealedEndpoint, setRevealedEndpoint] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<{ owner: Owner; endpoint: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   const fetchStatus = () => {
     fetch('/api/settings/apple-card')
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setStatus(data))
+      .then((data) => {
+        if (!data?.integrations) return;
+        const next: Record<Owner, OwnerStatus | null> = { renato: null, claudia: null };
+        for (const s of data.integrations as OwnerStatus[]) {
+          if (s.owner === 'renato' || s.owner === 'claudia') next[s.owner] = s;
+        }
+        setStatuses(next);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -35,15 +50,21 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
     fetchStatus();
   }, []);
 
+  const status = statuses[selectedOwner];
+
   const handleGenerate = async () => {
     setGenerating(true);
     setError('');
     setCopied(false);
     try {
-      const res = await fetch('/api/settings/apple-card', { method: 'POST' });
+      const res = await fetch('/api/settings/apple-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: selectedOwner }),
+      });
       const data = await res.json();
       if (res.ok) {
-        setRevealedEndpoint(data.endpoint);
+        setRevealed({ owner: selectedOwner, endpoint: data.endpoint });
         fetchStatus();
       } else {
         setError(data.error || 'Failed to generate token');
@@ -54,19 +75,23 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
   };
 
   const handleRevoke = async () => {
-    if (!confirm('Revoke the Apple Card Sync token? Your Shortcut will stop working until you generate a new one.')) {
+    if (
+      !confirm(
+        `Revoke ${OWNERS[selectedOwner].label}'s Apple Card Sync token? Their Shortcut will stop working until a new one is generated.`
+      )
+    ) {
       return;
     }
-    const res = await fetch('/api/settings/apple-card', { method: 'DELETE' });
+    const res = await fetch(`/api/settings/apple-card?owner=${selectedOwner}`, { method: 'DELETE' });
     if (res.ok) {
-      setRevealedEndpoint(null);
+      setRevealed((prev) => (prev?.owner === selectedOwner ? null : prev));
       fetchStatus();
     }
   };
 
   const handleCopy = () => {
-    if (!revealedEndpoint) return;
-    navigator.clipboard.writeText(revealedEndpoint);
+    if (!revealed) return;
+    navigator.clipboard.writeText(revealed.endpoint);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -74,24 +99,42 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
   return (
     <div className="border border-border rounded-xl overflow-hidden">
       <div className="px-5 py-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Apple Card Sync</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {loading
-                ? 'Loading…'
-                : status?.configured
-                ? formatLastUsed(status.lastUsedAt)
-                : 'Not set up yet'}
-            </p>
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <p className="text-sm font-semibold text-foreground">Apple Card Sync</p>
+          <div className="inline-flex p-0.5 rounded-lg bg-muted border border-border text-sm">
+            {(['renato', 'claudia'] as const).map((owner) => (
+              <button
+                key={owner}
+                type="button"
+                onClick={() => setSelectedOwner(owner)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  selectedOwner === owner
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span>{OWNERS[owner].emoji}</span>
+                {OWNERS[owner].label}
+              </button>
+            ))}
           </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            {loading
+              ? 'Loading…'
+              : status?.configured
+              ? formatLastUsed(status.lastUsedAt)
+              : `Not set up yet for ${OWNERS[selectedOwner].label}`}
+          </p>
           <div className="flex items-center gap-2">
             {status?.configured && (
               <button
                 onClick={handleRevoke}
                 disabled={isDemo}
                 className="p-2 rounded-lg border border-border text-muted-foreground hover:text-red-500 hover:bg-red-500/5 transition-colors disabled:opacity-50"
-                title="Revoke token"
+                title={`Revoke ${OWNERS[selectedOwner].label}'s token`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -106,7 +149,7 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
               ) : status?.configured ? (
                 <RefreshCw className="w-3.5 h-3.5" />
               ) : null}
-              {status?.configured ? 'Regenerate' : 'Generate token'}
+              {status?.configured ? 'Regenerate' : `Generate for ${OWNERS[selectedOwner].label}`}
             </button>
           </div>
         </div>
@@ -116,14 +159,15 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
         )}
         {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
 
-        {revealedEndpoint && (
+        {revealed && revealed.owner === selectedOwner && (
           <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
             <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-2">
-              Save this now — it won&apos;t be shown again. Paste it into your Shortcut&apos;s &ldquo;Get Contents of URL&rdquo; step.
+              Save this now — it won&apos;t be shown again. Paste it into {OWNERS[selectedOwner].label}&apos;s
+              Shortcut, &ldquo;Get Contents of URL&rdquo; step.
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-md bg-background border border-border text-xs font-mono text-foreground">
-                {revealedEndpoint}
+                {revealed.endpoint}
               </code>
               <button
                 onClick={handleCopy}
@@ -138,7 +182,8 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
 
         {status?.configured && status.accountName && (
           <p className="text-xs text-muted-foreground mt-2">
-            Synced charges post to your <span className="font-medium text-foreground">{status.accountName}</span> account.
+            Synced charges post to {OWNERS[selectedOwner].label}&apos;s{' '}
+            <span className="font-medium text-foreground">{status.accountName}</span> account.
           </p>
         )}
       </div>
@@ -154,13 +199,15 @@ export function AppleCardIntegration({ isDemo }: { isDemo: boolean }) {
         <div className="px-5 py-4 border-t border-border bg-muted/20 text-xs text-muted-foreground space-y-2 leading-relaxed">
           <p>
             Apple Card Sync automates expense tracking by connecting Apple Wallet to Kabuki through an
-            iPhone Shortcut. Set up a personal automation with a{' '}
+            iPhone Shortcut. Pick whose card you&apos;re setting up above — Renato and Claudia each have their
+            own token and their own Apple Card account, so charges never get attributed to the wrong
+            person. Set up a personal automation with a{' '}
             <span className="font-medium text-foreground">Transaction</span> trigger (Settings → Shortcuts →
-            Automation → Apple Card Transaction), and have it POST the charge to your personal endpoint below.
+            Automation → Apple Card Transaction), and have it POST the charge to that person&apos;s endpoint below.
           </p>
           <p>
-            Nothing about your Apple Card or bank credentials is ever stored — the Shortcut only ever sends a
-            merchant name and amount to the URL, authenticated by a secret token unique to your account. The
+            Nothing about the Apple Card or bank credentials is ever stored — the Shortcut only ever sends a
+            merchant name and amount to the URL, authenticated by a secret token unique to that person. The
             token can be revoked and regenerated any time from here.
           </p>
           <p>
