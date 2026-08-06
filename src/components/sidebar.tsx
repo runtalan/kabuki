@@ -8,7 +8,6 @@ import {
   Home,
   Landmark,
   BarChart2,
-  Receipt,
   TrendingUp,
   Shapes,
   Wand2,
@@ -17,6 +16,7 @@ import {
   LogOut,
   Menu,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 
@@ -25,13 +25,43 @@ const USER_AVATARS: Record<string, string> = {
   claudia: '👧',
 };
 
-const navSections = [
+interface NavChild {
+  href: string;
+  label: string;
+}
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  children?: NavChild[];
+}
+
+const navSections: { label: string; items: NavItem[] }[] = [
   {
     label: 'Track',
     items: [
-      { href: '/home', label: 'Home', icon: Home },
-      { href: '/spending', label: 'Spending', icon: BarChart2 },
-      { href: '/spending/transactions', label: 'Transactions', icon: Receipt },
+      {
+        href: '/home',
+        label: 'Home',
+        icon: Home,
+        // Overview is the root (the "Home" link itself) — these are its
+        // sub-pages, not a duplicate "Overview" entry.
+        children: [
+          { href: '/home/net-worth', label: 'Net worth' },
+          { href: '/home/cash-flow', label: 'Cash flow' },
+        ],
+      },
+      {
+        href: '/spending',
+        label: 'Spending',
+        icon: BarChart2,
+        children: [
+          { href: '/spending/budget', label: 'Budget' },
+          { href: '/spending/transactions', label: 'Transactions' },
+          { href: '/spending/recurring', label: 'Recurring' },
+        ],
+      },
       { href: '/accounts', label: 'Accounts', icon: Landmark },
     ],
   },
@@ -57,9 +87,17 @@ const navSections = [
   },
 ];
 
+function isChildActive(pathname: string, child: NavChild) {
+  return pathname === child.href || pathname.startsWith(child.href + '/');
+}
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [username, setUsername] = useState<string | null>(null);
+  // Expand/collapse state per item label. Undefined = "follow the active
+  // section automatically"; once the user manually toggles a section, that
+  // choice sticks (open or closed) regardless of which page is active.
+  const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -98,26 +136,76 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <ul className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + '/');
+                // "Active page" (root) vs "active section" (a child is
+                // open) are tracked separately so the parent row only gets
+                // the bold/primary treatment when it's genuinely the page
+                // you're on — not just because you're two levels deep in
+                // one of its children.
+                const isRootActive = pathname === item.href;
+                const hasChildren = !!item.children?.length;
+                const childActive =
+                  hasChildren && item.children!.some((c) => isChildActive(pathname, c));
+                const sectionActive = isRootActive || childActive;
+                const isOpen = hasChildren
+                  ? manualOpen[item.label] ?? sectionActive
+                  : false;
+
                 return (
                   <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
-                        isActive
-                          ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
-                          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
-                      }`}
-                    >
-                      <Icon
-                        className={`w-[18px] h-[18px] flex-shrink-0 ${
-                          isActive ? 'text-primary' : 'text-muted-foreground'
+                    <div className="flex items-center gap-0.5">
+                      <Link
+                        href={item.href}
+                        onClick={onNavigate}
+                        className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all min-w-0 ${
+                          isRootActive
+                            ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
+                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
                         }`}
-                      />
-                      <span>{item.label}</span>
-                    </Link>
+                      >
+                        <Icon
+                          className={`w-[18px] h-[18px] flex-shrink-0 ${
+                            isRootActive ? 'text-primary' : 'text-muted-foreground'
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                      {hasChildren && (
+                        <button
+                          type="button"
+                          onClick={() => setManualOpen((prev) => ({ ...prev, [item.label]: !isOpen }))}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors flex-shrink-0"
+                          aria-label={isOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                          aria-expanded={isOpen}
+                        >
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 transition-transform ${isOpen ? '' : '-rotate-90'}`}
+                          />
+                        </button>
+                      )}
+                    </div>
+
+                    {hasChildren && isOpen && (
+                      <ul className="mt-0.5 mb-1 ml-[27px] pl-3 border-l border-sidebar-border space-y-0.5">
+                        {item.children!.map((child) => {
+                          const active = isChildActive(pathname, child);
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                onClick={onNavigate}
+                                className={`block px-3 py-1.5 rounded-lg text-sm transition-all truncate ${
+                                  active
+                                    ? 'bg-gradient-to-r from-primary/12 to-primary/5 text-primary font-semibold'
+                                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
+                                }`}
+                              >
+                                {child.label}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}

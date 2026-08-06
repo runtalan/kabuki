@@ -12,7 +12,6 @@ import {
   X,
   Sparkles,
   Clock3,
-  SlidersHorizontal,
   Eye,
   EyeOff,
   Calendar,
@@ -23,9 +22,11 @@ import { OwnerToggle } from '@/components/owner-toggle';
 import type { OwnerFilter } from '@/lib/owner-filter';
 import { CategoryIcon } from '@/components/category-icon';
 import { MerchantAvatar } from '@/components/merchant-avatar';
-import { OwnerBadge, getOwner, OWNERS } from '@/components/owner-badge';
+import { getOwner } from '@/components/owner-badge';
 import { AccountBadge } from '@/components/account-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
+import { CategoryFilterMenu } from '@/components/spending/category-filter-menu';
+import { TagFilterMenu } from '@/components/spending/tag-filter-menu';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { parseLocalDate, endOfLocalDay } from '@/lib/date';
@@ -67,6 +68,13 @@ interface Transaction {
     mask?: string | null;
     isManual?: boolean | null;
   } | null;
+}
+
+function toDateInputValue(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function dayLabel(dateStr: string) {
@@ -134,7 +142,6 @@ function TransactionsPageContent() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(!!(initialStart || initialCategory !== 'all'));
 
   // Date range state — draftDateStart/End are the modal's in-progress inputs;
   // customDateStart/End are the applied range that actually filters the
@@ -497,58 +504,116 @@ function TransactionsPageContent() {
         )}
 
         {/* Toolbar */}
-        <div className="bg-card border border-border rounded-xl mb-4 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Transactions
-            </p>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="w-52 pl-9 pr-8 py-2 rounded-lg border border-border bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-                {searching ? (
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                ) : (
-                  searchInput && (
-                    <button
-                      onClick={() => setSearchInput('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )
-                )}
+        <div className="bg-card border border-border rounded-xl mb-4">
+          {/* Rounded-corner clipping is scoped to just this top row and the
+              stats row at the bottom, instead of the whole card — the filter
+              bar in between holds the category/tag dropdown popovers, which
+              need to be able to render outside the card's bounds. */}
+          <div className="rounded-t-xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-5 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Transactions
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="w-52 pl-9 pr-8 py-2 rounded-lg border border-border bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  {searching ? (
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  ) : (
+                    searchInput && (
+                      <button
+                        onClick={() => setSearchInput('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )
+                  )}
+                </div>
+                <button
+                  onClick={handleSmartTag}
+                  disabled={smartTagging}
+                  className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  title="Smart Tag — auto-tag untagged transactions using merchant patterns"
+                >
+                  <Sparkles className={`w-4 h-4 ${smartTagging ? 'animate-pulse text-primary' : ''}`} />
+                </button>
               </div>
-              <button
-                onClick={() => setFiltersOpen((v) => !v)}
-                className={`p-2 rounded-lg border transition-colors ${
-                  filtersOpen
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
-                title="Filters"
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleSmartTag}
-                disabled={smartTagging}
-                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                title="Smart Tag — auto-tag untagged transactions using merchant patterns"
-              >
-                <Sparkles className={`w-4 h-4 ${smartTagging ? 'animate-pulse text-primary' : ''}`} />
-              </button>
             </div>
           </div>
 
+          {/* Filter bar — category/tag pickers (with inline "create new"),
+              a quick time-range toggle, and a clear-all link. Owner and
+              type filtering live elsewhere now: the Renato/Claudia/All
+              toggle above, and the clickable Total expenses/income stats
+              below — this row used to duplicate both as plain <select>s. */}
+          <div className="flex items-center gap-2 flex-wrap px-5 py-3 border-t border-border bg-muted/20">
+            <CategoryFilterMenu
+              categories={categories}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              onCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
+            <TagFilterMenu
+              tags={allTags}
+              value={selectedTag}
+              onChange={setSelectedTag}
+              onCreated={(tag) => setAllTags((prev) => [...prev, tag])}
+            />
+            <div className="inline-flex p-0.5 rounded-lg bg-muted border border-border text-sm">
+              {(
+                [
+                  { value: 'week' as const, label: 'Week' },
+                  { value: 'month' as const, label: 'Month' },
+                  { value: 'all' as const, label: 'All time' },
+                ]
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setTimeRange(opt.value);
+                    setCustomDateStart('');
+                    setCustomDateEnd('');
+                  }}
+                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    timeRange === opt.value && !(customDateStart && customDateEnd)
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {filtersActive && (
+              <button
+                onClick={() => {
+                  setSearchInput('');
+                  setSelectedCategory('all');
+                  setSelectedOwner('all');
+                  setSelectedType('all');
+                  setSelectedTag('all');
+                  setTimeRange('all');
+                  setCustomDateStart('');
+                  setCustomDateEnd('');
+                }}
+                className="text-xs font-medium text-primary hover:underline whitespace-nowrap ml-auto"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+
           {/* Summary stats bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 border-t border-border divide-x divide-border">
+          <div className="rounded-b-xl overflow-hidden grid grid-cols-2 md:grid-cols-4 border-t border-border divide-x divide-border">
             <div className="px-5 py-3">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
                 Total transactions
@@ -563,8 +628,18 @@ function TransactionsPageContent() {
                 <p className="text-sm font-semibold text-foreground truncate">{stats.dateRangeLabel}</p>
                 <button
                   onClick={() => {
-                    setDraftDateStart(customDateStart);
-                    setDraftDateEnd(customDateEnd);
+                    // Default the picker to the last 7 days when no range is
+                    // applied yet, instead of opening on blank inputs.
+                    if (customDateStart && customDateEnd) {
+                      setDraftDateStart(customDateStart);
+                      setDraftDateEnd(customDateEnd);
+                    } else {
+                      const today = new Date();
+                      const weekAgo = new Date(today);
+                      weekAgo.setDate(weekAgo.getDate() - 7);
+                      setDraftDateStart(toDateInputValue(weekAgo));
+                      setDraftDateEnd(toDateInputValue(today));
+                    }
                     setShowDatePicker(true);
                   }}
                   title="Pick a custom date range"
@@ -586,102 +661,34 @@ function TransactionsPageContent() {
                 )}
               </div>
             </div>
-            <div className="px-5 py-3">
+            <button
+              type="button"
+              onClick={() => setSelectedType((t) => (t === 'debit' ? 'all' : 'debit'))}
+              title="Filter to expenses"
+              className={`px-5 py-3 text-left transition-colors hover:bg-muted/40 ${
+                selectedType === 'debit' ? 'bg-primary/5' : ''
+              }`}
+            >
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
                 Total expenses
               </p>
               <p className="text-sm font-semibold text-foreground">-{formatCurrency(stats.expenses)}</p>
-            </div>
-            <div className="px-5 py-3">
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedType((t) => (t === 'credit' ? 'all' : 'credit'))}
+              title="Filter to income"
+              className={`px-5 py-3 text-left transition-colors hover:bg-muted/40 ${
+                selectedType === 'credit' ? 'bg-primary/5' : ''
+              }`}
+            >
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
                 Total income
               </p>
               <p className="text-sm font-semibold text-emerald-500">+{formatCurrency(stats.income)}</p>
-            </div>
+            </button>
           </div>
 
-          {/* Collapsible filter panel */}
-          {filtersOpen && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 px-5 py-4 border-t border-border bg-muted/20">
-              <div className="relative">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                >
-                  <option value="all">All Categories</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={selectedOwner}
-                  onChange={(e) => setSelectedOwner(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                >
-                  <option value="all">Everyone</option>
-                  <option value="renato">{OWNERS.renato.emoji} Renato</option>
-                  <option value="claudia">{OWNERS.claudia.emoji} Claudia</option>
-                  <option value="joint">{OWNERS.joint.emoji} Joint</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                >
-                  <option value="all">All Types</option>
-                  <option value="debit">Expenses</option>
-                  <option value="credit">Income</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={timeRange}
-                  onChange={(e) => {
-                    // Choosing a preset supersedes any custom range that was
-                    // applied via the calendar icon on the Date range stat.
-                    setTimeRange(e.target.value as 'week' | 'month' | 'all');
-                    setCustomDateStart('');
-                    setCustomDateEnd('');
-                  }}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                >
-                  <option value="all">All Time</option>
-                  <option value="month">This Month</option>
-                  <option value="week">This Week</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={selectedTag}
-                  onChange={(e) => setSelectedTag(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none cursor-pointer"
-                >
-                  <option value="all">All Tags</option>
-                  {allTags.map((tag) => (
-                    <option key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Tag total, when a tag filter is active */}

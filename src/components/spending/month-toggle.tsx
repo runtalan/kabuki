@@ -1,15 +1,14 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { toMonthParam } from '@/lib/date';
 
-function toParam(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-// Prev/next month navigator for the Spending Overview page — drives the
-// ?month=YYYY-MM search param so the whole page (server-rendered) re-fetches
-// for the selected month.
+// Prev/next month navigator — drives the ?month=YYYY-MM search param so the
+// whole page (server-rendered) re-fetches for the selected month. Reads its
+// own pathname/search params so it works unmodified on any page (Spending,
+// Cash Flow, ...) and preserves whatever other filters (e.g. ?owner=) are
+// already in the URL instead of dropping them on navigation.
 export function MonthToggle({
   refDate,
   isCurrentMonth,
@@ -18,12 +17,16 @@ export function MonthToggle({
   isCurrentMonth: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const date = new Date(refDate);
   const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   const go = (delta: number) => {
     const next = new Date(date.getFullYear(), date.getMonth() + delta, 1);
-    router.push(`/spending?month=${toParam(next)}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', toMonthParam(next));
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   return (

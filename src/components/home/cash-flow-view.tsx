@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { MerchantAvatar } from '@/components/merchant-avatar';
 import { CategoryIcon } from '@/components/category-icon';
@@ -9,16 +9,19 @@ import { getOwner } from '@/components/owner-badge';
 import { TransactionEditModal } from '@/components/transaction-edit-modal';
 import { CashFlowChart } from '@/components/charts/cash-flow-chart';
 import { formatCurrency } from '@/lib/format';
+import { toMonthParam } from '@/lib/date';
 
 interface MonthPoint {
   month: string;
   year: number;
   label: string;
+  monthKey: string;
   income: number;
   expenses: number;
   savings: number;
   savingsRate: number;
   isCurrentMonth?: boolean;
+  hasData: boolean;
 }
 
 interface Category {
@@ -103,18 +106,33 @@ export function CashFlowView({
   transactions,
   categories,
   series,
+  refDate,
 }: {
   transactions: Transaction[];
   categories: Category[];
   series: MonthPoint[];
+  refDate: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
+  const viewedDate = useMemo(() => new Date(refDate), [refDate]);
   const monthLabel = useMemo(
-    () => new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    []
+    () => viewedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    [viewedDate]
   );
+  const selectedMonthKey = useMemo(() => toMonthParam(viewedDate), [viewedDate]);
+
+  // Clicking a bar/point on the chart jumps the tables below to that month —
+  // same ?month= param the header's prev/next arrows use, so it composes
+  // with whatever else is in the URL (e.g. ?owner=).
+  const handleSelectMonth = (monthKey: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', monthKey);
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   const income = useMemo(
     () =>
@@ -142,7 +160,7 @@ export function CashFlowView({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-4">
           Cash Flow History
         </p>
-        <CashFlowChart series={series} />
+        <CashFlowChart series={series} selectedMonthKey={selectedMonthKey} onSelectMonth={handleSelectMonth} />
       </div>
 
       {/* Summary bar */}

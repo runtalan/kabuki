@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Receipt, Loader, List, Table2, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { AppLayout } from '@/components/app-layout';
 import { LUCIDE_ICONS } from '@/lib/icons';
 import { CategoryIcon } from '@/components/category-icon';
 import { useIsDemo } from '@/hooks/use-is-demo';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
+import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR, isValidHexColor } from '@/lib/category-colors';
 
 interface Category {
   id: string;
@@ -27,13 +28,7 @@ interface Transaction {
   categoryId?: string | null;
 }
 
-const COLOR_OPTIONS = [
-  '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#10b981',
-  '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#d946ef', '#ec4899', '#f43f5e', '#64748b', '#6b7280',
-];
-
-const EMPTY_FORM = { name: '', color: '#3b82f6', icon: 'folder' };
+const EMPTY_FORM = { name: '', color: DEFAULT_CATEGORY_COLOR, icon: 'folder' };
 
 export default function CategoriesPage() {
   const isDemo = useIsDemo();
@@ -48,6 +43,7 @@ export default function CategoriesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [hexInput, setHexInput] = useState(EMPTY_FORM.color);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -115,6 +111,7 @@ export default function CategoriesPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setHexInput(EMPTY_FORM.color);
     setFormError('');
     setFormOpen(true);
   };
@@ -123,6 +120,7 @@ export default function CategoriesPage() {
     e.stopPropagation();
     setEditingId(cat.id);
     setForm({ name: cat.name, color: cat.color, icon: cat.icon });
+    setHexInput(cat.color);
     setFormError('');
     setFormOpen(true);
   };
@@ -495,20 +493,63 @@ export default function CategoriesPage() {
 
               <div>
                 <p className="text-sm font-medium text-foreground mb-2">Color</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {COLOR_OPTIONS.map((color) => (
+                <div className="grid grid-cols-8 gap-2">
+                  {CATEGORY_COLORS.map((color) => (
                     <button
                       key={color}
                       type="button"
-                      onClick={() => setForm({ ...form, color })}
-                      className={`w-8 h-8 rounded-lg border-2 transition-transform ${
-                        form.color === color
-                          ? 'border-foreground scale-110'
-                          : 'border-transparent hover:scale-105'
+                      onClick={() => {
+                        setForm({ ...form, color });
+                        setHexInput(color);
+                      }}
+                      title={color}
+                      className={`relative w-8 h-8 rounded-lg transition-transform hover:scale-105 ${
+                        form.color.toLowerCase() === color ? 'scale-110 ring-2 ring-offset-2 ring-offset-card ring-foreground' : ''
                       }`}
                       style={{ backgroundColor: color }}
-                    />
+                    >
+                      {form.color.toLowerCase() === color && (
+                        <Check className="w-4 h-4 text-white absolute inset-0 m-auto drop-shadow" />
+                      )}
+                    </button>
                   ))}
+                </div>
+
+                {/* Custom color — native picker + hex input, for anything the
+                    curated swatches above don't cover (and to show a legacy
+                    color that predates this palette). */}
+                <div className="flex items-center gap-2 mt-3">
+                  <label
+                    className="relative w-8 h-8 rounded-lg border border-border flex-shrink-0 overflow-hidden cursor-pointer"
+                    style={{ backgroundColor: isValidHexColor(hexInput) ? hexInput : form.color }}
+                    title="Pick a custom color"
+                  >
+                    <input
+                      type="color"
+                      value={isValidHexColor(hexInput) ? hexInput : form.color}
+                      onChange={(e) => {
+                        setForm({ ...form, color: e.target.value });
+                        setHexInput(e.target.value);
+                      }}
+                      className="absolute -top-2 -left-2 w-14 h-14 cursor-pointer"
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    value={hexInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setHexInput(value);
+                      if (isValidHexColor(value)) {
+                        setForm({ ...form, color: value });
+                      }
+                    }}
+                    placeholder="#rrggbb"
+                    spellCheck={false}
+                    className={`flex-1 px-3 py-1.5 rounded-lg border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                      isValidHexColor(hexInput) ? 'border-border' : 'border-red-400'
+                    }`}
+                  />
                 </div>
               </div>
 

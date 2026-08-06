@@ -1,39 +1,32 @@
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, SPENDING_TABS } from '@/components/page-tabs';
 import { BudgetView } from '@/components/spending/budget-view';
-import { OwnerToggle } from '@/components/owner-toggle';
 import { getUser } from '@/lib/auth';
 import { getSpendingByCategory } from '@/lib/queries';
 import { getCategoryBudgetSuggestions, getMonthlyBudgetHistory } from '@/lib/spending-insights';
-import { parseOwnerFilter } from '@/lib/owner-filter';
 import { db } from '@/db';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BudgetPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ owner?: string }>;
-}) {
+// Budgets are a household-wide target, not per-person — no owner toggle here
+// (unlike the other Spending pages), matching the Renato/Claudia/All filter
+// being about "who spent this," which doesn't apply to a shared budget.
+export default async function BudgetPage() {
   const user = await getUser();
-  const ownerFilter = parseOwnerFilter((await searchParams).owner);
 
   const [allCategories, spendingByCategory, suggestions, monthlyHistory] = user
     ? await Promise.all([
         db.query.categories.findMany({ orderBy: (cat, { asc }) => asc(cat.name) }),
-        getSpendingByCategory(user.id, undefined, ownerFilter),
-        getCategoryBudgetSuggestions(user.id, ownerFilter),
-        getMonthlyBudgetHistory(user.id, 12, ownerFilter),
+        getSpendingByCategory(user.id),
+        getCategoryBudgetSuggestions(user.id),
+        getMonthlyBudgetHistory(user.id),
       ])
     : [[], [], {}, []];
 
   return (
     <AppLayout>
       <div className="p-4 md:p-8">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <h1 className="text-3xl font-bold text-foreground">Spending</h1>
-          <OwnerToggle value={ownerFilter} />
-        </div>
+        <h1 className="text-3xl font-bold text-foreground mb-4">Spending</h1>
         <PageTabs tabs={SPENDING_TABS} />
         <BudgetView
           categories={allCategories.map((cat) => ({

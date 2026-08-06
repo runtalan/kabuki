@@ -16,21 +16,24 @@ import {
   DEMO_STARTING_BALANCES,
 } from '@/lib/demo';
 
+// Colors are all drawn from CATEGORY_COLORS (src/lib/category-colors.ts) so
+// every default category shows up as a selected swatch — not just a hex
+// value the picker doesn't otherwise offer — when a user opens edit on it.
 const defaultCategories = [
-  { name: 'Income', color: '#10b981', icon: 'TrendingUp' },
-  { name: 'Groceries', color: '#3b82f6', icon: 'ShoppingCart' },
-  { name: 'Dining', color: '#ef4444', icon: 'UtensilsCrossed' },
-  { name: 'Transport', color: '#8b5cf6', icon: 'Car' },
-  { name: 'Shopping', color: '#f59e0b', icon: 'ShoppingBag' },
-  { name: 'Utilities', color: '#06b6d4', icon: 'Zap' },
-  { name: 'Entertainment', color: '#ec4899', icon: 'Popcorn' },
-  { name: 'Healthcare', color: '#f87171', icon: 'Heart' },
-  { name: 'Education', color: '#6366f1', icon: 'BookOpen' },
-  { name: 'Transfer', color: '#6b7280', icon: 'ArrowLeftRight' },
-  { name: 'Bills', color: '#a78bfa', icon: 'FileText' },
-  { name: 'Fitness', color: '#34d399', icon: 'Activity' },
-  { name: 'Travel', color: '#fbbf24', icon: 'Plane' },
-  { name: 'Subscription', color: '#818cf8', icon: 'Clock' },
+  { name: 'Income', color: '#16a34a', icon: 'TrendingUp' },
+  { name: 'Groceries', color: '#2563eb', icon: 'ShoppingCart' },
+  { name: 'Dining', color: '#ea580c', icon: 'UtensilsCrossed' },
+  { name: 'Transport', color: '#7c3aed', icon: 'Car' },
+  { name: 'Shopping', color: '#ca8a04', icon: 'ShoppingBag' },
+  { name: 'Utilities', color: '#0891b2', icon: 'Zap' },
+  { name: 'Entertainment', color: '#c026d3', icon: 'Popcorn' },
+  { name: 'Healthcare', color: '#e11d48', icon: 'Heart' },
+  { name: 'Education', color: '#4f46e5', icon: 'BookOpen' },
+  { name: 'Transfer', color: '#475569', icon: 'ArrowLeftRight' },
+  { name: 'Bills', color: '#92400e', icon: 'FileText' },
+  { name: 'Fitness', color: '#059669', icon: 'Activity' },
+  { name: 'Travel', color: '#0d9488', icon: 'Plane' },
+  { name: 'Subscription', color: '#9333ea', icon: 'Clock' },
 ];
 
 async function seed() {

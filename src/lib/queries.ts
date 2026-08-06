@@ -249,19 +249,20 @@ export async function getCashFlowSeries(
     matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter)
   );
 
-  const monthData: Record<string, { income: number; expenses: number }> = {};
+  const monthData: Record<string, { income: number; expenses: number; hasData: boolean }> = {};
   const order: { key: string; year: number; monthIndex: number }[] = [];
 
   for (let i = months - 1; i >= 0; i--) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${date.getFullYear()}-${date.getMonth()}`;
-    monthData[key] = { income: 0, expenses: 0 };
+    monthData[key] = { income: 0, expenses: 0, hasData: false };
     order.push({ key, year: date.getFullYear(), monthIndex: date.getMonth() });
   }
 
   for (const tx of allTransactions) {
     const key = `${tx.date.getFullYear()}-${tx.date.getMonth()}`;
     if (!monthData[key]) continue;
+    monthData[key].hasData = true;
     if (Number(tx.amount) >= 0) {
       monthData[key].income += Number(tx.amount);
     } else {
@@ -270,26 +271,32 @@ export async function getCashFlowSeries(
   }
 
   return order.map(({ key, year, monthIndex }, idx) => {
-    const { income, expenses } = monthData[key];
+    const { income, expenses, hasData } = monthData[key];
     const savings = income - expenses;
     return {
       month: MONTH_NAMES[monthIndex],
       year,
       label: `${MONTH_NAMES[monthIndex]} ${year}`,
+      // "?month=" URL param format shared with the Spending page's month
+      // toggle, so clicking a bar/point can link straight to that month.
+      monthKey: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
       income: Math.round(income),
       expenses: Math.round(expenses),
       savings: Math.round(savings),
       savingsRate: income > 0 ? (savings / income) * 100 : 0,
       isCurrentMonth: idx === order.length - 1,
+      hasData,
     };
   });
 }
 
-// Get every income/expense transaction in the current calendar month, with
-// enough relations loaded to drive the edit modal — powers the Home →
-// Income/Expense page that the "Cash Flow This Month" card links to.
-export async function getCurrentMonthTransactions(
+// Get every income/expense transaction in a given calendar month (defaults
+// to the current one), with enough relations loaded to drive the edit
+// modal — powers the Home → Cash Flow page's income/expense tables, which
+// can browse to any past month via the chart or the prev/next arrows.
+export async function getMonthTransactions(
   userId: string,
+  refDate: Date = new Date(),
   ownerFilter: OwnerFilter = 'all'
 ) {
   const userItems = await db.query.plaidItems.findMany({
@@ -306,12 +313,13 @@ export async function getCurrentMonthTransactions(
   const accountIds = userAccounts.map((acc) => acc.id);
   if (accountIds.length === 0) return [];
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+  const monthEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1);
 
   const rows = await db.query.transactions.findMany({
     where: and(
       gte(transactions.date, monthStart),
+      lt(transactions.date, monthEnd),
       inArray(transactions.accountId, accountIds),
       NOT_HIDDEN,
       NOT_TRANSFER

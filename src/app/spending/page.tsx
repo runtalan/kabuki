@@ -7,24 +7,10 @@ import { getUser } from '@/lib/auth';
 import { getSpendingByCategory } from '@/lib/queries';
 import { getSpendingOverview, getTopMerchants } from '@/lib/spending-insights';
 import { parseOwnerFilter } from '@/lib/owner-filter';
+import { parseMonthParam } from '@/lib/date';
 import { db } from '@/db';
 
 export const dynamic = 'force-dynamic';
-
-// Parses a "YYYY-MM" search param into the first-of-month Date it refers to,
-// falling back to the real current month for anything missing or malformed.
-function parseMonthParam(value: string | undefined): Date {
-  if (value) {
-    const match = /^(\d{4})-(\d{2})$/.exec(value);
-    if (match) {
-      const year = Number(match[1]);
-      const month = Number(match[2]) - 1;
-      if (month >= 0 && month <= 11) return new Date(year, month, 1);
-    }
-  }
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
-}
 
 export default async function SpendingPage({
   searchParams,

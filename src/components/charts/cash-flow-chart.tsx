@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   Bar,
+  Cell,
   ComposedChart,
   Line,
   ResponsiveContainer,
@@ -17,11 +18,13 @@ interface MonthPoint {
   month: string;
   year: number;
   label: string;
+  monthKey: string;
   income: number;
   expenses: number;
   savings: number;
   savingsRate: number;
   isCurrentMonth?: boolean;
+  hasData: boolean;
 }
 
 const RANGES = [
@@ -29,6 +32,8 @@ const RANGES = [
   { label: '1Y', months: 12 },
   { label: '2Y', months: 24 },
 ] as const;
+
+const NO_DATA_COLOR = '#9ca3af';
 
 function CashFlowTooltip({
   active,
@@ -39,6 +44,15 @@ function CashFlowTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const point = payload[0].payload;
+
+  if (!point.hasData) {
+    return (
+      <div className="min-w-[190px] rounded-xl bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 shadow-2xl px-4 py-3">
+        <p className="text-xs font-semibold text-zinc-100 mb-1">{point.label}</p>
+        <p className="text-xs text-zinc-400">No transactions this month</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-[190px] rounded-xl bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 shadow-2xl px-4 py-3">
@@ -85,9 +99,15 @@ function CashFlowTooltip({
   );
 }
 
-function CurrentMonthDot(props: { cx?: number; cy?: number; payload?: MonthPoint }) {
+function MonthDot(props: { cx?: number; cy?: number; payload?: MonthPoint }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined) return null;
+  // No data that month → hollow grey dot, never the solid "things happened
+  // here" marker. A month with zero net (real breakeven) still gets the
+  // normal dot; this is specifically the "we don't actually know" case.
+  if (!payload?.hasData) {
+    return <circle cx={cx} cy={cy} r={3} fill="var(--card)" stroke={NO_DATA_COLOR} strokeWidth={1.5} />;
+  }
   if (!payload?.isCurrentMonth) return <circle cx={cx} cy={cy} r={3} fill="var(--foreground)" />;
   return (
     <circle
@@ -104,10 +124,13 @@ function CurrentMonthDot(props: { cx?: number; cy?: number; payload?: MonthPoint
 // Net cash flow amount rendered directly above each point on the line, e.g.
 // "+$1,000" or "-$88" — so the sign/size reads at a glance without hovering.
 // Drawn on a small pill background since the dot often sits inside the
-// income/expense bars, where plain text would be unreadable.
-function NetLabel(props: { x?: number; y?: number; value?: number }) {
-  const { x, y, value } = props;
+// income/expense bars, where plain text would be unreadable. Skipped
+// entirely for no-data months — a "+$0" pill there would read as "broke
+// even" instead of "we don't know," which is the opposite of true.
+function NetLabel(props: { x?: number; y?: number; value?: number; payload?: MonthPoint }) {
+  const { x, y, value, payload } = props;
   if (x === undefined || y === undefined || value === undefined) return null;
+  if (payload && !payload.hasData) return null;
   const positive = value >= 0;
   const text = `${positive ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
   const width = text.length * 6 + 10;
@@ -138,7 +161,15 @@ function NetLabel(props: { x?: number; y?: number; value?: number }) {
   );
 }
 
-export function CashFlowChart({ series }: { series: MonthPoint[] }) {
+export function CashFlowChart({
+  series,
+  selectedMonthKey,
+  onSelectMonth,
+}: {
+  series: MonthPoint[];
+  selectedMonthKey?: string;
+  onSelectMonth?: (monthKey: string) => void;
+}) {
   const [range, setRange] = useState<(typeof RANGES)[number]['label']>('1Y');
 
   const filtered = useMemo(() => {
@@ -158,6 +189,10 @@ export function CashFlowChart({ series }: { series: MonthPoint[] }) {
       </div>
     );
   }
+
+  const handleBarClick = (data: { payload?: MonthPoint }) => {
+    if (data.payload) onSelectMonth?.(data.payload.monthKey);
+  };
 
   return (
     <div>
@@ -195,22 +230,51 @@ export function CashFlowChart({ series }: { series: MonthPoint[] }) {
               tick={{ fontSize: 12 }}
             />
             <Tooltip cursor={{ fill: 'var(--muted)', opacity: 0.3 }} content={<CashFlowTooltip />} />
-            <Bar dataKey="income" name="Income" stackId="cf" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={28} />
+            <Bar
+              dataKey="income"
+              name="Income"
+              stackId="cf"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={28}
+              onClick={handleBarClick}
+              className={onSelectMonth ? 'cursor-pointer' : undefined}
+            >
+              {chartData.map((d) => (
+                <Cell
+                  key={d.monthKey}
+                  fill={d.hasData ? '#10b981' : NO_DATA_COLOR}
+                  fillOpacity={d.monthKey === selectedMonthKey ? 1 : d.hasData ? 0.85 : 0.5}
+                  stroke={d.monthKey === selectedMonthKey ? 'var(--foreground)' : undefined}
+                  strokeWidth={d.monthKey === selectedMonthKey ? 1.5 : 0}
+                />
+              ))}
+            </Bar>
             <Bar
               dataKey="expensesNeg"
               name="Expenses"
               stackId="cf"
-              fill="#ef4444"
               radius={[0, 0, 3, 3]}
               maxBarSize={28}
-            />
+              onClick={handleBarClick}
+              className={onSelectMonth ? 'cursor-pointer' : undefined}
+            >
+              {chartData.map((d) => (
+                <Cell
+                  key={d.monthKey}
+                  fill={d.hasData ? '#ef4444' : NO_DATA_COLOR}
+                  fillOpacity={d.monthKey === selectedMonthKey ? 1 : d.hasData ? 0.85 : 0.5}
+                  stroke={d.monthKey === selectedMonthKey ? 'var(--foreground)' : undefined}
+                  strokeWidth={d.monthKey === selectedMonthKey ? 1.5 : 0}
+                />
+              ))}
+            </Bar>
             <Line
               type="monotone"
               dataKey="savings"
               name="Savings"
               stroke="var(--foreground)"
               strokeWidth={2}
-              dot={<CurrentMonthDot />}
+              dot={<MonthDot />}
               activeDot={{ r: 5 }}
               label={<NetLabel />}
               isAnimationActive={false}
@@ -229,6 +293,12 @@ export function CashFlowChart({ series }: { series: MonthPoint[] }) {
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="w-2.5 h-2.5 rounded-full bg-foreground" /> Net
         </span>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: NO_DATA_COLOR }} /> No data
+        </span>
+        {onSelectMonth && (
+          <span className="text-xs text-muted-foreground/70 ml-auto">Click a month to view it below</span>
+        )}
       </div>
     </div>
   );
