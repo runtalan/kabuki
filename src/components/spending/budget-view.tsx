@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil, Check, X, Sparkles } from 'lucide-react';
 import { CategoryIcon } from '@/components/category-icon';
+import { CategoryTransactionsModal } from '@/components/spending/category-transactions-modal';
 
 interface BudgetCategory {
   id: string;
@@ -28,6 +29,36 @@ interface MonthlyHistoryPoint {
   hasData: boolean;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface BudgetTransaction {
+  id: string;
+  name: string;
+  merchant?: string | null;
+  merchantLogoUrl?: string | null;
+  amount: string;
+  type: 'debit' | 'credit';
+  date: string;
+  pending?: boolean;
+  hidden?: boolean;
+  categoryId?: string | null;
+  category?: { id: string; name: string; color: string; icon: string } | null;
+  ownerOverride?: string | null;
+  tags?: Tag[];
+  account?: {
+    id: string;
+    name: string;
+    displayName?: string | null;
+    owner?: string | null;
+    mask?: string | null;
+    isManual?: boolean | null;
+  } | null;
+}
+
 function money(value: number, decimals = 0) {
   return `$${Math.abs(value).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -47,17 +78,26 @@ export function BudgetView({
   spendingByCategory,
   suggestions,
   monthlyHistory,
+  transactions,
+  monthLabel,
+  isCurrentMonth,
+  monthParam,
 }: {
   categories: BudgetCategory[];
   spendingByCategory: SpendingData[];
   suggestions: Record<string, number>;
   monthlyHistory: MonthlyHistoryPoint[];
+  transactions: BudgetTransaction[];
+  monthLabel: string;
+  isCurrentMonth: boolean;
+  monthParam: string;
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [applyingAll, setApplyingAll] = useState(false);
+  const [openCategory, setOpenCategory] = useState<BudgetCategory | null>(null);
 
   const spentByName = new Map(spendingByCategory.map((s) => [s.name, s.value]));
 
@@ -184,7 +224,7 @@ export function BudgetView({
       {/* Budget Health Summary */}
       <div className="bg-card border border-border rounded-2xl p-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-4">
-          Budget This Month
+          {isCurrentMonth ? 'Budget This Month' : `Budget for ${monthLabel}`}
         </p>
         {budgeted.length > 0 ? (
           <>
@@ -226,7 +266,12 @@ export function BudgetView({
             const budget = cat.monthlyBudget || 0;
             const pct = budget > 0 ? (spent / budget) * 100 : 0;
             return (
-              <div key={cat.id} className="bg-card border border-border rounded-2xl p-5">
+              <div
+                key={cat.id}
+                onClick={() => editingId !== cat.id && setOpenCategory(cat)}
+                className="bg-card border border-border rounded-2xl p-5 cursor-pointer hover:border-primary/40 transition-colors"
+                title={`View ${cat.name} transactions for ${monthLabel}`}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
@@ -241,7 +286,10 @@ export function BudgetView({
                     renderBudgetEditor(cat)
                   ) : (
                     <button
-                      onClick={() => startEdit(cat)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEdit(cat);
+                      }}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       title="Edit budget"
                     >
@@ -417,7 +465,9 @@ export function BudgetView({
               return (
                 <div
                   key={cat.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/40 transition-colors"
+                  onClick={() => editingId !== cat.id && setOpenCategory(cat)}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer"
+                  title={`View ${cat.name} transactions for ${monthLabel}`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CategoryIcon icon={cat.icon} color={cat.color} className="w-4 h-4" />
@@ -436,7 +486,10 @@ export function BudgetView({
                         Suggested {money(suggested)}
                       </span>
                       <button
-                        onClick={() => useSuggestion(cat)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          useSuggestion(cat);
+                        }}
                         disabled={saving}
                         className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
                         title="Based on your average spend in this category over the last 3 months"
@@ -445,7 +498,10 @@ export function BudgetView({
                         Use
                       </button>
                       <button
-                        onClick={() => startEdit(cat)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(cat);
+                        }}
                         className="text-xs text-muted-foreground hover:text-foreground hover:underline"
                       >
                         Edit
@@ -453,7 +509,10 @@ export function BudgetView({
                     </div>
                   ) : (
                     <button
-                      onClick={() => startEdit(cat)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEdit(cat);
+                      }}
                       className="text-xs font-medium text-primary hover:underline flex-shrink-0"
                     >
                       Set budget
@@ -464,6 +523,21 @@ export function BudgetView({
             })}
           </div>
         </div>
+      )}
+
+      {openCategory && (
+        <CategoryTransactionsModal
+          category={openCategory}
+          monthLabel={monthLabel}
+          monthParam={monthParam}
+          transactions={transactions.filter((tx) => tx.categoryId === openCategory.id)}
+          categories={categories}
+          onClose={() => setOpenCategory(null)}
+          onSaved={() => {
+            setOpenCategory(null);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
