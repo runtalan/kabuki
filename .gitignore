@@ -48,3 +48,6 @@ next-env.d.ts
 
 # claude code (local-only settings)
 .claude/settings.local.json
+
+# git worktrees (local scratch workspaces)
+.worktrees/
