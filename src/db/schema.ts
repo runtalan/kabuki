@@ -367,6 +367,69 @@ export const apiRequestLogs = pgTable(
   ]
 );
 
+// Manually-tracked real estate. Deliberately NOT part of `accounts` — this
+// is what keeps property value and mortgage balance out of net worth
+// without needing exclusion logic at every net-worth call site.
+export const properties = pgTable(
+  "properties",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    address: varchar("address", { length: 500 }),
+    owner: varchar("owner", { length: 20 }).default("joint").notNull(), // "renato" | "claudia" | "joint"
+    estimatedValue: numeric("estimated_value", { precision: 16, scale: 2 }).notNull(),
+    originalLoanAmount: numeric("original_loan_amount", { precision: 16, scale: 2 }).notNull(),
+    interestRate: numeric("interest_rate", { precision: 6, scale: 3 }).notNull(), // annual %, e.g. 6.200
+    loanTermYears: integer("loan_term_years").notNull(),
+    loanStartDate: timestamp("loan_start_date").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("idx_properties_owner").on(table.owner)]
+);
+
+// Manual value snapshots over time — drives the combined equity chart.
+// One row per manual edit (or seed backfill); loan balance at any point is
+// always computed from the loan terms, never stored.
+export const propertyValueHistory = pgTable(
+  "property_value_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    propertyId: varchar("property_id", { length: 36 })
+      .notNull()
+      .references(() => properties.id, { onDelete: "cascade" }),
+    value: numeric("value", { precision: 16, scale: 2 }).notNull(),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_property_value_history_property_id").on(table.propertyId),
+    index("idx_property_value_history_recorded_at").on(table.recordedAt),
+  ]
+);
+
+// Investment holdings — line items inside a brokerage/retirement `accounts`
+// row (type: "brokerage"). Current value is always shares * currentPrice,
+// computed at query time rather than stored.
+export const holdings = pgTable(
+  "holdings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 10 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    assetClass: varchar("asset_class", { length: 30 }).notNull(), // "us_stock" | "intl_stock" | "bond" | "cash"
+    shares: numeric("shares", { precision: 16, scale: 4 }).notNull(),
+    costBasis: numeric("cost_basis", { precision: 16, scale: 2 }).notNull(),
+    currentPrice: numeric("current_price", { precision: 12, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("idx_holdings_account_id").on(table.accountId)]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
@@ -411,6 +474,7 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
   }),
   transactions: many(transactions),
   balanceHistory: many(accountBalanceHistory),
+  holdings: many(holdings),
 }));
 
 export const accountBalanceHistoryRelations = relations(
@@ -480,5 +544,23 @@ export const rulesRelations = relations(rules, ({ one }) => ({
   category: one(categories, {
     fields: [rules.categoryId],
     references: [categories.id],
+  }),
+}));
+
+export const propertiesRelations = relations(properties, ({ many }) => ({
+  valueHistory: many(propertyValueHistory),
+}));
+
+export const propertyValueHistoryRelations = relations(propertyValueHistory, ({ one }) => ({
+  property: one(properties, {
+    fields: [propertyValueHistory.propertyId],
+    references: [properties.id],
+  }),
+}));
+
+export const holdingsRelations = relations(holdings, ({ one }) => ({
+  account: one(accounts, {
+    fields: [holdings.accountId],
+    references: [accounts.id],
   }),
 }));
