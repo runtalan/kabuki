@@ -46,6 +46,7 @@
 | 2026-08-05 | `0016_transaction_transfer_type.sql` | `transactions.transfer_type` — marks internal transfers/credit card payments so they're excluded from income, expense, cash-flow, and budget totals |
 | 2026-08-06 | `0017_apple_card_integration.sql` | `integration_tokens` table — per-user hashed API tokens for personal transaction-ingest integrations (Apple Card Sync) |
 | 2026-08-06 | `0018_api_request_logs.sql` | `api_request_logs` table — dev/debug log of every request to public ingest endpoints (Apple Card Sync), headers included |
+| 2026-08-06 | `0019_properties_and_holdings.sql` | `properties`, `property_value_history`, `holdings` tables — real estate tracking (excluded from net worth) and investment holdings |
 
 ## Current schema state
 
@@ -67,6 +68,9 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `plaid_items` | 0000 | +`is_manual` (0006); +`institution_id`,`institution_logo_url` (0014) |
 | `integration_tokens` | 0017 | Hashed per-user tokens for personal transaction-ingest integrations |
 | `api_request_logs` | 0018 | Dev/debug log of requests to public ingest endpoints, headers included |
+| `properties` | 0019 | Manually-tracked real estate; deliberately not linked to `accounts` — excluded from net worth |
+| `property_value_history` | 0019 | Manual value snapshots; drives the combined equity chart |
+| `holdings` | 0019 | Investment holdings inside a brokerage `accounts` row |
 
 ## Quick reference
 
