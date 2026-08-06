@@ -502,6 +502,20 @@ async function seed() {
     const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
     const now = new Date();
     const txnRows = [];
+    // plaidTransactionId below is built from `monthsAgo` (0-6, relative to
+    // the run date), not a calendar-stable key — re-running the seed in a
+    // later month regenerates the same ids for different actual dates, so
+    // onConflictDoNothing would silently drop the new month's rows instead
+    // of rolling the seed data forward. Matching the accountBalanceHistory/
+    // propertyValueHistory precedent above: clear and re-insert scoped to
+    // just the 4 seeded household account ids.
+    const householdTxnAccountIds = [
+      'seed-acct-renato-checking',
+      'seed-acct-claudia-checking',
+      'seed-acct-renato-credit',
+      'seed-acct-claudia-credit',
+    ];
+    await db.delete(transactions).where(inArray(transactions.accountId, householdTxnAccountIds));
 
     for (let monthsAgo = 6; monthsAgo >= 0; monthsAgo--) {
       const month = now.getMonth() - monthsAgo;
@@ -540,7 +554,7 @@ async function seed() {
       }
     }
 
-    await db.insert(transactions).values(txnRows).onConflictDoNothing({ target: transactions.plaidTransactionId });
+    await db.insert(transactions).values(txnRows);
     console.log(`✓ ${txnRows.length} household transactions seeded across 6 months`);
   } catch (error) {
     console.error('Error creating household transactions:', error);
