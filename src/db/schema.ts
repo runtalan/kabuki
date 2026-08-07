@@ -431,6 +431,26 @@ export const holdings = pgTable(
   (table) => [index("idx_holdings_account_id").on(table.accountId)]
 );
 
+// Track executed trades: buys/sells with order type and execution details
+export const trades = pgTable(
+  "trades",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 10 }).notNull(),
+    quantity: numeric("quantity", { precision: 12, scale: 4 }).notNull(),
+    executionPrice: numeric("execution_price", { precision: 12, scale: 4 }).notNull(),
+    orderType: varchar("order_type", { length: 20 }).notNull(), // "market" | "limit"
+    side: varchar("side", { length: 10 }).notNull(), // "buy" | "sell"
+    status: varchar("status", { length: 20 }).default("filled").notNull(), // "pending" | "filled" | "canceled"
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("idx_trades_account_id").on(table.accountId)]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
@@ -562,6 +582,13 @@ export const propertyValueHistoryRelations = relations(propertyValueHistory, ({ 
 export const holdingsRelations = relations(holdings, ({ one }) => ({
   account: one(accounts, {
     fields: [holdings.accountId],
+    references: [accounts.id],
+  }),
+}));
+
+export const tradesRelations = relations(trades, ({ one }) => ({
+  account: one(accounts, {
+    fields: [trades.accountId],
     references: [accounts.id],
   }),
 }));
