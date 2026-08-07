@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface StockTradingFormProps {
   accountId: string | null;
   onTradeExecuted?: () => void;
+  onSymbolChange?: (symbol: string) => void;
 }
 
 const OPTIONS_ERROR_MESSAGE = 'Options trading is available on the Options tab';
@@ -36,7 +37,7 @@ function isOptionSymbol(rawSymbol: string): boolean {
   return false;
 }
 
-export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFormProps) {
+export function StockTradingForm({ accountId, onTradeExecuted, onSymbolChange }: StockTradingFormProps) {
   const [symbol, setSymbol] = useState('');
   const [quantity, setQuantity] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
@@ -144,7 +145,17 @@ export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFor
         <input
           type="text"
           value={symbol}
-          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            const next = e.target.value.toUpperCase();
+            setSymbol(next);
+            onSymbolChange?.(next);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSymbolChange?.(symbol);
+            }
+          }}
           placeholder="e.g., AAPL"
           className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           disabled={isSubmitting}

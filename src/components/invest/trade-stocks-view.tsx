@@ -26,7 +26,11 @@ export function TradeStocksView({ holdings, accountId }: TradeStocksViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Trading Form */}
         <div className="lg:col-span-1">
-          <StockTradingForm accountId={accountId} onTradeExecuted={handleTradeExecuted} />
+          <StockTradingForm
+            accountId={accountId}
+            onTradeExecuted={handleTradeExecuted}
+            onSymbolChange={setSelectedSymbol}
+          />
         </div>
 
         {/* Real-time Quote Ticker */}
