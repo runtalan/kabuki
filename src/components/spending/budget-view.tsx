@@ -118,7 +118,7 @@ export function BudgetView({
   const [orderedCategories, setOrderedCategories] = useState(categories);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { distance: 8 }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
