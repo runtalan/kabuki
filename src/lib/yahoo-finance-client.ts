@@ -95,8 +95,7 @@ export async function getOptionExpirations(
 
 export async function getOptionChain(
   ticker: string,
-  expiryDate: string,
-  atmWindow: number = 5
+  expiryDate: string
 ): Promise<OptionChain> {
   try {
     const chainData = await yahooFinance.options(ticker);
@@ -110,7 +109,6 @@ export async function getOptionChain(
     }
 
     const currentPrice = quote.regularMarketPrice || 0;
-    const atmStrike = Math.round(currentPrice);
 
     // Find the expiry matching the requested date
     const expiryObj = chainData.options?.find((exp: any) => {
@@ -124,12 +122,9 @@ export async function getOptionChain(
       throw new Error(`No options for ${ticker} on ${expiryDate}`);
     }
 
-    // Filter to ATM ± atmWindow strikes only
+    // Use ALL available strikes from Yahoo Finance (no filtering)
     const allOptions = (expiryObj.calls || []).concat(expiryObj.puts || []);
-    const filtered = allOptions.filter((opt: any) => {
-      const strike = opt.strike;
-      return strike >= atmStrike - atmWindow && strike <= atmStrike + atmWindow;
-    });
+    const filtered = allOptions;
 
     // Separate calls and puts
     const calls = filtered
