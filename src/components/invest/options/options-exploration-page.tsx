@@ -218,10 +218,8 @@ export function OptionsExplorationPage({
       });
     }
   });
-  const fullyCoveredStrikes = allStrikes.filter(
-    (s) => chainCoverageByStrike.get(s) === allChains.length
-  );
-  const atmCandidates = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
+  // Find ATM from all strikes available
+  const atmCandidates = allStrikes;
 
   // Find the single closest strike (ATM)
   const atmStrike = atmCandidates.length > 0
@@ -239,13 +237,25 @@ export function OptionsExplorationPage({
     }
   };
 
-  // Find ATM index (for navigation only, strikes shown might be filtered)
-  const atmIndex = atmStrike ? allStrikes.indexOf(atmStrike) : -1;
-
   // Show all strikes across all expirations, even if some don't have data in
   // certain chains (shown as "—"). This lets users see the full strike range.
   const filteredStrikes = allStrikes;
   const atmIndexInFiltered = atmStrike ? filteredStrikes.indexOf(atmStrike) : -1;
+
+  // Self-healing window: if the stored strikeScrollIndex (set by an effect,
+  // possibly stale from a prior ticker/type with a differently-sized strike
+  // list) no longer contains the ATM strike, recenter on it directly at
+  // render time instead of relying on the effect to catch up first.
+  const maxScrollIndex = Math.max(0, filteredStrikes.length - 12);
+  const atmInWindow =
+    atmIndexInFiltered >= 0 &&
+    atmIndexInFiltered >= strikeScrollIndex &&
+    atmIndexInFiltered < strikeScrollIndex + 12;
+  const displayScrollIndex = atmInWindow
+    ? Math.min(strikeScrollIndex, maxScrollIndex)
+    : atmIndexInFiltered >= 0
+      ? Math.max(0, Math.min(atmIndexInFiltered - 6, maxScrollIndex))
+      : Math.min(strikeScrollIndex, maxScrollIndex);
 
   // Reset strike scroll index when call/put changes or chains load
   useEffect(() => {
@@ -256,8 +266,8 @@ export function OptionsExplorationPage({
   }, [selectedType, atmIndexInFiltered, filteredStrikes.length]);
 
   // Scroll container to center the ATM column horizontally on load or when
-  // ticker/chains change. This fires whenever atmStrike is recalculated,
-  // which includes initial load and watchlist selection.
+  // ticker/chains change. Depends on displayScrollIndex too, since the ATM
+  // `<th>` only exists in the DOM once the self-healed window includes it.
   useEffect(() => {
     if (atmStrike === null) return;
     requestAnimationFrame(() => {
@@ -268,7 +278,7 @@ export function OptionsExplorationPage({
       const target = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
       container.scrollLeft = Math.max(0, target);
     });
-  }, [atmStrike]);
+  }, [atmStrike, displayScrollIndex]);
 
   const handleJumpToATM = () => {
     if (atmIndexInFiltered < 0 || atmStrike === null) return;
@@ -482,7 +492,7 @@ export function OptionsExplorationPage({
                       <th className="px-3 py-3 text-left font-bold text-gray-900 dark:text-gray-100 w-24 sticky left-0 bg-gray-100 dark:bg-gray-800 z-20 border-r border-gray-300 dark:border-gray-600">
                         Expiry
                       </th>
-                      {filteredStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                      {filteredStrikes.slice(displayScrollIndex, displayScrollIndex + 12).map((strike) => {
                         const status = getStrikeStatus(strike);
                         const isATM = status === 'atm';
                         return (
@@ -512,7 +522,7 @@ export function OptionsExplorationPage({
                             ({item.daysToExpiry}d)
                           </div>
                         </td>
-                        {filteredStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                        {filteredStrikes.slice(displayScrollIndex, displayScrollIndex + 12).map((strike) => {
                           const key = (selectedType + 's') as 'calls' | 'puts';
                           const chainOptions = item.chain?.[key];
                           const option = Array.isArray(chainOptions)
@@ -562,10 +572,10 @@ export function OptionsExplorationPage({
               {/* Strike Navigation Controls */}
               <div className="mt-3 flex gap-2 items-center justify-between">
                 <button
-                  onClick={() => setStrikeScrollIndex(Math.max(0, strikeScrollIndex - 6))}
-                  disabled={strikeScrollIndex === 0}
+                  onClick={() => setStrikeScrollIndex(Math.max(0, displayScrollIndex - 6))}
+                  disabled={displayScrollIndex === 0}
                   className={`px-2 py-1 rounded font-bold transition text-sm ${
-                    strikeScrollIndex > 0
+                    displayScrollIndex > 0
                       ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                   }`}
@@ -573,13 +583,13 @@ export function OptionsExplorationPage({
                   ← Lower
                 </button>
                 <div className="text-xs text-gray-600 dark:text-gray-400">
-                  Strikes: ${filteredStrikes[strikeScrollIndex]?.toFixed(0) || '—'} to ${filteredStrikes[Math.min(strikeScrollIndex + 11, filteredStrikes.length - 1)]?.toFixed(0) || '—'}
+                  Strikes: ${filteredStrikes[displayScrollIndex]?.toFixed(0) || '—'} to ${filteredStrikes[Math.min(displayScrollIndex + 11, filteredStrikes.length - 1)]?.toFixed(0) || '—'}
                 </div>
                 <button
-                  onClick={() => setStrikeScrollIndex(Math.min(filteredStrikes.length - 12, strikeScrollIndex + 6))}
-                  disabled={strikeScrollIndex >= filteredStrikes.length - 12}
+                  onClick={() => setStrikeScrollIndex(Math.min(maxScrollIndex, displayScrollIndex + 6))}
+                  disabled={displayScrollIndex >= maxScrollIndex}
                   className={`px-2 py-1 rounded font-bold transition text-sm ${
-                    strikeScrollIndex < allStrikes.length - 12
+                    displayScrollIndex < maxScrollIndex
                       ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                   }`}
