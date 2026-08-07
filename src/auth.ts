@@ -36,6 +36,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // household DB record, not the Google profile. (getUser() in
       // lib/auth.ts re-resolves by email on every request for callers that
       // need guaranteed freshness, e.g. after a reseed.)
+      console.debug("[jwt] callback", { hasUser: !!user, tokenId: token.id, tokenEmail: token.email });
       if (user?.email) {
         const dbUser = await db.query.users.findFirst({
           where: eq(users.email, user.email),
@@ -46,19 +47,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.email = dbUser.email;
           token.username = dbUser.username;
           token.isDemo = dbUser.isDemo;
+          console.debug("[jwt] populated from user lookup", { email: dbUser.email });
         }
       } else if (token.id) {
         // On token refresh (no user object), refresh the email by looking up
         // the user by id. This corrects stale tokens that may have incorrect
         // email values from a previous authentication flow.
+        console.debug("[jwt] refreshing from token.id", { tokenId: token.id });
         const dbUser = await db.query.users.findFirst({
           where: eq(users.id, token.id as string),
         });
 
         if (dbUser) {
+          console.debug("[jwt] updated email from ID lookup", { from: token.email, to: dbUser.email });
           token.email = dbUser.email;
           token.username = dbUser.username;
           token.isDemo = dbUser.isDemo;
+        } else {
+          console.debug("[jwt] user not found by ID", { tokenId: token.id });
         }
       }
       return token;
