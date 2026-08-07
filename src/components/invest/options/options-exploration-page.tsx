@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { HoldingsTable } from './holdings-table';
 import { OptionsOrderForm } from './options-order-form';
 import { OptionsHeatmap } from './options-heatmap';
 import { OptionsGuideModal } from './options-guide-modal';
 import { OptionsDashboard } from './options-dashboard';
 import { TickerSearch } from './ticker-search';
-import { PositionManagementModal } from './position-management-modal';
 import type { Holding, OptionContract, OrderState } from '@/lib/options-types';
 
 interface OptionsExplorationPageProps {
@@ -25,7 +23,6 @@ export function OptionsExplorationPage({
   const [selectedContract, setSelectedContract] = useState<OptionContract | null>(null);
   const [isHeatmapModalOpen, setIsHeatmapModalOpen] = useState(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
-  const [positionManagementTicker, setPositionManagementTicker] = useState<string | null>(null);
 
   const selectedHolding = holdings.find((h) => h.ticker === selectedTicker);
   const selectedContractsList = selectedTicker
@@ -48,19 +45,6 @@ export function OptionsExplorationPage({
     setSelectedTicker(ticker);
   };
 
-  const handleViewChain = (ticker: string) => {
-    setSelectedTicker(ticker);
-    setIsHeatmapModalOpen(true);
-  };
-
-  const handlePositionManagementOpen = (ticker: string) => {
-    setPositionManagementTicker(ticker);
-  };
-
-  const handleHoldingClick = (ticker: string) => {
-    handlePositionManagementOpen(ticker);
-  };
-
   return (
     <>
       <div className="space-y-8">
@@ -79,51 +63,13 @@ export function OptionsExplorationPage({
           <OptionsDashboard holdings={holdings} contracts={availableContracts} />
         </section>
 
-        {/* Search & New Ticker Entry */}
+        {/* Search & Ticker Entry */}
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">
-            Search for New Tickers
-          </h2>
+          <label className="block text-sm font-semibold text-neutral-900 dark:text-white mb-2">
+            Search Ticker
+          </label>
           <TickerSearch onSearch={handleSearchTicker} />
         </section>
-
-        {/* Holdings Analysis */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-            Your Holdings
-          </h2>
-          <HoldingsTable
-            holdings={holdings}
-            onSelectHolding={handleHoldingClick}
-            onViewChain={handleViewChain}
-            onRoll={(ticker) => {
-              setSelectedTicker(ticker);
-              handlePositionManagementOpen(ticker);
-            }}
-            onClosePosition={(ticker) => {
-              setSelectedTicker(ticker);
-              handlePositionManagementOpen(ticker);
-            }}
-          />
-        </section>
-
-        {/* Position Management - Modal triggered by clicking owned ticker */}
-        <PositionManagementModal
-          holding={positionManagementTicker ? holdings.find((h) => h.ticker === positionManagementTicker) || null : null}
-          isOpen={positionManagementTicker !== null}
-          onClose={() => setPositionManagementTicker(null)}
-          onViewChain={() => {
-            if (positionManagementTicker) {
-              setSelectedTicker(positionManagementTicker);
-              setIsHeatmapModalOpen(true);
-            }
-          }}
-          onRoll={() => {
-            if (positionManagementTicker) {
-              setSelectedTicker(positionManagementTicker);
-            }
-          }}
-        />
 
         {/* Order Form */}
         {selectedTicker && selectedHolding && (
@@ -173,10 +119,10 @@ export function OptionsExplorationPage({
           <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-12 text-center">
             <div className="max-w-md mx-auto space-y-3">
               <p className="text-neutral-600 dark:text-neutral-400 font-medium">
-                Select a holding to explore options strategies
+                Search for a ticker to explore options strategies
               </p>
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Click any ticker in your holdings above or search for a new ticker to view available options
+                Enter a stock ticker above to view available options and build positions
               </p>
             </div>
           </section>
