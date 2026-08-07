@@ -6,6 +6,8 @@ import { OptionsHeatmap } from './options-heatmap';
 import { OptionsGuideModal } from './options-guide-modal';
 import { OptionsDashboard } from './options-dashboard';
 import { TickerSearch } from './ticker-search';
+import { WatchlistTable } from '../watchlist/watchlist-table';
+import { generateMockWatchlist } from '@/lib/mock-watchlist-data';
 import type { Holding, OptionContract, OrderState } from '@/lib/options-types';
 
 interface OptionsExplorationPageProps {
@@ -61,6 +63,25 @@ export function OptionsExplorationPage({
         {/* Dashboard */}
         <section>
           <OptionsDashboard holdings={holdings} contracts={availableContracts} />
+        </section>
+
+        {/* Watch List Section */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+              Tracked Tickers
+            </h2>
+            <a
+              href="/invest/watchlist"
+              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+            >
+              Manage Watch List →
+            </a>
+          </div>
+          <WatchlistTable
+            items={generateMockWatchlist()}
+            onSelect={(ticker) => handleSearchTicker(ticker)}
+          />
         </section>
 
         {/* Search & Ticker Entry */}

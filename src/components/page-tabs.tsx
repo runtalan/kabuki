@@ -60,5 +60,6 @@ export const INVEST_TABS: PageTab[] = [
   { href: '/invest', label: 'Holdings' },
   { href: '/invest/stocks', label: 'Trade Stocks' },
   { href: '/invest/options', label: 'Options' },
+  { href: '/invest/watchlist', label: 'Watch List' },
   { href: '/invest/predictions', label: 'Predictions' },
 ];
