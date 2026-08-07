@@ -121,6 +121,7 @@ export async function POST(request: Request) {
         liabilityType: 'credit_card',
         isManual: true,
         currentBalance: '0',
+        resetBalanceMonthly: true,
         currency: 'USD',
         isActive: true,
         lastSyncedAt: new Date(),
