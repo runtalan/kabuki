@@ -121,6 +121,7 @@ function RulesPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ruleIds: newOrder.map((r) => r.id) }),
       });
+      await fetchData();
     } catch (error) {
       console.error('Failed to save rule order:', error);
       setOrderedRules(rules);
