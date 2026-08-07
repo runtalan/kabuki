@@ -168,7 +168,7 @@ export function OptionsExplorationPage({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 w-full">
         {/* LEFT COLUMN: Watchlist */}
         <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
           <div className="mb-4">
@@ -225,7 +225,7 @@ export function OptionsExplorationPage({
         </div>
 
         {/* CENTER COLUMN: Strike Heat Map */}
-        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
+        <div className="md:col-span-3 border-r border-gray-200 dark:border-gray-800 pr-4">
           <div className="mb-4">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
               {selectedTicker ? `${selectedTicker} Options` : 'Select a ticker'}
