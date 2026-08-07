@@ -81,6 +81,10 @@ export function OptionsExplorationPage({
   useEffect(() => {
     if (!selectedTicker) return;
 
+    // Clear old chain data when ticker changes so atmStrike becomes null
+    // during loading. This prevents the scroll effect from running on stale data.
+    setChainDataByExpiry(new Map());
+
     const loadExpirations = async () => {
       try {
         const data = await cache(
