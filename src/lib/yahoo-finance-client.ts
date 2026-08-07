@@ -78,7 +78,7 @@ export async function getOptionExpirations(
       return [];
     }
 
-    // Convert Date objects to ISO date strings, sort nearest-first
+    // Return all available expirations - can fetch each with date parameter
     return options.expirationDates
       .map((dateOrTimestamp: Date | number) => {
         const date = dateOrTimestamp instanceof Date
@@ -98,7 +98,8 @@ export async function getOptionChain(
   expiryDate: string
 ): Promise<OptionChain> {
   try {
-    const chainData = await yahooFinance.options(ticker);
+    // Fetch options data specifically for the requested expiration date
+    const chainData = await yahooFinance.options(ticker, { date: expiryDate });
     if (!chainData) {
       throw new Error(`No option chain for ${ticker}`);
     }
@@ -110,30 +111,18 @@ export async function getOptionChain(
 
     const currentPrice = quote.regularMarketPrice || 0;
 
-    // Find the expiry matching the requested date
-    const expiryObj = chainData.options?.find((exp: any) => {
-      const expDate = exp.expirationDate instanceof Date
-        ? exp.expirationDate
-        : new Date(exp.expirationDate * 1000);
-      return expDate.toISOString().split('T')[0] === expiryDate;
-    });
-
+    // Get the option data for the requested date
+    const expiryObj = chainData.options?.[0];
     if (!expiryObj) {
       throw new Error(`No options for ${ticker} on ${expiryDate}`);
     }
 
-    // Use ALL available strikes from Yahoo Finance (no filtering)
-    const allOptions = (expiryObj.calls || []).concat(expiryObj.puts || []);
-    const filtered = allOptions;
-
     // Separate calls and puts
-    const calls = filtered
-      .filter((opt: any) => opt.option_type === 'call' || (opt.bid !== undefined && opt.bid !== null))
+    const calls = (expiryObj.calls || [])
       .sort((a: any, b: any) => a.strike - b.strike)
       .map(parseOptionContract);
 
-    const puts = filtered
-      .filter((opt: any) => opt.option_type === 'put' || (opt.bid !== undefined && opt.bid !== null))
+    const puts = (expiryObj.puts || [])
       .sort((a: any, b: any) => a.strike - b.strike)
       .map(parseOptionContract);
 

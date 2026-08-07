@@ -7,8 +7,6 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const ticker = url.searchParams.get("ticker");
     const expiry = url.searchParams.get("expiry");
-    const atmWindowStr = url.searchParams.get("atmWindow") || "5";
-    const atmWindow = parseInt(atmWindowStr, 10);
 
     if (!ticker || !expiry) {
       return Response.json(
@@ -17,18 +15,7 @@ export async function GET(request: Request) {
       );
     }
 
-    if (isNaN(atmWindow) || atmWindow < 1) {
-      return Response.json(
-        { error: "Invalid atmWindow (must be positive integer)" },
-        { status: 400 }
-      );
-    }
-
-    const chain = await getOptionChain(
-      ticker.toUpperCase(),
-      expiry,
-      atmWindow
-    );
+    const chain = await getOptionChain(ticker.toUpperCase(), expiry);
 
     return Response.json(chain);
   } catch (error) {

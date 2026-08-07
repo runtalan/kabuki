@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { StrikeHeatMap } from './strike-heat-map';
 import {
   WatchlistSkeleton,
   HeatMapSkeleton,
@@ -23,13 +22,18 @@ interface WatchlistItem {
   volume: number;
 }
 
+interface ExpiryChainData {
+  expiry: string;
+  daysToExpiry: number;
+  chain: OptionChain;
+}
+
 export function OptionsExplorationPage({
   initialTicker,
 }: OptionsExplorationPageProps) {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(
     initialTicker || null
   );
-  const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
   const [selectedStrike, setSelectedStrike] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
 
@@ -38,13 +42,12 @@ export function OptionsExplorationPage({
   const [watchlistError, setWatchlistError] = useState<string | null>(null);
 
   const [expirations, setExpirations] = useState<string[]>([]);
-  const [expiryLoading, setExpiryLoading] = useState(false);
-
-  const [chainData, setChainData] = useState<OptionChain | null>(null);
-  const [chainLoading, setChainLoading] = useState(false);
+  const [chainDataByExpiry, setChainDataByExpiry] = useState<Map<string, ExpiryChainData>>(new Map());
+  const [allChainsLoading, setAllChainsLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const orderFormRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [strikeScrollIndex, setStrikeScrollIndex] = useState(0);
 
   useEffect(() => {
     const loadWatchlist = async () => {
@@ -80,7 +83,6 @@ export function OptionsExplorationPage({
 
     const loadExpirations = async () => {
       try {
-        setExpiryLoading(true);
         const data = await cache(
           `expirations-${selectedTicker}`,
           60,
@@ -93,61 +95,83 @@ export function OptionsExplorationPage({
             return json.expirations;
           }
         );
+        console.log('Loaded expirations:', data);
         setExpirations(data);
-        if (data.length > 0 && !selectedExpiry) {
-          setSelectedExpiry(data[0]);
-        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to load expirations';
+        console.error('Expiration load error:', msg);
         setError(msg);
         setTimeout(() => setError(null), 5000);
         setExpirations([]);
-      } finally {
-        setExpiryLoading(false);
       }
     };
     loadExpirations();
   }, [selectedTicker]);
 
   useEffect(() => {
-    if (!selectedTicker || !selectedExpiry) return;
+    if (!selectedTicker || expirations.length === 0) return;
 
-    const loadChain = async () => {
+    const loadAllChains = async () => {
       try {
-        setChainLoading(true);
-        const data = await cache(
-          `chain-${selectedTicker}-${selectedExpiry}`,
-          60,
-          async () => {
-            const res = await fetch(
-              `/api/options/chain?ticker=${selectedTicker}&expiry=${selectedExpiry}`
+        setAllChainsLoading(true);
+        const chains = new Map<string, ExpiryChainData>();
+        let loaded = 0;
+        const targetCount = 6;
+
+        console.log('Attempting to load chains from', expirations.length, 'available expirations');
+
+        for (const expiry of expirations) {
+          if (loaded >= targetCount) break;
+          try {
+            const data = await cache(
+              `chain-${selectedTicker}-${expiry}`,
+              60,
+              async () => {
+                const res = await fetch(
+                  `/api/options/chain?ticker=${selectedTicker}&expiry=${expiry}`
+                );
+                if (!res.ok) throw new Error('Failed to fetch option chain');
+                return res.json();
+              }
             );
-            if (!res.ok) throw new Error('Failed to fetch option chain');
-            return res.json();
+
+            const expiryDate = new Date(expiry + 'T00:00:00');
+            const daysToExpiry = Math.ceil(
+              (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+            );
+
+            chains.set(expiry, {
+              expiry,
+              daysToExpiry,
+              chain: data,
+            });
+            loaded++;
+            console.log('Loaded chain for', expiry, '- DTE:', daysToExpiry, `(${loaded}/${targetCount})`);
+          } catch (err) {
+            console.error('Failed to load chain for', expiry, err);
+            // Skip expirations that don't have data, try next one
           }
-        );
-        setChainData(data);
+        }
+
+        console.log('Final chains loaded:', chains.size);
+        setChainDataByExpiry(chains);
         setSelectedStrike(null);
+        if (chains.size === 0) {
+          setError('No option chains available');
+          setTimeout(() => setError(null), 5000);
+        }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to load option chain';
+        const msg = err instanceof Error ? err.message : 'Failed to load chains';
+        console.error('Chain load error:', msg);
         setError(msg);
         setTimeout(() => setError(null), 5000);
-        setChainData(null);
       } finally {
-        setChainLoading(false);
+        setAllChainsLoading(false);
       }
     };
-    loadChain();
-  }, [selectedTicker, selectedExpiry]);
 
-  useEffect(() => {
-    if (selectedTicker && orderFormRef.current) {
-      orderFormRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    }
-  }, [selectedTicker]);
+    loadAllChains();
+  }, [selectedTicker, expirations]);
 
   const handleWatchlistSelect = (ticker: string) => {
     setSelectedTicker(ticker);
@@ -158,7 +182,100 @@ export function OptionsExplorationPage({
     setSelectedType(isCall ? 'call' : 'put');
   };
 
-  const currentPrice = chainData?.currentPrice || 0;
+  // Get all strikes from all chains
+  const allChains = Array.from(chainDataByExpiry.values());
+  const currentPrice = allChains[0]?.chain.currentPrice || 0;
+
+  const allStrikes = allChains.length > 0
+    ? Array.from(
+        new Set(
+          allChains.flatMap((item) => {
+            const key = (selectedType + 's') as 'calls' | 'puts';
+            const options = item.chain?.[key];
+            if (!Array.isArray(options)) return [];
+            return options.map((opt) => opt.strike);
+          })
+        )
+      ).sort((a, b) => a - b)
+    : [];
+
+  const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
+    const diff = Math.abs(strike - currentPrice);
+    if (diff < 1) return 'atm';
+    if (selectedType === 'call') {
+      return strike > currentPrice ? 'otm' : 'itm';
+    } else {
+      return strike < currentPrice ? 'otm' : 'itm';
+    }
+  };
+
+  // Find ATM index
+  const atmIndex = allStrikes.length > 0
+    ? allStrikes.findIndex((s) => Math.abs(s - currentPrice) < 1)
+    : -1;
+
+  // Reset strike scroll index when call/put changes or chains load
+  useEffect(() => {
+    if (atmIndex >= 0) {
+      if (selectedType === 'call') {
+        setStrikeScrollIndex(Math.max(0, atmIndex - 3));
+      } else {
+        setStrikeScrollIndex(Math.max(0, Math.min(atmIndex + 3, allStrikes.length - 12)));
+      }
+    }
+  }, [selectedType, atmIndex, allStrikes.length]);
+
+  const handleJumpToATM = () => {
+    if (atmIndex >= 0) {
+      setStrikeScrollIndex(Math.max(0, atmIndex - 3));
+    }
+  };
+
+  const handleJumpToITM = () => {
+    if (atmIndex < 0) return;
+    let targetIndex = atmIndex;
+    if (selectedType === 'call') {
+      targetIndex = Math.max(0, atmIndex - 3);
+    } else {
+      targetIndex = Math.min(allStrikes.length - 1, atmIndex + 3);
+    }
+    setStrikeScrollIndex(Math.max(0, targetIndex - 3));
+  };
+
+  const handleJumpToOTM = () => {
+    if (atmIndex < 0) return;
+    let targetIndex = atmIndex;
+    if (selectedType === 'call') {
+      targetIndex = Math.min(allStrikes.length - 1, atmIndex + 3);
+    } else {
+      targetIndex = Math.max(0, atmIndex - 3);
+    }
+    setStrikeScrollIndex(Math.max(0, targetIndex - 3));
+  };
+
+  const getHeaderColor = (strike: number) => {
+    const status = getStrikeStatus(strike);
+    if (status === 'atm')
+      return 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-blue-300';
+    if (status === 'itm')
+      return 'bg-green-100 dark:bg-green-900 text-green-900 dark:text-green-100 border-green-300';
+    return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300';
+  };
+
+  const getCellColor = (profitPercent: number) => {
+    if (profitPercent >= 2) return 'bg-green-100 dark:bg-green-900/40';
+    if (profitPercent >= 1) return 'bg-green-50 dark:bg-green-900/20';
+    if (profitPercent >= 0.5) return 'bg-yellow-50 dark:bg-yellow-900/20';
+    if (profitPercent > 0) return 'bg-orange-50 dark:bg-orange-900/20';
+    return 'bg-gray-50 dark:bg-gray-800/50';
+  };
+
+  const calculateMetrics = (option: any, daysToExpiry: number) => {
+    const midPrice = (option.bid + option.ask) / 2;
+    const profitPercent = (midPrice / currentPrice) * 100;
+    const dailyDecay = midPrice / Math.max(daysToExpiry, 1);
+    return { midPrice, profitPercent, dailyDecay };
+  };
 
   return (
     <div className="w-full">
@@ -168,9 +285,9 @@ export function OptionsExplorationPage({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 w-full" style={{ height: 'calc(100vh - 60px)' }}>
         {/* LEFT COLUMN: Watchlist */}
-        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4 flex flex-col">
+        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4 flex flex-col" style={{ height: 'calc(100vh - 60px)' }}>
           <div className="mb-3">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
               Watchlist
@@ -229,60 +346,215 @@ export function OptionsExplorationPage({
           )}
         </div>
 
-        {/* CENTER COLUMN: Strike Heat Map */}
-        <div className="md:col-span-3 border-r border-gray-200 dark:border-gray-800 pr-4">
+        {/* CENTER COLUMN: Unified Strike Table */}
+        <div className="md:col-span-3 border-r border-gray-200 dark:border-gray-800 pr-4 flex flex-col" style={{ height: 'calc(100vh - 60px)' }}>
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-              {selectedTicker ? `${selectedTicker} Options` : 'Select a ticker'}
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {selectedTicker ? `${selectedTicker} Options` : 'Select a ticker'}
+              </h2>
+              {selectedTicker && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedType('call')}
+                    className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                      selectedType === 'call'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    Call
+                  </button>
+                  <button
+                    onClick={() => setSelectedType('put')}
+                    className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                      selectedType === 'put'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    Put
+                  </button>
+                </div>
+              )}
+            </div>
             {selectedTicker && (
-              <select
-                value={selectedExpiry || ''}
-                onChange={(e) => setSelectedExpiry(e.target.value)}
-                className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm mb-4"
-              >
-                <option value="">Loading expirations...</option>
-                {expirations.map((expiry) => (
-                  <option key={expiry} value={expiry}>
-                    {new Date(expiry + 'T00:00:00').toLocaleDateString()} (
-                    {expiry})
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={handleJumpToITM}
+                  className="px-3 py-1 text-xs rounded font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60 transition"
+                >
+                  ITM
+                </button>
+                <button
+                  onClick={handleJumpToATM}
+                  className="px-3 py-1 text-xs rounded font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition"
+                >
+                  ATM
+                </button>
+                <button
+                  onClick={handleJumpToOTM}
+                  className="px-3 py-1 text-xs rounded font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 transition"
+                >
+                  OTM
+                </button>
+              </div>
             )}
           </div>
 
-          {chainLoading ? (
+          {selectedTicker && allChainsLoading ? (
             <HeatMapSkeleton />
-          ) : chainData ? (
-            <StrikeHeatMap data={chainData} onStrikeClick={handleStrikeClick} />
+          ) : selectedTicker && allChains.length > 0 && allStrikes.length > 0 ? (
+            <>
+              <div
+                ref={tableContainerRef}
+                className="flex-1 overflow-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 min-h-0"
+              >
+                <table className="border-collapse text-xs w-full">
+                  <thead>
+                    <tr className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600 sticky top-0 z-20">
+                      <th className="px-3 py-3 text-left font-bold text-gray-900 dark:text-gray-100 w-24 sticky left-0 bg-gray-100 dark:bg-gray-800 z-20 border-r border-gray-300 dark:border-gray-600">
+                        Expiry
+                      </th>
+                      {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => (
+                        <th
+                          key={`header-${strike}`}
+                          data-strike={strike}
+                          className={`px-3 py-3 text-center font-bold border-r border-gray-200 dark:border-gray-700 min-w-[110px] ${getHeaderColor(strike)}`}
+                        >
+                          <div className="font-bold">${strike.toFixed(0)}</div>
+                          <div className="text-xs font-normal opacity-70">
+                            ({getStrikeStatus(strike).toUpperCase()})
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allChains.map((item) => (
+                      <tr
+                        key={item.expiry}
+                        className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                      >
+                        <td className="px-3 py-2 font-bold text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-800/50 sticky left-0 z-10 border-r border-gray-300 dark:border-gray-600 text-sm whitespace-nowrap">
+                          <div>{new Date(item.expiry + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                          <div className="text-xs font-normal text-gray-600 dark:text-gray-400">
+                            ({item.daysToExpiry}d)
+                          </div>
+                        </td>
+                        {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                          const key = (selectedType + 's') as 'calls' | 'puts';
+                          const chainOptions = item.chain?.[key];
+                          const option = Array.isArray(chainOptions)
+                            ? chainOptions.find((o) => o.strike === strike)
+                            : undefined;
+                          const metrics = option ? calculateMetrics(option, item.daysToExpiry) : null;
+
+                          return (
+                            <td
+                              key={`cell-${item.expiry}-${strike}`}
+                              className={`px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700 cursor-pointer transition hover:shadow-md ${
+                                metrics ? getCellColor(metrics.profitPercent) : 'bg-gray-50 dark:bg-gray-800'
+                              }`}
+                              onClick={() => option && handleStrikeClick(strike, selectedType === 'call')}
+                              title={
+                                option
+                                  ? `${selectedType === 'call' ? 'Call' : 'Put'} @ $${strike}\nMid: $${metrics?.midPrice.toFixed(2)}\nVol: ${option.volume} | OI: ${option.openInterest}\nBid: $${option.bid?.toFixed(2) || 'N/A'} | Ask: $${option.ask?.toFixed(2) || 'N/A'}`
+                                  : `No data`
+                              }
+                            >
+                              {option && metrics ? (
+                                <div className="space-y-1">
+                                  <div className="font-bold text-gray-900 dark:text-white">
+                                    {metrics.profitPercent.toFixed(2)}%
+                                  </div>
+                                  <div className="text-gray-700 dark:text-gray-300 font-semibold">
+                                    ${metrics.midPrice.toFixed(2)}
+                                  </div>
+                                  <div className="text-gray-600 dark:text-gray-400">
+                                    ${metrics.dailyDecay.toFixed(2)}/day
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-gray-400 dark:text-gray-600 py-2">—</div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Strike Navigation Controls */}
+              <div className="mt-3 flex gap-2 items-center justify-between">
+                <button
+                  onClick={() => setStrikeScrollIndex(Math.max(0, strikeScrollIndex - 6))}
+                  disabled={strikeScrollIndex === 0}
+                  className={`px-2 py-1 rounded font-bold transition text-sm ${
+                    strikeScrollIndex > 0
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  ← Lower
+                </button>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  Strikes: ${allStrikes[strikeScrollIndex]?.toFixed(0) || '—'} to ${allStrikes[Math.min(strikeScrollIndex + 11, allStrikes.length - 1)]?.toFixed(0) || '—'}
+                </div>
+                <button
+                  onClick={() => setStrikeScrollIndex(Math.min(allStrikes.length - 12, strikeScrollIndex + 6))}
+                  disabled={strikeScrollIndex >= allStrikes.length - 12}
+                  className={`px-2 py-1 rounded font-bold transition text-sm ${
+                    strikeScrollIndex < allStrikes.length - 12
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Higher →
+                </button>
+              </div>
+
+              {/* Legend */}
+              <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-100 dark:bg-green-900/40 rounded border border-green-300"></div>
+                    <span>High Profit (≥2%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200"></div>
+                    <span>Medium Profit (0.5-2%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200"></div>
+                    <span>Low Profit (0-0.5%)</span>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="text-center text-gray-500 py-8 text-sm">
-              {selectedTicker && selectedExpiry
-                ? 'No chain data available'
-                : 'Select a ticker and expiry'}
+              {selectedTicker ? 'No chain data available' : 'Select a ticker'}
             </div>
           )}
         </div>
 
         {/* RIGHT COLUMN: Order Builder */}
-        <div className="md:col-span-1" ref={orderFormRef}>
+        <div className="md:col-span-1 flex flex-col" style={{ height: 'calc(100vh - 60px)' }}>
           <div className="mb-4">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
               Order Builder
             </h2>
           </div>
 
-          {selectedTicker && selectedExpiry && chainData ? (
-            <div className="space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          {selectedTicker && selectedStrike && currentPrice ? (
+            <div className="flex-1 space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
               {/* Ticker & Expiry Summary */}
               <div className="text-sm">
                 <div className="font-bold text-gray-900 dark:text-gray-100">
                   {selectedTicker} @ ${currentPrice.toFixed(2)}
-                </div>
-                <div className="text-gray-600 dark:text-gray-400">
-                  Exp:{' '}
-                  {new Date(selectedExpiry + 'T00:00:00').toLocaleDateString()}
                 </div>
               </div>
 
@@ -328,7 +600,7 @@ export function OptionsExplorationPage({
                       e.target.value ? parseFloat(e.target.value) : null
                     )
                   }
-                  placeholder="Click heatmap or enter"
+                  placeholder="Click table or enter"
                   className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
                 />
               </div>
@@ -369,8 +641,8 @@ export function OptionsExplorationPage({
               </div>
             </div>
           ) : (
-            <div className="text-center text-gray-500 py-8 text-sm">
-              Select a ticker and expiry to place an order
+            <div className="flex-1 text-center text-gray-500 py-8 text-sm">
+              Click a strike to place an order
             </div>
           )}
         </div>
