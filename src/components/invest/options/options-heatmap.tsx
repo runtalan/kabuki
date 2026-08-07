@@ -1,0 +1,423 @@
+'use client';
+
+import { useState } from 'react';
+import { HelpCircle } from 'lucide-react';
+import type {
+  OptionContract,
+  OptionsHeatmapProps,
+  HeatmapFilterState,
+  MetricMode,
+  MoneynessCategoryFilter,
+  HeatmapCellData,
+} from '@/lib/options-types';
+
+export function OptionsHeatmap({
+  ticker,
+  currentPrice,
+  contracts,
+  onSelectContract,
+  openGuideModal,
+}: OptionsHeatmapProps) {
+  const [filters, setFilters] = useState<HeatmapFilterState>({
+    optionType: 'both',
+    metricMode: 'premium',
+    moneynessFilter: 'all',
+  });
+
+  // Helper Functions
+
+  function getMoneyness(strike: number, currentPriceVal: number): 'itm' | 'atm' | 'otm' {
+    const distance = Math.abs(strike - currentPriceVal) / currentPriceVal;
+    if (distance < 0.01) return 'atm';
+    return strike < currentPriceVal ? 'itm' : 'otm';
+  }
+
+  function getRiskColor(annualizedYield: number): string {
+    if (annualizedYield > 60) return 'bg-pink-100 dark:bg-pink-950/30';
+    if (annualizedYield > 30) return 'bg-yellow-100 dark:bg-yellow-950/30';
+    return 'bg-emerald-100 dark:bg-emerald-950/30';
+  }
+
+  function getMetricLabel(mode: MetricMode): string {
+    const labels: Record<MetricMode, string> = {
+      premium: 'Premium',
+      ari: 'ARI',
+      delta: 'Delta',
+    };
+    return labels[mode];
+  }
+
+  function formatMetricValue(value: number, mode: MetricMode): string {
+    if (mode === 'delta') {
+      return value.toFixed(2);
+    }
+    if (mode === 'ari') {
+      return `${(value * 100).toFixed(2)}%`;
+    }
+    return `$${value.toFixed(2)}`;
+  }
+
+  function getDaysToExpiry(expiry: Date): number {
+    const now = new Date();
+    const diffMs = expiry.getTime() - now.getTime();
+    return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  }
+
+  function formatExpiryLabel(expiry: Date): string {
+    const options: Intl.DateTimeFormatOptions = {
+      month: 'short',
+      day: 'numeric',
+    };
+    const formatted = expiry.toLocaleDateString('en-US', options);
+    const dte = getDaysToExpiry(expiry);
+    return `${formatted} (${dte}d)`;
+  }
+
+  function formatStrikeLabel(strike: number, currentPriceVal: number): string {
+    const moneyness = getMoneyness(strike, currentPriceVal);
+    const label = `$${strike.toFixed(2)}`;
+
+    if (moneyness === 'atm') {
+      return `${label} (ATM)`;
+    }
+    if (moneyness === 'itm') {
+      return `${label} (ITM)`;
+    }
+    return `${label} (OTM)`;
+  }
+
+  function aggregateContractsByStrikeExpiry(
+    contractsList: OptionContract[],
+    filtersState: HeatmapFilterState,
+    currentPriceVal: number
+  ): {
+    strikes: number[];
+    expirations: Date[];
+    cellMap: Map<string, HeatmapCellData>;
+  } {
+    const strikes = new Set<number>();
+    const expirations = new Set<string>();
+    const cellMap = new Map<string, HeatmapCellData>();
+
+    for (const contract of contractsList) {
+      // Apply filters
+      if (filtersState.optionType !== 'both' && contract.optionType !== filtersState.optionType) {
+        continue;
+      }
+
+      const moneyness = getMoneyness(contract.strike, currentPriceVal);
+      if (filtersState.moneynessFilter !== 'all' && moneyness !== filtersState.moneynessFilter) {
+        continue;
+      }
+
+      strikes.add(contract.strike);
+      const expiryKey = contract.expiry.toISOString();
+      expirations.add(expiryKey);
+
+      const cellKey = `${contract.strike}|${expiryKey}`;
+      if (!cellMap.has(cellKey)) {
+        cellMap.set(cellKey, {
+          strike: contract.strike,
+          expiry: contract.expiry,
+          metricValue: 0,
+          totalPremium: 0,
+          dailyYield: 0,
+          annualizedYield: 0,
+          callContracts: [],
+          putContracts: [],
+          riskLevel: contract.riskLevel,
+        });
+      }
+
+      const cell = cellMap.get(cellKey)!;
+      if (contract.optionType === 'call') {
+        cell.callContracts.push(contract);
+      } else {
+        cell.putContracts.push(contract);
+      }
+
+      // Accumulate metrics
+      cell.totalPremium += contract.premium;
+      cell.dailyYield += contract.dailyYield;
+      cell.annualizedYield = contract.annualizedReturn;
+
+      if (filtersState.metricMode === 'premium') {
+        cell.metricValue = contract.premium;
+      } else if (filtersState.metricMode === 'delta') {
+        cell.metricValue = contract.delta;
+      } else if (filtersState.metricMode === 'ari') {
+        cell.metricValue = contract.annualizedReturn / 100;
+      }
+    }
+
+    const sortedStrikes = Array.from(strikes).sort((a, b) => a - b);
+    const sortedExpirations = Array.from(expirations)
+      .map((key) => new Date(key))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    return {
+      strikes: sortedStrikes,
+      expirations: sortedExpirations,
+      cellMap,
+    };
+  }
+
+  // Event Handlers
+
+  const handleFilterChange = (key: keyof HeatmapFilterState, value: any) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      optionType: 'both',
+      metricMode: 'premium',
+      moneynessFilter: 'all',
+    });
+  };
+
+  const handleCellClick = (cellData: HeatmapCellData) => {
+    const contractsToConsider =
+      filters.optionType === 'call'
+        ? cellData.callContracts
+        : filters.optionType === 'put'
+          ? cellData.putContracts
+          : [...cellData.callContracts, ...cellData.putContracts];
+
+    if (contractsToConsider.length > 0) {
+      onSelectContract(contractsToConsider[0], cellData.strike, cellData.expiry);
+    }
+  };
+
+  // Data Aggregation
+
+  const { strikes, expirations, cellMap } = aggregateContractsByStrikeExpiry(
+    contracts,
+    filters,
+    currentPrice
+  );
+
+  // Render Cell
+
+  const renderCell = (cellData: HeatmapCellData | null) => {
+    if (!cellData) {
+      return (
+        <div className="p-2 text-center text-neutral-400 dark:text-neutral-500">
+          —
+        </div>
+      );
+    }
+
+    const riskColor = getRiskColor(cellData.annualizedYield);
+    const metricLabel = getMetricLabel(filters.metricMode);
+    const metricValue = formatMetricValue(cellData.metricValue, filters.metricMode);
+
+    return (
+      <button
+        onClick={() => handleCellClick(cellData)}
+        className={`w-full h-full p-3 rounded transition-all hover:shadow-md cursor-pointer border border-neutral-200 dark:border-neutral-700 ${riskColor}`}
+      >
+        <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+          {metricLabel}: {metricValue}
+        </div>
+        <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+          Premium: ${cellData.totalPremium.toFixed(2)}
+        </div>
+        <div className="text-xs text-neutral-600 dark:text-neutral-400">
+          Yield: {(cellData.annualizedYield).toFixed(1)}%
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Ticker Banner and Buttons */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
+        <div>
+          <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
+            {ticker}
+          </h3>
+          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+            ${currentPrice.toFixed(2)}
+          </p>
+        </div>
+        <button
+          onClick={openGuideModal}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+          aria-label="Open Options Key & Guide"
+        >
+          <HelpCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Options Key & Guide
+          </span>
+        </button>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-white dark:bg-neutral-950 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Call/Put Toggle */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              Type
+            </label>
+            <select
+              value={filters.optionType}
+              onChange={(e) =>
+                handleFilterChange('optionType', e.target.value as 'call' | 'put' | 'both')
+              }
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="both">Both</option>
+              <option value="call">Calls</option>
+              <option value="put">Puts</option>
+            </select>
+          </div>
+
+          {/* Mode Selection */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              Mode
+            </label>
+            <select
+              value={filters.metricMode}
+              onChange={(e) =>
+                handleFilterChange('metricMode', e.target.value as MetricMode)
+              }
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="premium">Premium</option>
+              <option value="ari">Annualized Return</option>
+              <option value="delta">Delta</option>
+            </select>
+          </div>
+
+          {/* Moneyness Filter */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              Moneyness
+            </label>
+            <select
+              value={filters.moneynessFilter}
+              onChange={(e) =>
+                handleFilterChange('moneynessFilter', e.target.value as MoneynessCategoryFilter)
+              }
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All</option>
+              <option value="itm">In-The-Money</option>
+              <option value="atm">At-The-Money</option>
+              <option value="otm">Out-Of-Money</option>
+            </select>
+          </div>
+
+          {/* Placeholder for future filters */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+              Time Range
+            </label>
+            <select
+              disabled
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 cursor-not-allowed"
+            >
+              <option>All</option>
+            </select>
+          </div>
+
+          {/* Clear Filters Button */}
+          <div className="flex flex-col gap-2 justify-end">
+            <button
+              onClick={handleClearFilters}
+              className="w-full px-3 py-2 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium transition-colors"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Section */}
+      <div className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+        <div className="inline-block min-w-full">
+          {/* Strike Header Row */}
+          <div
+            className="grid gap-0 bg-neutral-100 dark:bg-neutral-900"
+            style={{ gridTemplateColumns: `150px repeat(${Math.max(1, strikes.length)}, 120px)` }}
+          >
+            {/* Top-left corner (empty) */}
+            <div className="p-3 border-b border-r border-neutral-200 dark:border-neutral-800" />
+
+            {/* Strike Price Headers */}
+            {strikes.map((strike) => (
+              <div
+                key={`header-${strike}`}
+                className="p-3 text-center text-xs font-semibold text-neutral-900 dark:text-white border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap"
+              >
+                {formatStrikeLabel(strike, currentPrice)}
+              </div>
+            ))}
+          </div>
+
+          {/* Data Rows */}
+          {expirations.map((expiry) => (
+            <div
+              key={`row-${expiry.getTime()}`}
+              className="grid gap-0"
+              style={{ gridTemplateColumns: `150px repeat(${Math.max(1, strikes.length)}, 120px)` }}
+            >
+              {/* Expiry Label */}
+              <div className="p-3 text-xs font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-950 border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap">
+                {formatExpiryLabel(expiry)}
+              </div>
+
+              {/* Data Cells */}
+              {strikes.map((strike) => {
+                const cellKey = `${strike}|${expiry.toISOString()}`;
+                const cellData = cellMap.get(cellKey) || null;
+                return (
+                  <div
+                    key={cellKey}
+                    className="border-b border-r border-neutral-200 dark:border-neutral-800 min-h-20"
+                  >
+                    {renderCell(cellData)}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-800">
+        <div className="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
+          Risk Color Legend
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-950/30 rounded border border-emerald-200 dark:border-emerald-800" />
+            <span className="text-sm text-neutral-700 dark:text-neutral-300">
+              Low Risk: &lt;30% yield
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-yellow-100 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800" />
+            <span className="text-sm text-neutral-700 dark:text-neutral-300">
+              Medium Risk: 30-60%
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-pink-100 dark:bg-pink-950/30 rounded border border-pink-200 dark:border-pink-800" />
+            <span className="text-sm text-neutral-700 dark:text-neutral-300">
+              High Risk: &gt;60%
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
