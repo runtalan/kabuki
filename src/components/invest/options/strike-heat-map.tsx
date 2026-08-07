@@ -30,16 +30,22 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
     new Set(allStrikes.map((s) => s.strike))
   ).sort((a, b) => a - b);
 
-  // Find ATM index and initialize startIndex to center on ATM
+  // Find ATM index
   const atmIndex = allStrikesArray.findIndex((s) => Math.abs(s - currentPrice) < 1);
-  const initialStartIndex = Math.max(0, Math.min(atmIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
 
-  const [startIndex, setStartIndex] = useState(initialStartIndex);
+  // Initialize to show ATM centered, clamped to valid range
+  const getInitialIndex = () => {
+    if (atmIndex < 0) return 0;
+    const centered = atmIndex - Math.floor(STRIKES_PER_VIEW / 2);
+    return Math.max(0, Math.min(centered, allStrikesArray.length - STRIKES_PER_VIEW));
+  };
+
+  const [startIndex, setStartIndex] = useState(getInitialIndex());
 
   const strikes = allStrikesArray.slice(startIndex, startIndex + STRIKES_PER_VIEW);
 
   const canScrollLeft = startIndex > 0;
-  const canScrollRight = startIndex + STRIKES_PER_VIEW < allStrikesArray.length;
+  const canScrollRight = startIndex < allStrikesArray.length - STRIKES_PER_VIEW;
 
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
     const diff = Math.abs(strike - currentPrice);
