@@ -86,6 +86,13 @@ export const accounts = pgTable(
     address: varchar("address", { length: 500 }), // manual property assets only
     isManual: boolean("is_manual").default(false).notNull(),
     currentBalance: numeric("current_balance", { precision: 16, scale: 2 }).notNull(),
+    // Pay-in-full accounts (currently both Apple Cards) whose currentBalance
+    // should zero out at the start of each new month — see balance-reset.ts.
+    resetBalanceMonthly: boolean("reset_balance_monthly").default(false).notNull(),
+    // 'YYYY-MM' of the month currentBalance currently represents. Null means
+    // "never stamped yet" (freshly created/migrated account) — balance-reset.ts
+    // treats that as nothing-to-reset rather than an immediate reset.
+    balanceMonth: varchar("balance_month", { length: 7 }),
     availableBalance: numeric("available_balance", { precision: 16, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("USD").notNull(),
     isActive: boolean("is_active").default(true).notNull(),

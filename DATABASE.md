@@ -52,6 +52,7 @@
 | 2026-08-06 | `0022_trades_table.sql` | `trades` table — tracks buy/sell orders (symbol, qty, price, type, side, status) |
 | 2026-08-07 | `0023_categories_order_column.sql` | Add `categories.order` column for drag-to-reorder budget tiles |
 | 2026-08-07 | `0021_watchlist.sql`, `0024_refactor_holdings_for_alpaca.sql`, `0025_alpaca_settings.sql` | Applied late — see drift note below |
+| 2026-08-07 | `0026_apple_card_balance_tracking.sql` | `accounts.reset_balance_monthly` + `accounts.balance_month` — lets pay-in-full cards (Apple Card) accumulate a balance through the month and zero out on the 1st |
 
 ## Drift found and closed, 2026-08-07
 
