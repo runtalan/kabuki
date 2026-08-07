@@ -20,25 +20,31 @@ export function HeatMapSkeleton() {
 
       <div className="space-y-2">
         <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
-        <div className="flex gap-1">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div
-              key={`call-${i}`}
-              className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
-            />
-          ))}
+        <div className="flex gap-1 justify-center">
+          {Array.from({ length: 12 }).map((_, i) => {
+            const isCenter = i === 5;
+            return (
+              <div
+                key={`call-${i}`}
+                className={`w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse ${isCenter ? 'border-l-4 border-r-4 border-gray-400 dark:border-gray-500' : ''}`}
+              />
+            );
+          })}
         </div>
       </div>
 
       <div className="space-y-2">
         <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
-        <div className="flex gap-1">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div
-              key={`put-${i}`}
-              className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
-            />
-          ))}
+        <div className="flex gap-1 justify-center">
+          {Array.from({ length: 12 }).map((_, i) => {
+            const isCenter = i === 5;
+            return (
+              <div
+                key={`put-${i}`}
+                className={`w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse ${isCenter ? 'border-l-4 border-r-4 border-gray-400 dark:border-gray-500' : ''}`}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

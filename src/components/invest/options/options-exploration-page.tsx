@@ -116,7 +116,7 @@ export function OptionsExplorationPage({
         setAllChainsLoading(true);
         const chains = new Map<string, ExpiryChainData>();
         let loaded = 0;
-        const targetCount = 6;
+        const targetCount = 12;
 
         console.log('Attempting to load chains from', expirations.length, 'available expirations');
 
@@ -217,40 +217,50 @@ export function OptionsExplorationPage({
   // Reset strike scroll index when call/put changes or chains load
   useEffect(() => {
     if (atmIndex >= 0) {
-      if (selectedType === 'call') {
-        setStrikeScrollIndex(Math.max(0, atmIndex - 3));
-      } else {
-        setStrikeScrollIndex(Math.max(0, Math.min(atmIndex + 3, allStrikes.length - 12)));
-      }
+      const centered = Math.max(0, Math.min(atmIndex - 6, allStrikes.length - 12));
+      setStrikeScrollIndex(centered);
     }
   }, [selectedType, atmIndex, allStrikes.length]);
 
   const handleJumpToATM = () => {
     if (atmIndex >= 0) {
-      setStrikeScrollIndex(Math.max(0, atmIndex - 3));
+      const centered = Math.max(0, Math.min(atmIndex - 6, allStrikes.length - 12));
+      setStrikeScrollIndex(centered);
     }
   };
 
   const handleJumpToITM = () => {
     if (atmIndex < 0) return;
-    let targetIndex = atmIndex;
+    let targetStrike: number;
     if (selectedType === 'call') {
-      targetIndex = Math.max(0, atmIndex - 3);
+      // ITM for calls = lower strikes, find 3rd ITM strike going backwards
+      const itmStrikes = allStrikes.slice(0, atmIndex).reverse();
+      targetStrike = itmStrikes[2] ?? allStrikes[0];
     } else {
-      targetIndex = Math.min(allStrikes.length - 1, atmIndex + 3);
+      // ITM for puts = higher strikes, find 3rd ITM strike going forwards
+      const itmStrikes = allStrikes.slice(atmIndex + 1);
+      targetStrike = itmStrikes[2] ?? allStrikes[allStrikes.length - 1];
     }
-    setStrikeScrollIndex(Math.max(0, targetIndex - 3));
+    const targetIndex = allStrikes.indexOf(targetStrike);
+    const centered = Math.max(0, Math.min(targetIndex - 6, allStrikes.length - 12));
+    setStrikeScrollIndex(centered);
   };
 
   const handleJumpToOTM = () => {
     if (atmIndex < 0) return;
-    let targetIndex = atmIndex;
+    let targetStrike: number;
     if (selectedType === 'call') {
-      targetIndex = Math.min(allStrikes.length - 1, atmIndex + 3);
+      // OTM for calls = higher strikes, find 3rd OTM strike going forwards
+      const otmStrikes = allStrikes.slice(atmIndex + 1);
+      targetStrike = otmStrikes[2] ?? allStrikes[allStrikes.length - 1];
     } else {
-      targetIndex = Math.max(0, atmIndex - 3);
+      // OTM for puts = lower strikes, find 3rd OTM strike going backwards
+      const otmStrikes = allStrikes.slice(0, atmIndex).reverse();
+      targetStrike = otmStrikes[2] ?? allStrikes[0];
     }
-    setStrikeScrollIndex(Math.max(0, targetIndex - 3));
+    const targetIndex = allStrikes.indexOf(targetStrike);
+    const centered = Math.max(0, Math.min(targetIndex - 6, allStrikes.length - 12));
+    setStrikeScrollIndex(centered);
   };
 
   const getHeaderColor = (strike: number) => {
@@ -416,18 +426,22 @@ export function OptionsExplorationPage({
                       <th className="px-3 py-3 text-left font-bold text-gray-900 dark:text-gray-100 w-24 sticky left-0 bg-gray-100 dark:bg-gray-800 z-20 border-r border-gray-300 dark:border-gray-600">
                         Expiry
                       </th>
-                      {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => (
-                        <th
-                          key={`header-${strike}`}
-                          data-strike={strike}
-                          className={`px-3 py-3 text-center font-bold border-r border-gray-200 dark:border-gray-700 min-w-[110px] ${getHeaderColor(strike)}`}
-                        >
-                          <div className="font-bold">${strike.toFixed(0)}</div>
-                          <div className="text-xs font-normal opacity-70">
-                            ({getStrikeStatus(strike).toUpperCase()})
-                          </div>
-                        </th>
-                      ))}
+                      {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                        const status = getStrikeStatus(strike);
+                        const isATM = status === 'atm';
+                        return (
+                          <th
+                            key={`header-${strike}`}
+                            data-strike={strike}
+                            className={`px-3 py-3 text-center font-bold min-w-[110px] ${getHeaderColor(strike)} ${isATM ? 'border-l-4 border-l-black dark:border-l-white border-r-4 border-r-black dark:border-r-white' : 'border-r border-gray-200 dark:border-gray-700'}`}
+                          >
+                            <div className="font-bold">${strike.toFixed(0)}</div>
+                            <div className="text-xs font-normal opacity-70">
+                              ({status.toUpperCase()})
+                            </div>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -449,13 +463,15 @@ export function OptionsExplorationPage({
                             ? chainOptions.find((o) => o.strike === strike)
                             : undefined;
                           const metrics = option ? calculateMetrics(option, item.daysToExpiry) : null;
+                          const status = getStrikeStatus(strike);
+                          const isATM = status === 'atm';
 
                           return (
                             <td
                               key={`cell-${item.expiry}-${strike}`}
-                              className={`px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700 cursor-pointer transition hover:shadow-md ${
+                              className={`px-3 py-2 text-center cursor-pointer transition hover:shadow-md ${
                                 metrics ? getCellColor(metrics.profitPercent) : 'bg-gray-50 dark:bg-gray-800'
-                              }`}
+                              } ${isATM ? 'border-l-4 border-l-black dark:border-l-white border-r-4 border-r-black dark:border-r-white' : 'border-r border-gray-200 dark:border-gray-700'}`}
                               onClick={() => option && handleStrikeClick(strike, selectedType === 'call')}
                               title={
                                 option
@@ -516,7 +532,7 @@ export function OptionsExplorationPage({
                 </button>
               </div>
 
-              {/* Legend */}
+              {/* Legend - At bottom */}
               <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
                 <div className="flex flex-wrap gap-4">
                   <div className="flex items-center gap-2">

@@ -138,9 +138,27 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   };
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-4 flex flex-col items-center">
+      {/* Legend - Above the fold */}
+      <div className="text-xs text-gray-600 dark:text-gray-400 mb-4">
+        <div className="flex gap-4 flex-wrap justify-center">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-100 dark:bg-green-900/40 rounded border border-green-300"></div>
+            <span>High Profit (≥2%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200"></div>
+            <span>Medium Profit (0.5-2%)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200"></div>
+            <span>Low Profit (0-0.5%)</span>
+          </div>
+        </div>
+      </div>
+
       {/* Controls */}
-      <div className="flex gap-2 items-center justify-between mb-4">
+      <div className="flex gap-2 items-center justify-between mb-4 w-full">
         <div className="flex gap-2">
           <button
             onClick={() => setSelectedType('call')}
@@ -176,7 +194,7 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
       </div>
 
       {/* Strike Range Info & Quick Jump Buttons */}
-      <div className="space-y-2 mb-3">
+      <div className="space-y-2 mb-3 w-full">
         <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
           Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
           <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
@@ -204,7 +222,7 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
       </div>
 
       {/* Heatmap Table with Side Arrows */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-full justify-center">
         {/* Left Arrow */}
         <button
           onClick={handleScrollLeft}
@@ -229,11 +247,12 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
               </th>
               {strikes.map((strike) => {
                 const status = getStrikeStatus(strike);
+                const isATM = status === 'atm';
                 return (
                   <th
                     key={`header-${strike}`}
                     data-strike={strike}
-                    className={`px-3 py-3 text-center font-bold border-r border-gray-200 dark:border-gray-700 min-w-[110px] ${getHeaderColor(strike)}`}
+                    className={`px-3 py-3 text-center font-bold min-w-[110px] ${getHeaderColor(strike)} ${isATM ? 'border-l-4 border-l-black dark:border-l-white border-r-4 border-r-black dark:border-r-white' : 'border-r border-gray-200 dark:border-gray-700'}`}
                   >
                     <div className="font-bold">${strike.toFixed(0)}</div>
                     <div className="text-xs font-normal opacity-70">
@@ -255,13 +274,15 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
               {strikes.map((strike) => {
                 const option = options.find((o) => o.strike === strike);
                 const metrics = option ? calculateMetrics(option) : null;
+                const status = getStrikeStatus(strike);
+                const isATM = status === 'atm';
 
                 return (
                   <td
                     key={`cell-${strike}`}
-                    className={`px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700 cursor-pointer transition hover:shadow-md ${
+                    className={`px-3 py-2 text-center cursor-pointer transition hover:shadow-md ${
                       metrics ? getCellColor(metrics.profitPercent) : 'bg-gray-50 dark:bg-gray-800'
-                    }`}
+                    } ${isATM ? 'border-l-4 border-l-black dark:border-l-white border-r-4 border-r-black dark:border-r-white' : 'border-r border-gray-200 dark:border-gray-700'}`}
                     onClick={() => option && onStrikeClick(strike, selectedType === 'call')}
                     title={
                       option
@@ -305,24 +326,6 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
         >
           ›
         </button>
-      </div>
-
-      {/* Legend */}
-      <div className="text-xs text-gray-600 dark:text-gray-400">
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-100 dark:bg-green-900/40 rounded border border-green-300"></div>
-            <span>High Profit (≥2%)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200"></div>
-            <span>Medium Profit (0.5-2%)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200"></div>
-            <span>Low Profit (0-0.5%)</span>
-          </div>
-        </div>
       </div>
     </div>
   );
