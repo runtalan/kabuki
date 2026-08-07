@@ -1,4 +1,6 @@
-import yf from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
+
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 export interface StockQuote {
   ticker: string;
@@ -47,12 +49,8 @@ function parseOptionContract(contract: any): OptionStrike {
 
 export async function getStockQuote(ticker: string): Promise<StockQuote> {
   try {
-    const quote = await yf.quote({
-      symbols: [ticker],
-      modules: ['price', 'quoteSummary'],
-    });
+    const data = await yahooFinance.quote(ticker);
 
-    const data = quote[ticker];
     if (!data || !data.regularMarketPrice) {
       throw new Error(`No quote data for ${ticker}`);
     }
@@ -75,15 +73,17 @@ export async function getOptionExpirations(
   ticker: string
 ): Promise<string[]> {
   try {
-    const options = await yf.options({ symbol: ticker });
-    if (!options?.result?.[0]?.expirationDates) {
+    const options = await yahooFinance.options(ticker);
+    if (!options?.expirationDates) {
       return [];
     }
 
-    // Convert timestamps to ISO date strings, sort nearest-first
-    return options.result[0].expirationDates
-      .map((timestamp: number) => {
-        const date = new Date(timestamp * 1000);
+    // Convert Date objects to ISO date strings, sort nearest-first
+    return options.expirationDates
+      .map((dateOrTimestamp: Date | number) => {
+        const date = dateOrTimestamp instanceof Date
+          ? dateOrTimestamp
+          : new Date(dateOrTimestamp * 1000);
         return date.toISOString().split('T')[0]; // YYYY-MM-DD
       })
       .sort();
@@ -99,14 +99,12 @@ export async function getOptionChain(
   atmWindow: number = 5
 ): Promise<OptionChain> {
   try {
-    const options = await yf.options({ symbol: ticker });
-    if (!options?.result?.[0]) {
+    const chainData = await yahooFinance.options(ticker);
+    if (!chainData) {
       throw new Error(`No option chain for ${ticker}`);
     }
 
-    const chainData = options.result[0];
     const quote = chainData.quote;
-
     if (!quote) {
       throw new Error(`No quote data in chain for ${ticker}`);
     }
@@ -116,7 +114,9 @@ export async function getOptionChain(
 
     // Find the expiry matching the requested date
     const expiryObj = chainData.options?.find((exp: any) => {
-      const expDate = new Date(exp.expirationDate * 1000);
+      const expDate = exp.expirationDate instanceof Date
+        ? exp.expirationDate
+        : new Date(exp.expirationDate * 1000);
       return expDate.toISOString().split('T')[0] === expiryDate;
     });
 
@@ -125,7 +125,7 @@ export async function getOptionChain(
     }
 
     // Filter to ATM ± atmWindow strikes only
-    const allOptions = expiryObj.calls?.concat(expiryObj.puts || []) || [];
+    const allOptions = (expiryObj.calls || []).concat(expiryObj.puts || []);
     const filtered = allOptions.filter((opt: any) => {
       const strike = opt.strike;
       return strike >= atmStrike - atmWindow && strike <= atmStrike + atmWindow;
@@ -133,19 +133,21 @@ export async function getOptionChain(
 
     // Separate calls and puts
     const calls = filtered
-      .filter((opt: any) => opt.option_type === 'call' || opt.bid !== undefined)
+      .filter((opt: any) => opt.option_type === 'call' || (opt.bid !== undefined && opt.bid !== null))
       .sort((a: any, b: any) => a.strike - b.strike)
       .map(parseOptionContract);
 
     const puts = filtered
-      .filter((opt: any) => opt.option_type === 'put' || opt.bid !== undefined)
+      .filter((opt: any) => opt.option_type === 'put' || (opt.bid !== undefined && opt.bid !== null))
       .sort((a: any, b: any) => a.strike - b.strike)
       .map(parseOptionContract);
 
     // Calculate days to expiry
-    const expiryTimestamp = expiryObj.expirationDate * 1000;
+    const expiryDate_ = expiryObj.expirationDate instanceof Date
+      ? expiryObj.expirationDate.getTime()
+      : expiryObj.expirationDate * 1000;
     const daysToExpiry = Math.ceil(
-      (expiryTimestamp - Date.now()) / (1000 * 60 * 60 * 24)
+      (expiryDate_ - Date.now()) / (1000 * 60 * 60 * 24)
     );
 
     return {
