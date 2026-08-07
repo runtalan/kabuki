@@ -218,8 +218,14 @@ export function OptionsExplorationPage({
       });
     }
   });
-  // Find ATM from all strikes available
-  const atmCandidates = allStrikes;
+  // Only show strikes quoted in every loaded expiration — strikes that exist
+  // in just one or two chains (e.g. a LEAP's $1 increments vs $2.50/$5
+  // elsewhere) render as almost all "—" and aren't worth a column. Fall back
+  // to showing everything if no strike clears that bar.
+  const fullyCoveredStrikes = allStrikes.filter(
+    (s) => chainCoverageByStrike.get(s) === allChains.length
+  );
+  const atmCandidates = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
 
   // Find the single closest strike (ATM)
   const atmStrike = atmCandidates.length > 0
@@ -237,9 +243,7 @@ export function OptionsExplorationPage({
     }
   };
 
-  // Show all strikes across all expirations, even if some don't have data in
-  // certain chains (shown as "—"). This lets users see the full strike range.
-  const filteredStrikes = allStrikes;
+  const filteredStrikes = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
   const atmIndexInFiltered = atmStrike ? filteredStrikes.indexOf(atmStrike) : -1;
 
   // Self-healing window: if the stored strikeScrollIndex (set by an effect,
