@@ -3,6 +3,8 @@
 **Date:** 2026-08-07
 **Goal:** Make each Apple Card account's `currentBalance` actually reflect what's been spent this month, and automatically zero it out at the start of each new month since both cards are paid off in full every cycle.
 
+> **Superseded 2026-08-07 (same day, after initial implementation).** The "accumulate incrementally, then reset to $0 on the 1st" mechanism below shipped as designed, but the actual requirement is simpler and more robust: the balance should always just *be* the live sum of that calendar month's transactions — recomputed, not accumulated-and-reset. This avoids incremental-counter drift and needs no explicit reset step; a new month reads $0 because nothing has posted to it yet. The accumulation section, the "reset" framing throughout, and the `resetStaleMonthlyBalances` function name below are historical — the shipped code is `recomputeMonthlyBalance`/`refreshMonthlyBalances` in `src/lib/monthly-balance.ts`, which sums `transactions.amount` for the account's current calendar month (excluding hidden/transfer rows) on every ingest and on every `getUser()` call. The `resetBalanceMonthly`/`balanceMonth` columns and the login-triggered trigger point are unchanged from the design below — only the write itself changed from "increment then zero out" to "recompute the sum."
+
 ## Background
 
 Both Renato and Claudia have an "Apple Card" account (`accounts.isManual = true`, `liabilityType = 'credit_card'`), fed by the Apple Card Sync ingest endpoint (`/api/v1/apple-card`, see the [household-wide-data-scoping design](./2026-08-07-household-wide-data-scoping-design.md) for how that pipeline works). Two gaps exist today:
