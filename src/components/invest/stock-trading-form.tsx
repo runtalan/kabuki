@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { TickerWatchListButton } from '../ticker-watch-list-button';
 
 interface StockTradingFormProps {
   accountId: string | null;
@@ -141,7 +142,10 @@ export function StockTradingForm({ accountId, onTradeExecuted, onSymbolChange }:
 
       {/* Symbol */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-foreground mb-2 block">Symbol</label>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <label className="text-sm font-medium text-foreground">Symbol</label>
+          {symbol && <TickerWatchListButton ticker={symbol} />}
+        </div>
         <input
           type="text"
           value={symbol}

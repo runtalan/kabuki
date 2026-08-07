@@ -1,14 +1,13 @@
 import { AppLayout } from '@/components/app-layout';
 import { PageTabs, INVEST_TABS } from '@/components/page-tabs';
-import { WatchlistTable } from '@/components/invest/watchlist/watchlist-table';
-import { generateMockWatchlist } from '@/lib/mock-watchlist-data';
+import { WatchlistManagerWrapper } from '@/components/invest/watchlist/watchlist-manager-wrapper';
+import { AddTickerForm } from '@/components/invest/watchlist/add-ticker-form';
 import { getUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WatchlistPage() {
   const user = await getUser();
-  const mockWatchlist = generateMockWatchlist();
 
   return (
     <AppLayout>
@@ -24,19 +23,15 @@ export default async function WatchlistPage() {
             </p>
           </div>
 
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-              Your Tracked Tickers
-            </h2>
-            <WatchlistTable
-              items={mockWatchlist}
-              onSelect={(ticker) => {
-                console.log('Selected ticker:', ticker);
-              }}
-              onRemove={(ticker) => {
-                console.log('Removed ticker:', ticker);
-              }}
-            />
+          <section className="space-y-6">
+            <AddTickerForm />
+
+            <div className="space-y-4">
+              <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+                Your Tracked Tickers
+              </h2>
+              <WatchlistManagerWrapper />
+            </div>
           </section>
         </div>
       </div>

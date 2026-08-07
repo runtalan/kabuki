@@ -1,6 +1,7 @@
 'use client';
 
 import type { HoldingWithValue } from '@/lib/holdings';
+import { TickerWatchListButton } from '../ticker-watch-list-button';
 
 interface CurrentHoldingsForTradingProps {
   holdings: HoldingWithValue[];
@@ -42,7 +43,12 @@ export function CurrentHoldingsForTrading({ holdings }: CurrentHoldingsForTradin
             const isPositive = holding.gainLoss >= 0;
             return (
               <tr key={holding.id} className="border-b border-border hover:bg-muted/20 last:border-0">
-                <td className="px-4 py-3 font-bold text-foreground">{holding.symbol}</td>
+                <td className="px-4 py-3 font-bold text-foreground">
+                  <div className="flex items-center gap-2">
+                    {holding.symbol}
+                    <TickerWatchListButton ticker={holding.symbol} />
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-right text-muted-foreground">
                   {holding.shares.toFixed(4)}
                 </td>

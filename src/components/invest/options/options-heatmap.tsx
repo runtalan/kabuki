@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { HelpCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type {
   OptionContract,
   OptionsHeatmapProps,
@@ -11,18 +11,25 @@ import type {
   HeatmapCellData,
 } from '@/lib/options-types';
 
+interface OptionsHeatmapWithExpiryProps extends OptionsHeatmapProps {
+  selectedExpiry?: Date | null;
+}
+
 export function OptionsHeatmap({
   ticker,
   currentPrice,
   contracts,
   onSelectContract,
   openGuideModal,
-}: OptionsHeatmapProps) {
+  selectedExpiry,
+}: OptionsHeatmapWithExpiryProps) {
   const [filters, setFilters] = useState<HeatmapFilterState>({
     optionType: 'both',
     metricMode: 'premium',
     moneynessFilter: 'all',
   });
+  const [selectedDTE, setSelectedDTE] = useState<7 | 14 | 30 | 45 | null>(7);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Helper Functions
 
@@ -182,6 +189,16 @@ export function OptionsHeatmap({
     });
   };
 
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = 200;
+      scrollContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
   const handleCellClick = (cellData: HeatmapCellData) => {
     const contractsToConsider =
       filters.optionType === 'call'
@@ -203,7 +220,40 @@ export function OptionsHeatmap({
     currentPrice
   );
 
+  // If selectedExpiry is provided, show only that expiration
+  // Otherwise, filter based on selectedDTE (with ± 2 days tolerance)
+  let displayExpirations: Date[];
+
+  if (selectedExpiry) {
+    displayExpirations = expirations.filter((exp) => {
+      const expTime = exp.getTime();
+      const selectedTime = selectedExpiry.getTime();
+      const diffMs = Math.abs(expTime - selectedTime);
+      const diffDays = diffMs / (24 * 60 * 60 * 1000);
+      return diffDays < 1; // Show only the selected expiry (within same day)
+    });
+    // If exact match not found, show the selected expiry anyway
+    if (displayExpirations.length === 0) {
+      displayExpirations = [selectedExpiry];
+    }
+  } else if (selectedDTE) {
+    // Filter to focus on selectedDTE (show selectedDTE ± 2 days)
+    const dteTolerance = 2;
+    const filteredExpirations = expirations.filter((exp) => {
+      const dte = getDaysToExpiry(exp);
+      return Math.abs(dte - selectedDTE) <= dteTolerance;
+    });
+    displayExpirations = filteredExpirations.length > 0 ? filteredExpirations : expirations;
+  } else {
+    displayExpirations = expirations;
+  }
+
   // Render Cell
+
+  // Find max premium and yield for highlighting
+  const allCells = Array.from(cellMap.values()).filter((cell) => cell.totalPremium > 0);
+  const maxPremium = Math.max(...allCells.map((c) => c.totalPremium), 0);
+  const maxYield = Math.max(...allCells.map((c) => c.annualizedYield), 0);
 
   const renderCell = (cellData: HeatmapCellData | null) => {
     if (!cellData) {
@@ -218,11 +268,19 @@ export function OptionsHeatmap({
     const metricLabel = getMetricLabel(filters.metricMode);
     const metricValue = formatMetricValue(cellData.metricValue, filters.metricMode);
 
+    // Highlight high premium or high yield cells
+    const isHighPremium = cellData.totalPremium >= maxPremium * 0.85;
+    const isHighYield = cellData.annualizedYield >= maxYield * 0.85;
+    const badge = isHighPremium ? '💰' : isHighYield ? '⭐' : '';
+
     return (
       <button
         onClick={() => handleCellClick(cellData)}
-        className={`w-full h-full p-3 rounded transition-all hover:shadow-md cursor-pointer border border-neutral-200 dark:border-neutral-700 ${riskColor}`}
+        className={`w-full h-full p-3 rounded transition-all hover:shadow-md cursor-pointer border border-neutral-200 dark:border-neutral-700 relative ${riskColor}`}
       >
+        {badge && (
+          <div className="absolute top-1 right-1 text-lg">{badge}</div>
+        )}
         <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
           {metricLabel}: {metricValue}
         </div>
@@ -343,81 +401,183 @@ export function OptionsHeatmap({
         </div>
       </div>
 
-      {/* Grid Section */}
-      <div className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
-        <div className="inline-block min-w-full">
-          {/* Strike Header Row */}
-          <div
-            className="grid gap-0 bg-neutral-100 dark:bg-neutral-900"
-            style={{ gridTemplateColumns: `150px repeat(${Math.max(1, strikes.length)}, 120px)` }}
-          >
-            {/* Top-left corner (empty) */}
-            <div className="p-3 border-b border-r border-neutral-200 dark:border-neutral-800" />
+      {/* Grid Section - DTE as columns (horizontally scrollable) */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Strike Heat Map</h3>
 
-            {/* Strike Price Headers */}
-            {strikes.map((strike) => (
-              <div
-                key={`header-${strike}`}
-                className="p-3 text-center text-xs font-semibold text-neutral-900 dark:text-white border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap"
-              >
-                {formatStrikeLabel(strike, currentPrice)}
-              </div>
-            ))}
-          </div>
-
-          {/* Data Rows */}
-          {expirations.map((expiry) => (
-            <div
-              key={`row-${expiry.getTime()}`}
-              className="grid gap-0"
-              style={{ gridTemplateColumns: `150px repeat(${Math.max(1, strikes.length)}, 120px)` }}
+        {/* DTE Quick Select Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+            Quick Jump:
+          </span>
+          {[7, 14, 30, 45].map((dte) => (
+            <button
+              key={dte}
+              onClick={() => setSelectedDTE(dte as 7 | 14 | 30 | 45)}
+              className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors ${
+                selectedDTE === dte
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+              }`}
             >
-              {/* Expiry Label */}
-              <div className="p-3 text-xs font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-950 border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap">
-                {formatExpiryLabel(expiry)}
-              </div>
+              {dte}DTE
+            </button>
+          ))}
+        </div>
 
-              {/* Data Cells */}
-              {strikes.map((strike) => {
-                const cellKey = `${strike}|${expiry.toISOString()}`;
-                const cellData = cellMap.get(cellKey) || null;
+        {selectedExpiry ? (
+          <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+            📍 Focused on {formatExpiryLabel(selectedExpiry)} • Scroll to explore other dates
+          </p>
+        ) : (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            {selectedDTE
+              ? `Showing ${selectedDTE}DTE range (±2 days) • Scroll to see all expirations`
+              : 'Scroll right to explore different expiration dates'}
+          </p>
+        )}
+
+        {/* Scroll Controls and Grid Container */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleScroll('left')}
+            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+          </button>
+
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            <style>{`
+              div[style*="scrollbarWidth"] {
+                -webkit-scrollbar { display: none; }
+              }
+              div[style*="scrollbarWidth"]::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+          <div className="inline-block min-w-full">
+            {/* DTE Header Row */}
+            <div
+              className="grid gap-0 bg-neutral-100 dark:bg-neutral-900"
+              style={{ gridTemplateColumns: `150px repeat(${Math.max(1, displayExpirations.length)}, 140px)` }}
+            >
+              {/* Top-left corner (empty) */}
+              <div className="p-3 border-b border-r border-neutral-200 dark:border-neutral-800" />
+
+              {/* DTE/Expiration Headers */}
+              {displayExpirations.map((expiry) => {
+                const isSelected = selectedExpiry && Math.abs(expiry.getTime() - selectedExpiry.getTime()) < 86400000;
                 return (
                   <div
-                    key={cellKey}
-                    className="border-b border-r border-neutral-200 dark:border-neutral-800 min-h-20"
+                    key={`header-${expiry.getTime()}`}
+                    className={`p-3 text-center text-xs font-semibold border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap transition-colors ${
+                      isSelected
+                        ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100'
+                        : 'text-neutral-900 dark:text-white'
+                    }`}
                   >
-                    {renderCell(cellData)}
+                    {formatExpiryLabel(expiry)}
                   </div>
                 );
               })}
             </div>
-          ))}
+
+            {/* Strike Rows */}
+            {strikes.map((strike) => (
+              <div
+                key={`row-${strike}`}
+                className="grid gap-0"
+                style={{ gridTemplateColumns: `150px repeat(${Math.max(1, displayExpirations.length)}, 140px)` }}
+              >
+                {/* Strike Label */}
+                <div className="p-3 text-xs font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-950 border-b border-r border-neutral-200 dark:border-neutral-800 whitespace-nowrap">
+                  {formatStrikeLabel(strike, currentPrice)}
+                </div>
+
+                {/* Data Cells */}
+                {displayExpirations.map((expiry) => {
+                  const cellKey = `${strike}|${expiry.toISOString()}`;
+                  const cellData = cellMap.get(cellKey) || null;
+                  const isSelected = selectedExpiry && Math.abs(expiry.getTime() - selectedExpiry.getTime()) < 86400000;
+                  return (
+                    <div
+                      key={cellKey}
+                      className={`border-b border-r border-neutral-200 dark:border-neutral-800 min-h-20 transition-colors ${
+                        isSelected ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''
+                      }`}
+                    >
+                      {renderCell(cellData)}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          </div>
+
+          <button
+            onClick={() => handleScroll('right')}
+            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+          </button>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-800">
-        <div className="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
-          Risk Color Legend
+      <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-800 space-y-4">
+        <div>
+          <div className="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
+            Risk Color Legend
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-950/30 rounded border border-emerald-200 dark:border-emerald-800" />
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                Low Risk: &lt;30% yield
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-yellow-100 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800" />
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                Medium Risk: 30-60%
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-pink-100 dark:bg-pink-950/30 rounded border border-pink-200 dark:border-pink-800" />
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                High Risk: &gt;60%
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-950/30 rounded border border-emerald-200 dark:border-emerald-800" />
-            <span className="text-sm text-neutral-700 dark:text-neutral-300">
-              Low Risk: &lt;30% yield
-            </span>
+
+        <div>
+          <div className="text-sm font-semibold text-neutral-900 dark:text-white mb-3">
+            Cell Badges
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-yellow-100 dark:bg-yellow-950/30 rounded border border-yellow-200 dark:border-yellow-800" />
-            <span className="text-sm text-neutral-700 dark:text-neutral-300">
-              Medium Risk: 30-60%
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-pink-100 dark:bg-pink-950/30 rounded border border-pink-200 dark:border-pink-800" />
-            <span className="text-sm text-neutral-700 dark:text-neutral-300">
-              High Risk: &gt;60%
-            </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">💰</span>
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                High Premium (≥85% of max)
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-lg">⭐</span>
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                High Yield (≥85% of max)
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -6,7 +6,11 @@ import { generateMockHoldings, generateMockOptionContracts } from '@/lib/mock-op
 
 export const dynamic = 'force-dynamic';
 
-export default async function OptionsPage() {
+export default async function OptionsPage({
+  searchParams,
+}: {
+  searchParams: { ticker?: string };
+}) {
   const user = await getUser();
 
   const mockHoldings = generateMockHoldings();
@@ -31,6 +35,7 @@ export default async function OptionsPage() {
             holdings={mockHoldings}
             availableContracts={allMockContracts}
             currentPriceMap={currentPriceMap}
+            initialTicker={searchParams.ticker}
           />
         </div>
       </div>

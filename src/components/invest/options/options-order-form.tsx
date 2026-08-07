@@ -13,6 +13,7 @@ interface OptionsOrderFormProps {
   prefilledStrike?: number;
   prefilledExpiry?: Date;
   onClearPrefill?: () => void;
+  onExpiryChange?: (expiry: Date) => void;
 }
 
 export function OptionsOrderForm({
@@ -23,6 +24,7 @@ export function OptionsOrderForm({
   prefilledStrike,
   prefilledExpiry,
   onClearPrefill,
+  onExpiryChange,
 }: OptionsOrderFormProps) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -50,10 +52,12 @@ export function OptionsOrderForm({
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newExpiry = new Date(e.target.value);
     setFormState({
       ...formState,
-      expiry: new Date(e.target.value),
+      expiry: newExpiry,
     });
+    onExpiryChange?.(newExpiry);
   };
 
   const handleStrikeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
