@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { Position, PortfolioSummary } from '@/lib/alpaca-trade';
 
 function formatCurrency(value: number): string {
@@ -20,7 +21,35 @@ interface AlpacaHoldingsViewProps {
   portfolioSummary: PortfolioSummary;
 }
 
-export function AlpacaHoldingsView({ positions, portfolioSummary }: AlpacaHoldingsViewProps) {
+export function AlpacaHoldingsView({ positions: initialPositions, portfolioSummary: initialSummary }: AlpacaHoldingsViewProps) {
+  const [positions, setPositions] = useState(initialPositions);
+  const [portfolioSummary, setPortfolioSummary] = useState(initialSummary);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshPortfolio = async () => {
+    setIsRefreshing(true);
+    try {
+      const [summaryRes, positionsRes] = await Promise.all([
+        fetch('/api/investments/portfolio-summary'),
+        fetch('/api/investments/alpaca-positions'),
+      ]);
+
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
+        setPortfolioSummary(data.summary || initialSummary);
+      }
+
+      if (positionsRes.ok) {
+        const data = await positionsRes.json();
+        setPositions(data.positions || []);
+      }
+    } catch (error) {
+      console.error('Failed to refresh portfolio:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const totalUnrealizedPl = positions.reduce((sum, p) => sum + p.unrealizedPl, 0);
   const isPositive = totalUnrealizedPl >= 0;
 
@@ -36,7 +65,16 @@ export function AlpacaHoldingsView({ positions, portfolioSummary }: AlpacaHoldin
         </div>
       </div>
 
-      <p className="text-muted-foreground mb-8">View and manage your Alpaca paper trading portfolio</p>
+      <div className="flex items-center justify-between mb-8">
+        <p className="text-muted-foreground">View and manage your Alpaca paper trading portfolio</p>
+        <button
+          onClick={refreshPortfolio}
+          disabled={isRefreshing}
+          className="text-xs px-3 py-1 rounded bg-muted text-muted-foreground hover:bg-muted-foreground hover:text-background disabled:opacity-50"
+        >
+          {isRefreshing ? 'Refreshing...' : 'Refresh Portfolio'}
+        </button>
+      </div>
 
       {/* Portfolio Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

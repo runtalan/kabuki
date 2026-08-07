@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 async function getAlpacaClient(userId?: string) {
   let keyId = process.env.APCA_API_KEY_ID;
   let secret = process.env.APCA_API_SECRET_KEY;
+  let source = "environment variables";
 
   if (userId) {
     try {
@@ -15,16 +16,24 @@ async function getAlpacaClient(userId?: string) {
       if (settings) {
         keyId = settings.apiKeyId;
         secret = settings.apiSecretKey;
+        source = "database (user-specific)";
+        console.log(`Using Alpaca credentials from ${source} for user ${userId}`);
+      } else {
+        console.log(`No database credentials found for user ${userId}, falling back to env vars`);
       }
     } catch (error) {
-      console.warn("Failed to fetch Alpaca settings from DB, using env vars:", error);
+      console.warn(`Failed to fetch Alpaca settings from DB for user ${userId}, using env vars:`, error);
     }
   }
 
   if (!keyId || !secret) {
-    throw new Error("Alpaca API credentials not found");
+    throw new Error(
+      `Alpaca API credentials not found (tried: ${source}). ` +
+      `Set APCA_API_KEY_ID and APCA_API_SECRET_KEY in .env.local or save credentials via /api/settings/alpaca`
+    );
   }
 
+  console.log(`Creating Alpaca client with credentials from ${source}`);
   return new Alpaca({
     keyId,
     secret,
@@ -130,12 +139,12 @@ export async function getPositions(userId?: string): Promise<Position[]> {
   return positions.map((position: any) => ({
     symbol: String(position.symbol),
     qty: parseFloat(String(position.qty || 0)),
-    marketValue: parseFloat(String(position.market_value || 0)),
-    costBasis: parseFloat(String(position.cost_basis || 0)),
-    unrealizedPl: parseFloat(String(position.unrealized_pl || 0)),
-    unrealizedPlpc: parseFloat(String(position.unrealized_plpc || 0)),
-    currentPrice: parseFloat(String(position.current_price || 0)),
-    assetClass: String(position.asset_class || "equity"),
+    marketValue: parseFloat(String(position.marketValue || position.market_value || 0)),
+    costBasis: parseFloat(String(position.costBasis || position.cost_basis || 0)),
+    unrealizedPl: parseFloat(String(position.unrealizedPl || position.unrealized_pl || 0)),
+    unrealizedPlpc: parseFloat(String(position.unrealizedPlpc || position.unrealized_plpc || 0)),
+    currentPrice: parseFloat(String(position.currentPrice || position.current_price || 0)),
+    assetClass: String(position.assetClass || position.asset_class || "equity"),
   }));
 }
 

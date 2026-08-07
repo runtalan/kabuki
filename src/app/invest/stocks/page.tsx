@@ -2,17 +2,40 @@ import { AppLayout } from '@/components/app-layout';
 import { PageTabs, INVEST_TABS } from '@/components/page-tabs';
 import { TradeStocksView } from '@/components/invest/trade-stocks-view';
 import { getUser } from '@/lib/auth';
-import { getAllHoldings } from '@/lib/holdings';
+import { getPositions } from '@/lib/alpaca-trade';
+import type { HoldingWithValue } from '@/lib/holdings';
 import { getUserAccounts } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TradeStocksPage() {
   const user = await getUser();
-  const holdings = user && !user.isDemo ? await getAllHoldings() : [];
-
+  let holdings: HoldingWithValue[] = [];
   let accountId: string | null = null;
+
   if (user && !user.isDemo) {
+    try {
+      const alpacaPositions = await getPositions(user.id);
+
+      // Convert Alpaca positions to HoldingWithValue format
+      holdings = alpacaPositions.map((pos, idx) => ({
+        id: idx,
+        symbol: pos.symbol,
+        name: pos.symbol,
+        assetClass: pos.assetClass,
+        shares: pos.qty,
+        costBasis: pos.costBasis,
+        currentPrice: pos.currentPrice,
+        currentValue: pos.marketValue,
+        gainLoss: pos.unrealizedPl,
+        gainLossPct: pos.unrealizedPlpc * 100,
+        acquisitionDate: new Date(),
+      }));
+    } catch (error) {
+      console.error('Failed to fetch Alpaca positions:', error);
+      holdings = [];
+    }
+
     const userAccounts = await getUserAccounts(user.id);
     const brokerageAccount = userAccounts.find((acc) => acc.type === 'brokerage');
     accountId = brokerageAccount?.id ?? null;

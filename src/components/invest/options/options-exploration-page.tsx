@@ -227,14 +227,14 @@ export function OptionsExplorationPage({
         {/* CENTER COLUMN: Strike Heat Map */}
         <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
               {selectedTicker ? `${selectedTicker} Options` : 'Select a ticker'}
             </h2>
             {selectedTicker && (
               <select
                 value={selectedExpiry || ''}
                 onChange={(e) => setSelectedExpiry(e.target.value)}
-                className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm"
+                className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm mb-4"
               >
                 <option value="">Loading expirations...</option>
                 {expirations.map((expiry) => (

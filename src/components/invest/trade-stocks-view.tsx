@@ -20,10 +20,27 @@ export function TradeStocksView({ holdings: initialHoldings, accountId }: TradeS
   const fetchHoldings = async () => {
     try {
       setIsLoadingHoldings(true);
-      const res = await fetch('/api/investments/holdings');
+      const res = await fetch('/api/investments/alpaca-positions');
       if (res.ok) {
         const data = await res.json();
-        setCurrentHoldings(data.holdings || []);
+        const alpacaPositions = data.positions || [];
+
+        // Convert Alpaca positions to HoldingWithValue format
+        const convertedHoldings: HoldingWithValue[] = alpacaPositions.map((pos: any, idx: number) => ({
+          id: idx,
+          symbol: pos.symbol,
+          name: pos.symbol,
+          assetClass: pos.assetClass || 'equity',
+          shares: pos.qty,
+          costBasis: pos.costBasis,
+          currentPrice: pos.currentPrice,
+          currentValue: pos.marketValue,
+          gainLoss: pos.unrealizedPl,
+          gainLossPct: pos.unrealizedPlpc * 100,
+          acquisitionDate: new Date(),
+        }));
+
+        setCurrentHoldings(convertedHoldings);
       }
     } catch (error) {
       console.error('Failed to fetch updated holdings:', error);
