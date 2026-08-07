@@ -10,6 +10,9 @@ interface OptionsOrderFormProps {
   currentPrice?: number;
   onSubmit?: (order: OrderState) => void;
   isLoading?: boolean;
+  prefilledStrike?: number;
+  prefilledExpiry?: Date;
+  onClearPrefill?: () => void;
 }
 
 export function OptionsOrderForm({
@@ -17,14 +20,17 @@ export function OptionsOrderForm({
   currentPrice = 0,
   onSubmit,
   isLoading = false,
+  prefilledStrike,
+  prefilledExpiry,
+  onClearPrefill,
 }: OptionsOrderFormProps) {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [formState, setFormState] = useState<OrderState>({
     strategy: 'cash_secured_put',
     ticker,
-    expiry: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
-    strike: Math.round(currentPrice * 100) / 100,
+    expiry: prefilledExpiry || new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+    strike: prefilledStrike ?? Math.round(currentPrice * 100) / 100,
     orderType: 'market',
     quantity: 1,
   });
@@ -143,6 +149,32 @@ export function OptionsOrderForm({
             {formState.strategy === 'buy_call' && 'Purchase call contracts for upside exposure'}
           </p>
         </div>
+
+        {/* Pre-fill Indicator */}
+        {prefilledStrike && prefilledExpiry && (
+          <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-3 mb-4 flex items-center justify-between">
+            <span className="text-sm text-blue-900 dark:text-blue-200">
+              Form pre-filled from heatmap selection
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setFormState({
+                  strategy: 'cash_secured_put',
+                  ticker,
+                  expiry: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+                  strike: currentPrice || 0,
+                  orderType: 'market',
+                  quantity: 1,
+                });
+                onClearPrefill?.();
+              }}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Ticker and Current Price */}
         <div className="grid grid-cols-2 gap-4">
