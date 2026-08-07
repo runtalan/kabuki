@@ -1,7 +1,7 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { rules } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 import { applyRuleToExistingTransactions } from '@/lib/auto-tag';
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     const allRules = await db.query.rules.findMany({
-      where: eq(rules.userId, user.id),
+      where: inArray(rules.userId, user.householdUserIds),
       orderBy: (rule, { desc }) => desc(rule.priority),
       with: {
         category: true,
