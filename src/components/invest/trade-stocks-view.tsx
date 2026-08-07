@@ -8,9 +8,10 @@ import { CurrentHoldingsForTrading } from './current-holdings-for-trading';
 
 interface TradeStocksViewProps {
   holdings: HoldingWithValue[];
+  accountId: string | null;
 }
 
-export function TradeStocksView({ holdings }: TradeStocksViewProps) {
+export function TradeStocksView({ holdings, accountId }: TradeStocksViewProps) {
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -25,7 +26,7 @@ export function TradeStocksView({ holdings }: TradeStocksViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Trading Form */}
         <div className="lg:col-span-1">
-          <StockTradingForm onTradeExecuted={handleTradeExecuted} />
+          <StockTradingForm accountId={accountId} onTradeExecuted={handleTradeExecuted} />
         </div>
 
         {/* Real-time Quote Ticker */}

@@ -2,17 +2,13 @@ import { AppLayout } from '@/components/app-layout';
 import { PageTabs, INVEST_TABS } from '@/components/page-tabs';
 import { OptionsPortfolioView } from '@/components/invest/options-portfolio-view';
 import { getUser } from '@/lib/auth';
-import { getAllHoldings } from '@/lib/holdings';
+import { getAllOptionHoldings } from '@/lib/holdings';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OptionsPage() {
   const user = await getUser();
-  const allHoldings = user && !user.isDemo ? await getAllHoldings() : [];
-
-  // Filter to only options holdings (assetClass would need to be tracked for options)
-  // For now, show all holdings and add options-specific UI later
-  const optionsHoldings = allHoldings.filter((h) => h.assetClass === 'option');
+  const optionsHoldings = user && !user.isDemo ? await getAllOptionHoldings() : [];
 
   return (
     <AppLayout>

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { holdings } from '@/db/schema';
+import { holdings, optionHoldings } from '@/db/schema';
 
 export interface HoldingWithValue {
   id: string;
@@ -30,6 +30,35 @@ export async function getAllHoldings(): Promise<HoldingWithValue[]> {
       name: row.name,
       assetClass: row.assetClass,
       shares,
+      costBasis,
+      currentPrice,
+      currentValue,
+      gainLoss,
+      gainLossPct: costBasis > 0 ? (gainLoss / costBasis) * 100 : 0,
+    };
+  });
+}
+
+export async function getAllOptionHoldings(): Promise<HoldingWithValue[]> {
+  const rows = await db.query.optionHoldings.findMany();
+  return rows.map((row) => {
+    const contracts = Number(row.contracts);
+    const costBasis = Number(row.costBasis);
+    // No live options pricing yet — use the average premium paid as a stand-in
+    // for current price so P&L reads as flat ($0) until a real quote source
+    // for option contracts is wired up.
+    const currentPrice = Number(row.averagePremium);
+    const currentValue = contracts * currentPrice * 100; // 100 shares per contract
+    const gainLoss = currentValue - costBasis;
+    return {
+      id: row.id,
+      accountId: row.accountId,
+      symbol: row.underlyingSymbol,
+      name: `${row.underlyingSymbol} ${row.optionType?.toUpperCase()} $${Number(row.strikePrice)} ${new Date(
+        row.expirationDate
+      ).toLocaleDateString()}`,
+      assetClass: 'option',
+      shares: contracts,
       costBasis,
       currentPrice,
       currentValue,

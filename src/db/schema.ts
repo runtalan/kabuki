@@ -451,6 +451,64 @@ export const trades = pgTable(
   (table) => [index("idx_trades_account_id").on(table.accountId)]
 );
 
+// Executed order history for the trading UI (equities + options), backing
+// /api/investments/orders. Mirrors drizzle/0020_trading_and_options.sql.
+export const tradingOrders = pgTable(
+  "trading_orders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 20 }).notNull(),
+    instrumentType: varchar("instrument_type", { length: 20 }).default("equity").notNull(), // "equity" | "option"
+    side: varchar("side", { length: 10 }).notNull(), // "buy" | "sell"
+    quantity: numeric("quantity", { precision: 16, scale: 4 }).notNull(),
+    executionPrice: numeric("execution_price", { precision: 16, scale: 4 }).notNull(),
+    totalAmount: numeric("total_amount", { precision: 16, scale: 2 }).notNull(),
+    optionType: varchar("option_type", { length: 10 }), // "call" | "put"
+    strikePrice: numeric("strike_price", { precision: 12, scale: 4 }),
+    expirationDate: timestamp("expiration_date"),
+    contractSymbol: varchar("contract_symbol", { length: 50 }),
+    status: varchar("status", { length: 20 }).default("executed").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_trading_orders_user_id").on(table.userId),
+    index("idx_trading_orders_symbol").on(table.symbol),
+  ]
+);
+
+// Active option contract positions held in a brokerage account. Mirrors
+// drizzle/0020_trading_and_options.sql.
+export const optionHoldings = pgTable(
+  "option_holdings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    underlyingSymbol: varchar("underlying_symbol", { length: 20 }).notNull(),
+    contractSymbol: varchar("contract_symbol", { length: 50 }).notNull(),
+    optionType: varchar("option_type", { length: 10 }).notNull(), // "call" | "put"
+    strikePrice: numeric("strike_price", { precision: 12, scale: 4 }).notNull(),
+    expirationDate: timestamp("expiration_date").notNull(),
+    contracts: numeric("contracts", { precision: 16, scale: 4 }).notNull(),
+    costBasis: numeric("cost_basis", { precision: 16, scale: 2 }).notNull(),
+    averagePremium: numeric("average_premium", { precision: 12, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_option_holdings_account_id").on(table.accountId),
+    index("idx_option_holdings_symbol").on(table.underlyingSymbol),
+    uniqueIndex("idx_option_holdings_contract").on(table.accountId, table.contractSymbol),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
@@ -589,6 +647,24 @@ export const holdingsRelations = relations(holdings, ({ one }) => ({
 export const tradesRelations = relations(trades, ({ one }) => ({
   account: one(accounts, {
     fields: [trades.accountId],
+    references: [accounts.id],
+  }),
+}));
+
+export const tradingOrdersRelations = relations(tradingOrders, ({ one }) => ({
+  user: one(users, {
+    fields: [tradingOrders.userId],
+    references: [users.id],
+  }),
+  account: one(accounts, {
+    fields: [tradingOrders.accountId],
+    references: [accounts.id],
+  }),
+}));
+
+export const optionHoldingsRelations = relations(optionHoldings, ({ one }) => ({
+  account: one(accounts, {
+    fields: [optionHoldings.accountId],
     references: [accounts.id],
   }),
 }));

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { executeTrade } from '@/lib/actions/trades';
 
 interface StockTradingFormProps {
+  accountId: string | null;
   onTradeExecuted?: () => void;
 }
 
-export function StockTradingForm({ onTradeExecuted }: StockTradingFormProps) {
+export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFormProps) {
   const [symbol, setSymbol] = useState('');
   const [quantity, setQuantity] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
@@ -21,14 +21,16 @@ export function StockTradingForm({ onTradeExecuted }: StockTradingFormProps) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (!accountId) {
+      setError('No brokerage account found');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const qty = parseFloat(quantity);
-      const price =
-        orderType === 'limit'
-          ? parseFloat(limitPrice)
-          : 0; // TODO: use mid price from quote ticker
 
       if (!symbol || !qty || qty <= 0) {
         throw new Error('Please enter valid symbol and quantity');
@@ -38,23 +40,31 @@ export function StockTradingForm({ onTradeExecuted }: StockTradingFormProps) {
         throw new Error('Please enter valid limit price');
       }
 
-      const result = await executeTrade(
-        symbol.toUpperCase(),
-        qty,
-        price || 0,
-        orderType,
-        side
-      );
+      const res = await fetch('/api/investments/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId,
+          symbol: symbol.toUpperCase(),
+          instrumentType: 'equity',
+          side,
+          quantity: qty,
+          // Market orders omit price so the endpoint fetches the live quote.
+          ...(orderType === 'limit' ? { price: parseFloat(limitPrice) } : {}),
+        }),
+      });
 
-      if (result.success) {
-        setSuccess(
-          `${side === 'buy' ? 'Bought' : 'Sold'} ${qty} shares of ${symbol.toUpperCase()}`
-        );
-        setSymbol('');
-        setQuantity('');
-        setLimitPrice('');
-        onTradeExecuted?.();
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Trade execution failed');
       }
+
+      setSuccess(result.message ?? `${side === 'buy' ? 'Bought' : 'Sold'} ${qty} shares of ${symbol.toUpperCase()}`);
+      setSymbol('');
+      setQuantity('');
+      setLimitPrice('');
+      onTradeExecuted?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Trade execution failed');
     } finally {
@@ -186,7 +196,7 @@ export function StockTradingForm({ onTradeExecuted }: StockTradingFormProps) {
       {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || !accountId}
         className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
           side === 'buy'
             ? 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50'

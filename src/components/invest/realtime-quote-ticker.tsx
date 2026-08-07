@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getRealtimeQuotes } from '@/lib/yahoo-finance';
 
 interface QuoteData {
   symbol: string;
@@ -25,7 +24,9 @@ export function RealtimeQuoteTicker({ symbol, onQuoteUpdate }: RealtimeQuoteTick
   useEffect(() => {
     async function fetchQuote() {
       try {
-        const quotes = await getRealtimeQuotes([symbol]);
+        const res = await fetch(`/api/investments/quotes?symbols=${encodeURIComponent(symbol)}`);
+        if (!res.ok) throw new Error('Failed to fetch quote');
+        const { quotes } = await res.json();
         if (quotes.length > 0) {
           const q = quotes[0];
           const data: QuoteData = {
