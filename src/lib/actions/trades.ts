@@ -32,6 +32,19 @@ export async function executeTrade(
   const brokerageAccount = userAccounts.find((acc) => acc.type === 'brokerage');
   if (!brokerageAccount) throw new Error('No brokerage account found');
 
+  // Look up the existing position first so a sell with no position fails
+  // fast — before any DB writes (trade record or holdings) are persisted.
+  const existingHolding = await db.query.holdings.findFirst({
+    where: and(
+      eq(holdings.accountId, brokerageAccount.id),
+      eq(holdings.symbol, symbol)
+    ),
+  });
+
+  if (side === 'sell' && !existingHolding) {
+    throw new Error(`Cannot sell ${quantity} shares of ${symbol}. No position exists.`);
+  }
+
   // Create trade record
   const tradeId = generateId();
   await createTrade({
@@ -45,13 +58,6 @@ export async function executeTrade(
   });
 
   // Update holdings
-  const existingHolding = await db.query.holdings.findFirst({
-    where: and(
-      eq(holdings.accountId, brokerageAccount.id),
-      eq(holdings.symbol, symbol)
-    ),
-  });
-
   if (side === 'buy') {
     if (existingHolding) {
       // Update existing position — costBasis is total dollars, not per-share,
