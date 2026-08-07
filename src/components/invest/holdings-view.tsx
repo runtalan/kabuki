@@ -75,7 +75,14 @@ export function HoldingsView({ holdings, allocation }: HoldingsViewProps) {
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <p className="text-sm font-bold text-foreground">{holding.symbol}</p>
+                      <a
+                        href={`https://www.google.com/finance/quote/${holding.symbol}:NASDAQ`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-bold text-primary hover:underline"
+                      >
+                        {holding.symbol}
+                      </a>
                       <p className="text-xs text-muted-foreground">{holding.name}</p>
                     </div>
                     <p className="text-xs font-semibold text-right text-foreground">{holding.shares} shares</p>
