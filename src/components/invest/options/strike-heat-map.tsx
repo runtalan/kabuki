@@ -8,7 +8,7 @@ interface StrikeHeatMapProps {
   onStrikeClick: (strike: number, isCall: boolean) => void;
 }
 
-const STRIKES_PER_VIEW = 14;
+const STRIKES_PER_VIEW = 7;
 
 export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
