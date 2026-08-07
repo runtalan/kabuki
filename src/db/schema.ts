@@ -432,6 +432,22 @@ export const holdings = pgTable(
   (table) => [index("idx_holdings_user_id").on(table.userId)]
 );
 
+// Alpaca paper trading settings per user
+export const alpacaSettings = pgTable(
+  "alpaca_settings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    apiKeyId: varchar("api_key_id", { length: 255 }).notNull(),
+    apiSecretKey: varchar("api_secret_key", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("idx_alpaca_settings_user_id").on(table.userId)]
+);
+
 // Track executed trades: buys/sells with order type and execution details
 export const trades = pgTable(
   "trades",
@@ -511,11 +527,12 @@ export const optionHoldings = pgTable(
 );
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   plaidItems: many(plaidItems),
   recurringSeries: many(recurringSeries),
   integrationTokens: many(integrationTokens),
   holdings: many(holdings),
+  alpacaSettings: one(alpacaSettings),
 }));
 
 export const integrationTokensRelations = relations(integrationTokens, ({ one }) => ({
@@ -667,5 +684,12 @@ export const optionHoldingsRelations = relations(optionHoldings, ({ one }) => ({
   account: one(accounts, {
     fields: [optionHoldings.accountId],
     references: [accounts.id],
+  }),
+}));
+
+export const alpacaSettingsRelations = relations(alpacaSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [alpacaSettings.userId],
+    references: [users.id],
   }),
 }));

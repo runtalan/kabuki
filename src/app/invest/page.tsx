@@ -21,7 +21,7 @@ export default async function InvestPage() {
 
   if (user && !user.isDemo) {
     try {
-      [positions, portfolioSummary] = await Promise.all([getPositions(), getPortfolioSummary()]);
+      [positions, portfolioSummary] = await Promise.all([getPositions(user.id), getPortfolioSummary(user.id)]);
     } catch (error) {
       console.error('Failed to fetch Alpaca data:', error);
     }

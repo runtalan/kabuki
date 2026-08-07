@@ -1,10 +1,36 @@
 import { Alpaca } from "@alpacahq/alpaca-trade-api";
+import { db } from "@/db";
+import { alpacaSettings } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
-const alpaca = new Alpaca({
-  keyId: process.env.APCA_API_KEY_ID!,
-  secret: process.env.APCA_API_SECRET_KEY!,
-  paper: true,
-});
+async function getAlpacaClient(userId?: string) {
+  let keyId = process.env.APCA_API_KEY_ID;
+  let secret = process.env.APCA_API_SECRET_KEY;
+
+  if (userId) {
+    try {
+      const settings = await db.query.alpacaSettings.findFirst({
+        where: eq(alpacaSettings.userId, userId),
+      });
+      if (settings) {
+        keyId = settings.apiKeyId;
+        secret = settings.apiSecretKey;
+      }
+    } catch (error) {
+      console.warn("Failed to fetch Alpaca settings from DB, using env vars:", error);
+    }
+  }
+
+  if (!keyId || !secret) {
+    throw new Error("Alpaca API credentials not found");
+  }
+
+  return new Alpaca({
+    keyId,
+    secret,
+    paper: true,
+  });
+}
 
 export interface AccountInfo {
   equity: number;
@@ -52,7 +78,8 @@ export interface PortfolioSummary {
   dailyPlpc: number;
 }
 
-export async function getAccountInfo(): Promise<AccountInfo> {
+export async function getAccountInfo(userId?: string): Promise<AccountInfo> {
+  const alpaca = await getAlpacaClient(userId);
   const account = await alpaca.trading.account.getAccount();
 
   return {
@@ -64,8 +91,10 @@ export async function getAccountInfo(): Promise<AccountInfo> {
 }
 
 export async function submitOrder(
-  orderRequest: OrderRequest
+  orderRequest: OrderRequest,
+  userId?: string
 ): Promise<OrderResponse> {
+  const alpaca = await getAlpacaClient(userId);
   const order = await (orderRequest.type === "market"
     ? alpaca.trading.orders.market({
         symbol: orderRequest.symbol,
@@ -94,7 +123,8 @@ export async function submitOrder(
   };
 }
 
-export async function getPositions(): Promise<Position[]> {
+export async function getPositions(userId?: string): Promise<Position[]> {
+  const alpaca = await getAlpacaClient(userId);
   const positions = await alpaca.trading.positions.getAllOpenPositions();
 
   return positions.map((position: any) => ({
@@ -109,7 +139,8 @@ export async function getPositions(): Promise<Position[]> {
   }));
 }
 
-export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+export async function getPortfolioSummary(userId?: string): Promise<PortfolioSummary> {
+  const alpaca = await getAlpacaClient(userId);
   const account = await alpaca.trading.account.getAccount();
 
   return {
@@ -121,4 +152,4 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   };
 }
 
-export { alpaca };
+export { getAlpacaClient };
