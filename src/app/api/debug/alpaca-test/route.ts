@@ -5,11 +5,11 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
 
-    const alpaca = await getAlpacaClient(user.id);
+    // Use the authenticated user, or fall back to Renato for testing
+    const userId = user?.id || "5afeab5f-f7c7-4320-9608-46d3403b347e";
+
+    const alpaca = await getAlpacaClient(userId);
 
     // Test: Get account info
     const account = await alpaca.trading.account.getAccount();
@@ -17,7 +17,8 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      userId: user.id,
+      userId,
+      authenticated: !!user,
       account: {
         equity: account.equity,
         cash: account.cash,
