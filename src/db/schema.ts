@@ -526,6 +526,23 @@ export const optionHoldings = pgTable(
   ]
 );
 
+// User's watchlist of stock tickers for options trading
+export const watchlist = pgTable(
+  "watchlist",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ticker: varchar("ticker", { length: 10 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_watchlist_user_ticker").on(table.userId, table.ticker),
+    index("idx_watchlist_user_id").on(table.userId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   plaidItems: many(plaidItems),
@@ -690,6 +707,13 @@ export const optionHoldingsRelations = relations(optionHoldings, ({ one }) => ({
 export const alpacaSettingsRelations = relations(alpacaSettings, ({ one }) => ({
   user: one(users, {
     fields: [alpacaSettings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const watchlistRelations = relations(watchlist, ({ one }) => ({
+  user: one(users, {
+    fields: [watchlist.userId],
     references: [users.id],
   }),
 }));
