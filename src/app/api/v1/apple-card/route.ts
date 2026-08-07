@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { integrationTokens, transactions, apiRequestLogs } from '@/db/schema';
-import { eq, and, gte, count } from 'drizzle-orm';
+import { integrationTokens, transactions, apiRequestLogs, accounts } from '@/db/schema';
+import { eq, and, gte, count, sql } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 import { hashToken } from '@/lib/integration-tokens';
 import { autoTagTransaction } from '@/lib/auto-tag';
@@ -224,6 +224,16 @@ async function handle(request: Request, method: 'GET' | 'POST') {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    const signedAmount = isCredit ? Math.abs(amount) : -Math.abs(amount);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    await db
+      .update(accounts)
+      .set({
+        currentBalance: sql`${accounts.currentBalance} + ${signedAmount}`,
+        balanceMonth: monthKey,
+      })
+      .where(eq(accounts.id, integration.accountId));
 
     await autoTagTransaction(integration.userId, transactionId, merchant);
     await db
