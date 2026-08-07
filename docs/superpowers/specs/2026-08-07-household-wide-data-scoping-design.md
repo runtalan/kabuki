@@ -39,11 +39,11 @@ Every query that currently filters `plaidItems` (or joins through it) by `eq(pla
 - `/api/accounts`, `/api/accounts/[id]`, `/api/accounts/[id]/history`, `/api/accounts/manual`, `/api/accounts/manual/[id]`, `/api/accounts/update`, `/api/accounts/disconnect`, `/api/accounts/refresh`, `/api/accounts/institution/[id]`
 - `/api/recurring`, `/api/recurring/[id]`, `/api/recurring/review`
 - `/api/rules`, `/api/rules/[id]`, `/api/rules/reorder`
-- `/api/watchlist`
-- `/api/investments/*` (holdings, orders, portfolio-summary, alpaca-positions)
 - `/api/plaid/sync` (each Plaid item still syncs with its own stored `accessToken`; only the *listing/lookup* of which items belong to "this household" changes)
 
 Ownership-check helpers used before mutating a specific resource (e.g. "does this account/transaction id belong to this user") switch the same way, from an equality check against `user.id` to a membership check against `user.householdUserIds` — this is what makes full shared edit access work (see below).
+
+`/api/watchlist` and `/api/investments/*` (holdings, orders, portfolio-summary, alpaca-positions, settings/alpaca) are **not** included — see Out of Scope.
 
 ### Write-path: unchanged
 
@@ -62,6 +62,7 @@ The demo account (`isDemo: true`) must stay fully isolated — its `householdUse
 - The Apple Card monthly "$0 out on the 1st" reset — separate follow-up spec.
 - Any change to how `accounts.owner` is set or displayed — the `OwnerToggle` filter UI itself needs no changes; it already assumed this scoping existed.
 - Plaid sync mechanics (access tokens, webhook handling) — unaffected; only the household-membership lookup changes.
+- **Investments/Alpaca (`/api/investments/*`, `/api/settings/alpaca`) and `/api/watchlist`.** These use a different data model — `holdings.userId`/`watchlist.userId` columns and per-person Alpaca API credentials (`getAlpacaSettings(user.id)`), not the `plaidItems` chain this spec changes. A brokerage connection is inherently tied to one person's Alpaca account; merging two people's holdings/orders into one household view would mean fetching and combining two separate brokerage connections, which is a materially different feature and unrelated to the reported bug. Left as a candidate for its own future spec if household-wide investment viewing is wanted.
 
 ## Testing
 
