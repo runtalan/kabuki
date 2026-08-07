@@ -170,11 +170,14 @@ export function OptionsExplorationPage({
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 w-full">
         {/* LEFT COLUMN: Watchlist */}
-        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
-          <div className="mb-4">
+        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4 flex flex-col">
+          <div className="mb-3">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
               Watchlist
             </h2>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {watchlistData.length} tickers
+            </div>
           </div>
           {watchlistLoading ? (
             <WatchlistSkeleton />
@@ -187,39 +190,41 @@ export function OptionsExplorationPage({
               No tickers in watchlist
             </div>
           ) : (
-            <div className="space-y-2">
-              {watchlistData.map((item) => (
-                <button
-                  key={item.ticker}
-                  onClick={() => handleWatchlistSelect(item.ticker)}
-                  className={`
-                    w-full text-left p-3 rounded transition
-                    ${
-                      selectedTicker === item.ticker
-                        ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500'
-                        : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                    }
-                    hover:bg-gray-100 dark:hover:bg-gray-700
-                  `}
-                >
-                  <div className="font-bold text-gray-900 dark:text-gray-100">
-                    {item.ticker}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    ${item.currentPrice.toFixed(2)}
-                  </div>
-                  <div
-                    className={`text-xs font-semibold ${
-                      item.dayChangePercent >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    }`}
+            <div className="flex-1 overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-2">
+                {watchlistData.map((item) => (
+                  <button
+                    key={item.ticker}
+                    onClick={() => handleWatchlistSelect(item.ticker)}
+                    className={`
+                      text-left p-2 rounded transition text-xs
+                      ${
+                        selectedTicker === item.ticker
+                          ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500'
+                          : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                      }
+                      hover:bg-gray-100 dark:hover:bg-gray-700
+                    `}
                   >
-                    {item.dayChangePercent >= 0 ? '+' : ''}
-                    {item.dayChangePercent.toFixed(2)}%
-                  </div>
-                </button>
-              ))}
+                    <div className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight">
+                      {item.ticker}
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400 text-xs leading-tight">
+                      ${item.currentPrice.toFixed(0)}
+                    </div>
+                    <div
+                      className={`font-semibold leading-tight ${
+                        item.dayChangePercent >= 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {item.dayChangePercent >= 0 ? '+' : ''}
+                      {item.dayChangePercent.toFixed(1)}%
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
