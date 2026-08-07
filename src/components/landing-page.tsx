@@ -102,7 +102,7 @@ export function LandingPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/login?demo=1"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#00C805] via-[#AF52DE] to-[#FF9500] text-white text-sm font-semibold rounded-full shadow-md shadow-[#AF52DE]/25 hover:shadow-lg hover:shadow-[#AF52DE]/35 hover:-translate-y-0.5 transition-all"
             >
               Try the Demo
             </Link>
