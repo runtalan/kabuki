@@ -1,9 +1,9 @@
 import { db } from '@/db';
 import { holdings, optionHoldings } from '@/db/schema';
+import { getRealtimeQuotes } from './yahoo-finance';
 
 export interface HoldingWithValue {
-  id: string;
-  accountId: string;
+  id: number;
   symbol: string;
   name: string;
   assetClass: string;
@@ -13,28 +13,36 @@ export interface HoldingWithValue {
   currentValue: number;
   gainLoss: number;
   gainLossPct: number;
+  acquisitionDate: Date;
 }
 
 export async function getAllHoldings(): Promise<HoldingWithValue[]> {
   const rows = await db.query.holdings.findMany();
+
+  // Fetch live quotes for all symbols
+  const symbols = Array.from(new Set(rows.map((r) => r.symbol)));
+  const quotes = symbols.length ? await getRealtimeQuotes(symbols) : [];
+  const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
+
   return rows.map((row) => {
-    const shares = Number(row.shares);
+    const shares = Number(row.quantity);
     const costBasis = Number(row.costBasis);
-    const currentPrice = Number(row.currentPrice);
+    const quote = quoteMap.get(row.symbol.toUpperCase());
+    const currentPrice = quote?.regularMarketPrice ?? 0;
     const currentValue = shares * currentPrice;
     const gainLoss = currentValue - costBasis;
     return {
       id: row.id,
-      accountId: row.accountId,
       symbol: row.symbol,
-      name: row.name,
-      assetClass: row.assetClass,
+      name: quote?.shortName || row.symbol,
+      assetClass: row.assetType,
       shares,
       costBasis,
       currentPrice,
       currentValue,
       gainLoss,
       gainLossPct: costBasis > 0 ? (gainLoss / costBasis) * 100 : 0,
+      acquisitionDate: row.acquiredAt,
     };
   });
 }
@@ -51,8 +59,7 @@ export async function getAllOptionHoldings(): Promise<HoldingWithValue[]> {
     const currentValue = contracts * currentPrice * 100; // 100 shares per contract
     const gainLoss = currentValue - costBasis;
     return {
-      id: row.id,
-      accountId: row.accountId,
+      id: row.id as unknown as number,
       symbol: row.underlyingSymbol,
       name: `${row.underlyingSymbol} ${row.optionType?.toUpperCase()} $${Number(row.strikePrice)} ${new Date(
         row.expirationDate
@@ -64,6 +71,7 @@ export async function getAllOptionHoldings(): Promise<HoldingWithValue[]> {
       currentValue,
       gainLoss,
       gainLossPct: costBasis > 0 ? (gainLoss / costBasis) * 100 : 0,
+      acquisitionDate: row.createdAt,
     };
   });
 }

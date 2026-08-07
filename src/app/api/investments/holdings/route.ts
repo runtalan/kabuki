@@ -7,18 +7,15 @@ import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { searchParams } = new URL(req.url);
-    const accountId = searchParams.get("accountId");
 
     // 1. Query holdings from DB
     const equityRows = await db.query.holdings.findMany({
-      where: accountId ? eq(holdings.accountId, accountId) : undefined,
+      where: eq(holdings.userId, user.id),
     });
 
-    const optionRows = await db.query.optionHoldings.findMany({
-      where: accountId ? eq(optionHoldings.accountId, accountId) : undefined,
-    });
+    const optionRows = await db.query.optionHoldings.findMany();
 
     // 2. Extract unique symbols to batch fetch live quotes from Yahoo Finance
     const stockSymbols = equityRows.map((h) => h.symbol);
@@ -30,10 +27,10 @@ export async function GET(req: NextRequest) {
 
     // 3. Enrich equity holdings with live market data
     const enrichedHoldings = equityRows.map((row) => {
-      const shares = Number(row.shares);
+      const shares = Number(row.quantity);
       const costBasis = Number(row.costBasis);
       const quote = quoteMap.get(row.symbol.toUpperCase());
-      const currentPrice = quote?.regularMarketPrice ?? Number(row.currentPrice);
+      const currentPrice = quote?.regularMarketPrice ?? 0;
 
       const currentValue = shares * currentPrice;
       const gainLoss = currentValue - costBasis;
@@ -41,16 +38,16 @@ export async function GET(req: NextRequest) {
 
       return {
         id: row.id,
-        accountId: row.accountId,
         symbol: row.symbol,
-        name: quote?.shortName || row.name,
-        assetClass: row.assetClass,
+        name: quote?.shortName || row.symbol,
+        assetClass: row.assetType,
         shares,
         costBasis,
         currentPrice,
         currentValue,
         gainLoss,
         gainLossPct,
+        acquisitionDate: row.acquiredAt,
         dayChange: (quote?.regularMarketChange ?? 0) * shares,
         dayChangePct: quote?.regularMarketChangePercent ?? 0,
       };

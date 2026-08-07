@@ -32,6 +32,7 @@ export function CurrentHoldingsForTrading({ holdings }: CurrentHoldingsForTradin
           <tr>
             <th className="px-4 py-3 text-left font-semibold text-foreground text-xs">Symbol</th>
             <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Shares</th>
+            <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Acquired</th>
             <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Cost Basis</th>
             <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Current Price</th>
             <th className="px-4 py-3 text-right font-semibold text-foreground text-xs">Current Value</th>
@@ -41,6 +42,11 @@ export function CurrentHoldingsForTrading({ holdings }: CurrentHoldingsForTradin
         <tbody>
           {holdings.map((holding) => {
             const isPositive = holding.gainLoss >= 0;
+            const acquiredDate = new Date(holding.acquisitionDate).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            });
             return (
               <tr key={holding.id} className="border-b border-border hover:bg-muted/20 last:border-0">
                 <td className="px-4 py-3 font-bold text-foreground">
@@ -51,6 +57,9 @@ export function CurrentHoldingsForTrading({ holdings }: CurrentHoldingsForTradin
                 </td>
                 <td className="px-4 py-3 text-right text-muted-foreground">
                   {holding.shares.toFixed(4)}
+                </td>
+                <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                  {acquiredDate}
                 </td>
                 <td className="px-4 py-3 text-right text-foreground">
                   {formatCurrency(holding.costBasis)}

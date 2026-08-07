@@ -124,57 +124,53 @@ export async function POST(req: NextRequest) {
       // 3. Update holdings or option_holdings
       if (instrumentType === "equity") {
         const existing = await tx.query.holdings.findFirst({
-          where: and(eq(holdings.accountId, accountId), eq(holdings.symbol, cleanSymbol)),
+          where: and(eq(holdings.userId, user.id), eq(holdings.symbol, cleanSymbol)),
         });
 
         if (side === "buy") {
           if (existing) {
-            const oldShares = Number(existing.shares);
+            const oldQuantity = Number(existing.quantity);
             const oldCost = Number(existing.costBasis);
-            const newShares = oldShares + qty;
+            const newQuantity = oldQuantity + qty;
             const newCostBasis = oldCost + totalAmount;
 
             await tx
               .update(holdings)
               .set({
-                shares: newShares.toString(),
+                quantity: newQuantity.toString(),
                 costBasis: newCostBasis.toFixed(2),
-                currentPrice: executionPrice.toString(),
                 updatedAt: new Date(),
               })
               .where(eq(holdings.id, existing.id));
           } else {
             await tx.insert(holdings).values({
-              id: generateId(),
-              accountId,
+              userId: user.id,
               symbol: cleanSymbol,
-              name: cleanSymbol,
-              assetClass: "us_stock",
-              shares: qty.toString(),
+              assetType: "stock",
+              quantity: qty.toString(),
               costBasis: totalAmount.toFixed(2),
-              currentPrice: executionPrice.toString(),
+              acquiredAt: new Date(),
             });
           }
         } else {
           // Sell equity
-          if (!existing || Number(existing.shares) < qty) {
+          if (!existing || Number(existing.quantity) < qty) {
             throw new Error(`Cannot sell ${qty} shares. Insufficient holdings.`);
           }
 
-          const oldShares = Number(existing.shares);
-          const remainingShares = oldShares - qty;
+          const oldQuantity = Number(existing.quantity);
+          const remainingQuantity = oldQuantity - qty;
 
-          if (remainingShares <= 0) {
+          if (remainingQuantity <= 0) {
             await tx.delete(holdings).where(eq(holdings.id, existing.id));
           } else {
             const oldCost = Number(existing.costBasis);
-            const proportionalCost = (oldCost / oldShares) * remainingShares;
+            const proportionalCost = (oldCost / oldQuantity) * remainingQuantity;
             await tx
               .update(holdings)
               .set({
-                shares: remainingShares.toString(),
+                quantity: remainingQuantity.toString(),
                 costBasis: proportionalCost.toFixed(2),
-                currentPrice: executionPrice.toString(),
                 updatedAt: new Date(),
               })
               .where(eq(holdings.id, existing.id));

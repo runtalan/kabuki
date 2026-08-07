@@ -413,22 +413,18 @@ async function seed() {
     ];
 
     // holdings has no unique constraint to hang onConflictDoNothing off of
-    // (only an index on account_id), so — matching Task 16's precedent for
-    // accountBalanceHistory — clear and re-insert scoped to this account id
+    // (only an index on user_id), so — matching Task 16's precedent for
+    // accountBalanceHistory — clear and re-insert scoped to this user id
     // on every run.
-    await db.delete(holdings).where(eq(holdings.accountId, brokerageAccountId));
+    await db.delete(holdings).where(eq(holdings.userId, rentoId));
     await db.insert(holdings).values(
       holdingsSeed.map((h) => ({
-        id: generateId(),
-        accountId: brokerageAccountId,
+        userId: rentoId,
         symbol: h.symbol,
-        name: h.name,
-        assetClass: h.assetClass,
-        shares: h.shares.toFixed(4),
+        assetType: h.assetClass,
+        quantity: h.shares.toFixed(4),
         costBasis: h.costBasis.toFixed(2),
-        currentPrice: h.currentPrice.toFixed(4),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        acquiredAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000), // Random date in last 90 days
       }))
     );
 

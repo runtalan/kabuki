@@ -10,6 +10,8 @@ import {
   uniqueIndex,
   foreignKey,
   index,
+  jsonb,
+  serial,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -411,26 +413,23 @@ export const propertyValueHistory = pgTable(
   ]
 );
 
-// Investment holdings — line items inside a brokerage/retirement `accounts`
-// row (type: "brokerage"). Current value is always shares * currentPrice,
-// computed at query time rather than stored.
+// User holdings — tracked positions (stocks and options) organized by user.
 export const holdings = pgTable(
   "holdings",
   {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    accountId: varchar("account_id", { length: 36 })
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 36 })
       .notNull()
-      .references(() => accounts.id, { onDelete: "cascade" }),
-    symbol: varchar("symbol", { length: 10 }).notNull(),
-    name: varchar("name", { length: 255 }).notNull(),
-    assetClass: varchar("asset_class", { length: 30 }).notNull(), // "us_stock" | "intl_stock" | "bond" | "cash"
-    shares: numeric("shares", { precision: 16, scale: 4 }).notNull(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 20 }).notNull(),
+    assetType: varchar("asset_type", { length: 20 }).notNull(), // "stock" | "option"
+    quantity: numeric("quantity", { precision: 16, scale: 4 }).notNull(),
     costBasis: numeric("cost_basis", { precision: 16, scale: 2 }).notNull(),
-    currentPrice: numeric("current_price", { precision: 12, scale: 4 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    acquiredAt: timestamp("acquired_at").notNull(),
+    optionDetails: jsonb("option_details"), // nullable, contains strike, expiration, type, etc.
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [index("idx_holdings_account_id").on(table.accountId)]
+  (table) => [index("idx_holdings_user_id").on(table.userId)]
 );
 
 // Track executed trades: buys/sells with order type and execution details
@@ -516,6 +515,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   plaidItems: many(plaidItems),
   recurringSeries: many(recurringSeries),
   integrationTokens: many(integrationTokens),
+  holdings: many(holdings),
 }));
 
 export const integrationTokensRelations = relations(integrationTokens, ({ one }) => ({
@@ -555,7 +555,6 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
   }),
   transactions: many(transactions),
   balanceHistory: many(accountBalanceHistory),
-  holdings: many(holdings),
 }));
 
 export const accountBalanceHistoryRelations = relations(
@@ -640,9 +639,9 @@ export const propertyValueHistoryRelations = relations(propertyValueHistory, ({ 
 }));
 
 export const holdingsRelations = relations(holdings, ({ one }) => ({
-  account: one(accounts, {
-    fields: [holdings.accountId],
-    references: [accounts.id],
+  user: one(users, {
+    fields: [holdings.userId],
+    references: [users.id],
   }),
 }));
 
