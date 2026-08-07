@@ -1,4 +1,4 @@
-import * as yf from 'yahoo-finance2';
+import yf from 'yahoo-finance2';
 
 export interface StockQuote {
   ticker: string;
@@ -75,13 +75,13 @@ export async function getOptionExpirations(
   ticker: string
 ): Promise<string[]> {
   try {
-    const options = await yf.getOptionChain(ticker);
-    if (!options || !options.optionChain?.result?.[0]?.expirationDates) {
+    const options = await yf.options({ symbol: ticker });
+    if (!options?.result?.[0]?.expirationDates) {
       return [];
     }
 
     // Convert timestamps to ISO date strings, sort nearest-first
-    return options.optionChain.result[0].expirationDates
+    return options.result[0].expirationDates
       .map((timestamp: number) => {
         const date = new Date(timestamp * 1000);
         return date.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -99,12 +99,12 @@ export async function getOptionChain(
   atmWindow: number = 5
 ): Promise<OptionChain> {
   try {
-    const options = await yf.getOptionChain(ticker);
-    if (!options?.optionChain?.result?.[0]) {
+    const options = await yf.options({ symbol: ticker });
+    if (!options?.result?.[0]) {
       throw new Error(`No option chain for ${ticker}`);
     }
 
-    const chainData = options.optionChain.result[0];
+    const chainData = options.result[0];
     const quote = chainData.quote;
 
     if (!quote) {
