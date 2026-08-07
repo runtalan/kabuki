@@ -139,13 +139,13 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
         <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
       </div>
 
-      {/* Heatmap Table with Overlaid Arrows */}
-      <div className="relative">
+      {/* Heatmap Table with Side Arrows */}
+      <div className="flex items-center gap-2">
         {/* Left Arrow */}
         <button
           onClick={handleScrollLeft}
           disabled={!canScrollLeft}
-          className={`absolute left-0 top-1/2 -translate-y-1/2 z-20 px-2 py-3 rounded-r font-bold transition ${
+          className={`px-2 py-3 rounded font-bold transition flex-shrink-0 text-lg ${
             canScrollLeft
               ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
               : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
@@ -155,22 +155,8 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
           ‹
         </button>
 
-        {/* Right Arrow */}
-        <button
-          onClick={handleScrollRight}
-          disabled={!canScrollRight}
-          className={`absolute right-0 top-1/2 -translate-y-1/2 z-20 px-2 py-3 rounded-l font-bold transition ${
-            canScrollRight
-              ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-          }`}
-          title="Higher strikes (OTM)"
-        >
-          ›
-        </button>
-
         {/* Heatmap Table */}
-        <div ref={tableRef} className="border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900">
+        <div ref={tableRef} className="flex-1 border border-gray-300 dark:border-gray-600 rounded overflow-x-auto bg-white dark:bg-gray-900">
         <table className="border-collapse text-xs w-full">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
@@ -241,6 +227,20 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
           </tbody>
         </table>
         </div>
+
+        {/* Right Arrow */}
+        <button
+          onClick={handleScrollRight}
+          disabled={!canScrollRight}
+          className={`px-2 py-3 rounded font-bold transition flex-shrink-0 text-lg ${
+            canScrollRight
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+          }`}
+          title="Higher strikes (OTM)"
+        >
+          ›
+        </button>
       </div>
 
       {/* Legend */}
