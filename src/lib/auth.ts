@@ -20,6 +20,7 @@ export interface AuthSession {
 export async function getUser(): Promise<AuthUser | null> {
   const session = (await auth()) as AuthSession | null;
   if (!session?.user?.email) {
+    console.debug("[getUser] No session or email:", { session: session ? { user: session.user } : null });
     return null;
   }
 
@@ -28,6 +29,7 @@ export async function getUser(): Promise<AuthUser | null> {
   });
 
   if (!dbUser) {
+    console.debug("[getUser] User not found in DB:", { email: session.user.email });
     return null;
   }
 

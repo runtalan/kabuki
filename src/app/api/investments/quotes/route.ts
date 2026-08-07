@@ -4,7 +4,7 @@ import { getRealtimeQuotes } from "@/lib/yahoo-finance";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { searchParams } = new URL(req.url);
     const rawSymbols = searchParams.get("symbols");
 
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const quotes = await getRealtimeQuotes(symbols);
     return NextResponse.json({ quotes });
   } catch (error: any) {
-    console.error("GET /api/investments/quotes error:", error);
+    console.error("GET /api/investments/quotes error:", error.message || error);
     if (error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
