@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { plaidItems, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getHouseholdUserIds } from "@/lib/household";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       where: eq(plaidItems.id, itemId),
     });
 
-    if (!item || item.userId !== user.id) {
+    if (!item || !(await getHouseholdUserIds(user.id)).includes(item.userId)) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
