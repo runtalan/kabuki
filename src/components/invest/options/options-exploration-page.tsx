@@ -5,7 +5,6 @@ import { OptionsOrderForm } from './options-order-form';
 import { OptionsHeatmap } from './options-heatmap';
 import { OptionsGuideModal } from './options-guide-modal';
 import { OptionsDashboard } from './options-dashboard';
-import { OptionsStatsPanel } from './options-stats-panel';
 import { TickerSearch } from './ticker-search';
 import { TickerSwitcher } from './ticker-switcher';
 import { WatchlistTable } from '../watchlist/watchlist-table';
@@ -210,18 +209,6 @@ export function OptionsExplorationPage({
                 setSelectedContract(null);
                 setSelectedExpiry(null);
               }}
-            />
-          </section>
-        )}
-
-        {/* Stats Panel */}
-        {selectedTicker && selectedHolding && selectedContractsList.length > 0 && (
-          <section>
-            <OptionsStatsPanel
-              ticker={selectedTicker}
-              currentPrice={selectedHolding.currentPrice}
-              contracts={selectedContractsList}
-              selectedExpiry={selectedExpiry}
             />
           </section>
         )}
