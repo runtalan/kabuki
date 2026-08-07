@@ -51,10 +51,42 @@
 | 2026-08-06 | `0021_add_email_column.sql` | Add `users.email` column + populate for existing users; make `users.password_hash` optional (for Google OIDC migration) |
 | 2026-08-06 | `0022_trades_table.sql` | `trades` table — tracks buy/sell orders (symbol, qty, price, type, side, status) |
 | 2026-08-07 | `0023_categories_order_column.sql` | Add `categories.order` column for drag-to-reorder budget tiles |
+| 2026-08-07 | `0021_watchlist.sql`, `0024_refactor_holdings_for_alpaca.sql`, `0025_alpaca_settings.sql` | Applied late — see drift note below |
+
+## Drift found and closed, 2026-08-07
+
+Migrations `0019` through `0025` (properties, holdings, trading_orders,
+option_holdings, watchlist, trades, alpaca_settings) were written and
+applied to **sandbox only**. They were never applied to the Supabase
+production database created during the 2026-08-05 Cloud SQL cutover,
+and never logged here — the log above still claimed prod was "in sync
+as of `0023`," which was false. `0022_trades_table.sql` had also never
+been committed at all (the `trades` table existed on sandbox from
+manual application, matching the same drift pattern noted at the
+bottom of this file); it's been reconstructed from sandbox's actual
+schema and committed now.
+
+Symptom: `/invest` (Alpaca credentials — separately a secrets-wiring
+gap, now fixed in `apphosting.yaml`) and `/invest/options` ("Failed to
+fetch watchlist") both broke in production because the tables their
+queries depend on didn't exist there. Closed by diffing
+`psql "$DATABASE_URL" -c "\dt"` between sandbox and prod, then
+`pg_dump --schema-only` of the 8 missing tables from sandbox applied
+directly to prod (rather than replaying 0019–0025 in order, since
+0024 drops and rewrites 0019's `holdings` table anyway — replaying
+history would have been pointless work to reach the same end state).
+
+**Lesson for future migrations:** step 6 of the workflow above ("apply
+to production after deploying") is easy to skip silently since nothing
+fails loudly when it's missed — the app just breaks on that one table
+next time someone touches that feature. Run
+`psql "$DATABASE_URL" -c "\dt"` against prod periodically, or before
+trusting the "Current schema state" table below, rather than assuming
+the log is accurate.
 
 ## Current schema state
 
-Tables as of the last migration above. Reflects sandbox and production alike — both are in sync as of `0023`.
+Tables as of the last migration above. Reflects sandbox and production alike — both are back in sync as of `0025`, following the drift closure above.
 
 | Table | Added in | Notes |
 |---|---|---|
@@ -74,8 +106,12 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `api_request_logs` | 0018 | Dev/debug log of requests to public ingest endpoints, headers included |
 | `properties` | 0019 | Manually-tracked real estate; deliberately not linked to `accounts` — excluded from net worth |
 | `property_value_history` | 0019 | Manual value snapshots; drives the combined equity chart |
-| `holdings` | 0019 | Investment holdings inside a brokerage `accounts` row |
+| `holdings` | 0019 | Investment holdings inside a brokerage `accounts` row; refactored `account_id`→`user_id` (0024) for Alpaca paper trading |
+| `trading_orders` | 0020 | Trade execution history (equity + options) |
+| `option_holdings` | 0020 | Active option contracts per account |
 | `trades` | 0022 | Trade execution history (symbol, qty, price, order type, side, status) |
+| `watchlist` | 0021 | Per-user ticker watchlist (options trading UI) |
+| `alpaca_settings` | 0025 | Per-user Alpaca API credentials (paper trading) |
 
 ## Quick reference
 

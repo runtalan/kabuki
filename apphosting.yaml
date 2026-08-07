@@ -79,3 +79,14 @@ env:
     secret: SUPABASE_SERVICE_ROLE_KEY
     availability:
       - RUNTIME
+
+  # Alpaca (invest page)
+  - variable: APCA_API_KEY_ID
+    secret: APCA_API_KEY_ID
+    availability:
+      - RUNTIME
+
+  - variable: APCA_API_SECRET_KEY
+    secret: APCA_API_SECRET_KEY
+    availability:
+      - RUNTIME
