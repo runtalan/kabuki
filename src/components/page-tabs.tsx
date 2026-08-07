@@ -63,3 +63,11 @@ export const INVEST_TABS: PageTab[] = [
   { href: '/invest/watchlist', label: 'Watch List' },
   { href: '/invest/predictions', label: 'Predictions' },
 ];
+
+export const AI_ORBIT_TABS: PageTab[] = [
+  { href: '/ai-orbit', label: 'Fleet Command' },
+  { href: '/ai-orbit/logs', label: 'Flight Logs' },
+  { href: '/ai-orbit/lab', label: 'Strategy Lab' },
+  { href: '/ai-orbit/analytics', label: 'Yield Analytics' },
+  { href: '/ai-orbit/settings', label: 'Launch Control' },
+];

@@ -19,9 +19,11 @@ import {
   X,
   ChevronDown,
   Rocket,
+  CircleHelp,
 } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { OWNERS } from './owner-badge';
+import { AboutAiOrbitModal } from './ai-orbit/about-modal';
 
 const USER_AVATARS: Record<string, string> = {
   renato: OWNERS.renato.avatar!,
@@ -151,6 +153,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   // section automatically"; once the user manually toggles a section, that
   // choice sticks (open or closed) regardless of which page is active.
   const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
+  const [aboutAiOrbitOpen, setAboutAiOrbitOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -208,8 +211,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   />
                 </button>
               ) : (
-                <p className="px-3 mb-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+                <p className="px-3 mb-2 flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
                   {section.label}
+                  {section.label === 'AI Orbit' && (
+                    <button
+                      type="button"
+                      onClick={() => setAboutAiOrbitOpen(true)}
+                      className="normal-case tracking-normal text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors duration-200"
+                      aria-label="What is AI Orbit?"
+                      title="What is AI Orbit?"
+                    >
+                      <CircleHelp className="w-3 h-3" />
+                    </button>
+                  )}
                 </p>
               )}
 
@@ -315,6 +329,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         </div>
       </div>
+
+      <AboutAiOrbitModal open={aboutAiOrbitOpen} onOpenChange={setAboutAiOrbitOpen} />
     </div>
   );
 }
