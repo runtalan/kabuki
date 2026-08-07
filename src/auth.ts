@@ -36,27 +36,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // household DB record, not the Google profile. (getUser() in
       // lib/auth.ts re-resolves by email on every request for callers that
       // need guaranteed freshness, e.g. after a reseed.)
+      console.debug("[jwt] callback", { user: user ? { email: user.email } : null, token: { email: token.email, id: token.id } });
       if (user?.email) {
         const dbUser = await db.query.users.findFirst({
           where: eq(users.email, user.email),
         });
+
+        console.debug("[jwt] dbUser lookup", { googleEmail: user.email, dbUser: dbUser ? { email: dbUser.email, username: dbUser.username } : null });
 
         if (dbUser) {
           token.id = dbUser.id;
           token.email = dbUser.email;
           token.username = dbUser.username;
           token.isDemo = dbUser.isDemo;
+          console.debug("[jwt] token populated", { email: token.email, username: token.username });
         }
       }
       return token;
     },
     async session({ session, token }) {
+      console.debug("[session] callback", { session: session.user ? { email: session.user.email } : null, token: { email: token.email, id: token.id } });
       if (session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         (session.user as { username?: string }).username = token.username as string;
         (session.user as { isDemo?: boolean }).isDemo = token.isDemo as boolean;
       }
+      console.debug("[session] result", { email: session.user?.email });
       return session;
     },
   },
