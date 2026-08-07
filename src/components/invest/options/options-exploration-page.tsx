@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { HoldingsTable } from './holdings-table';
-import { OptionsContractsTable } from './options-contracts-table';
 import { OptionsOrderForm } from './options-order-form';
 import { OptionsHeatmap } from './options-heatmap';
 import { OptionsGuideModal } from './options-guide-modal';
@@ -38,10 +37,6 @@ export function OptionsExplorationPage({
     strike: number,
     expiry: Date
   ) => {
-    setSelectedContract(contract);
-  };
-
-  const handleSelectContractFromTable = (contract: OptionContract, strategy: string) => {
     setSelectedContract(contract);
   };
 
@@ -144,20 +139,6 @@ export function OptionsExplorationPage({
           </section>
         )}
 
-        {/* Options Contracts Table */}
-        {selectedTicker && selectedContractsList.length > 0 && selectedHolding && (
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-              Available Strategies
-            </h2>
-            <OptionsContractsTable
-              contracts={selectedContractsList}
-              ticker={selectedTicker}
-              currentPrice={selectedHolding.currentPrice}
-              onSelectContract={handleSelectContractFromTable}
-            />
-          </section>
-        )}
 
         {/* Heatmap Modal */}
         {isHeatmapModalOpen && selectedTicker && selectedHolding && selectedContractsList.length > 0 && (
