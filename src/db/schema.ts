@@ -126,6 +126,8 @@ export const categories = pgTable(
     isCustom: boolean("is_custom").default(false).notNull(),
     // Monthly budget limit for this category; null = no budget set
     monthlyBudget: numeric("monthly_budget", { precision: 12, scale: 2 }),
+    // Custom order for budget tiles; null = sort by name
+    order: integer("order"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [index("idx_categories_name").on(table.name)]

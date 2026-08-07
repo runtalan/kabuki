@@ -24,7 +24,9 @@ export default async function BudgetPage({
 
   const [allCategories, spendingByCategory, monthTransactions, suggestions, monthlyHistory] = user
     ? await Promise.all([
-        db.query.categories.findMany({ orderBy: (cat, { asc }) => asc(cat.name) }),
+        db.query.categories.findMany({
+          orderBy: (cat, { asc }) => [asc(cat.order), asc(cat.name)],
+        }),
         getSpendingByCategory(user.id, refDate),
         getMonthTransactions(user.id, refDate),
         getCategoryBudgetSuggestions(user.id),

@@ -1,10 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Check, X, Sparkles } from 'lucide-react';
+import { Pencil, Check, X, Sparkles, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { CategoryIcon } from '@/components/category-icon';
 import { CategoryTransactionsModal } from '@/components/spending/category-transactions-modal';
+import { DraggableBudgetCard } from '@/components/spending/draggable-budget-card';
 
 interface BudgetCategory {
   id: string;
@@ -98,11 +115,51 @@ export function BudgetView({
   const [saving, setSaving] = useState(false);
   const [applyingAll, setApplyingAll] = useState(false);
   const [openCategory, setOpenCategory] = useState<BudgetCategory | null>(null);
+  const [orderedCategories, setOrderedCategories] = useState(categories);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { distance: 8 }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  useEffect(() => {
+    setOrderedCategories(categories);
+  }, [categories]);
 
   const spentByName = new Map(spendingByCategory.map((s) => [s.name, s.value]));
 
-  const budgeted = categories.filter((c) => c.monthlyBudget && c.monthlyBudget > 0);
-  const unbudgeted = categories.filter((c) => !c.monthlyBudget || c.monthlyBudget <= 0);
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = orderedCategories.findIndex((cat) => cat.id === active.id);
+    const newIndex = orderedCategories.findIndex((cat) => cat.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    const newOrder = arrayMove(orderedCategories, oldIndex, newIndex);
+    setOrderedCategories(newOrder);
+
+    // Persist to API
+    try {
+      await fetch('/api/categories/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryIds: newOrder.map((cat) => cat.id) }),
+      });
+    } catch (error) {
+      console.error('Failed to save category order:', error);
+      setOrderedCategories(categories);
+    }
+  };
+
+  const budgeted = orderedCategories.filter((c) => c.monthlyBudget && c.monthlyBudget > 0);
+  const unbudgeted = orderedCategories.filter((c) => !c.monthlyBudget || c.monthlyBudget <= 0);
   const unbudgetedWithSuggestion = unbudgeted.filter((c) => suggestions[c.name] > 0);
 
   const totalBudget = budgeted.reduce((s, c) => s + (c.monthlyBudget || 0), 0);
@@ -260,67 +317,54 @@ export function BudgetView({
 
       {/* Budgeted category cards */}
       {budgeted.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {budgeted.map((cat) => {
-            const spent = spentByName.get(cat.name) || 0;
-            const budget = cat.monthlyBudget || 0;
-            const pct = budget > 0 ? (spent / budget) * 100 : 0;
-            return (
-              <div
-                key={cat.id}
-                onClick={() => editingId !== cat.id && setOpenCategory(cat)}
-                className="bg-card border border-border rounded-2xl p-5 cursor-pointer hover:border-primary/40 transition-colors"
-                title={`View ${cat.name} transactions for ${monthLabel}`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: cat.color + '22' }}
-                    >
-                      <CategoryIcon icon={cat.icon} color={cat.color} className="w-4 h-4" />
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={orderedCategories.filter((c) => c.monthlyBudget && c.monthlyBudget > 0).map((c) => c.id)}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {orderedCategories
+                .filter((c) => c.monthlyBudget && c.monthlyBudget > 0)
+                .map((cat) => {
+                  const spent = spentByName.get(cat.name) || 0;
+                  const budget = cat.monthlyBudget || 0;
+                  return (
+                    <div key={cat.id}>
+                      {editingId === cat.id ? (
+                        <div className="bg-card border border-border rounded-2xl p-5 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: cat.color + '22' }}
+                            >
+                              <CategoryIcon icon={cat.icon} color={cat.color} className="w-4 h-4" />
+                            </div>
+                            <p className="text-sm font-semibold text-foreground truncate">{cat.name}</p>
+                          </div>
+                          {renderBudgetEditor(cat)}
+                        </div>
+                      ) : (
+                        <DraggableBudgetCard
+                          id={cat.id}
+                          name={cat.name}
+                          color={cat.color}
+                          icon={cat.icon}
+                          spent={spent}
+                          budget={budget}
+                          isEditing={editingId === cat.id}
+                          onEdit={() => startEdit(cat)}
+                          onClick={() => setOpenCategory(cat)}
+                        />
+                      )}
                     </div>
-                    <p className="text-sm font-semibold text-foreground truncate">{cat.name}</p>
-                  </div>
-                  {editingId === cat.id ? (
-                    renderBudgetEditor(cat)
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEdit(cat);
-                      }}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="Edit budget"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">
-                  <span className="text-base font-bold text-foreground">{money(spent)}</span> of{' '}
-                  {money(budget)}
-                  {pct > 100 && (
-                    <span className="ml-2 text-xs font-semibold text-red-500">
-                      {money(spent - budget)} over
-                    </span>
-                  )}
-                </p>
-                <div className="h-2.5 rounded-full bg-muted/50 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${barColor(pct)}`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {pct > 100
-                    ? 'Over budget'
-                    : `${money(budget - spent)} remaining · ${Math.round(pct)}% used`}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+                  );
+                })}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Year-Long Budget Performance */}
