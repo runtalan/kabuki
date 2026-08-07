@@ -1,7 +1,7 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { recurringSeries } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 
 const VALID_STATUSES = ['confirmed', 'dismissed'];
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     const existing = await db.query.recurringSeries.findFirst({
       where: and(
-        eq(recurringSeries.userId, user.id),
+        inArray(recurringSeries.userId, user.householdUserIds),
         eq(recurringSeries.merchantKey, merchantKey)
       ),
     });

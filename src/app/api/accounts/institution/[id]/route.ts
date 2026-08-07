@@ -28,7 +28,7 @@ export async function PATCH(
       where: eq(plaidItems.id, id),
     });
 
-    if (!existing || existing.userId !== user.id) {
+    if (!existing || !user.householdUserIds.includes(existing.userId)) {
       return Response.json({ error: 'Connection not found' }, { status: 404 });
     }
 

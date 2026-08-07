@@ -1,7 +1,7 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { recurringSeries } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { parseDateInput } from '@/lib/recurring-shared';
 
 const VALID_FREQUENCIES = ['weekly', 'biweekly', 'monthly', 'yearly'];
@@ -18,7 +18,7 @@ export async function PATCH(
 
     const { id } = await params;
     const existing = await db.query.recurringSeries.findFirst({
-      where: and(eq(recurringSeries.id, id), eq(recurringSeries.userId, user.id)),
+      where: and(eq(recurringSeries.id, id), inArray(recurringSeries.userId, user.householdUserIds)),
     });
     if (!existing) {
       return Response.json({ error: 'Recurring series not found' }, { status: 404 });
@@ -74,7 +74,7 @@ export async function DELETE(
 
     const { id } = await params;
     const existing = await db.query.recurringSeries.findFirst({
-      where: and(eq(recurringSeries.id, id), eq(recurringSeries.userId, user.id)),
+      where: and(eq(recurringSeries.id, id), inArray(recurringSeries.userId, user.householdUserIds)),
     });
     if (!existing) {
       return Response.json({ error: 'Recurring series not found' }, { status: 404 });

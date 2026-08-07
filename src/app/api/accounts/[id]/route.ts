@@ -20,7 +20,7 @@ export async function GET(
       with: { plaidItem: true },
     });
 
-    if (!account || account.plaidItem.userId !== user.id) {
+    if (!account || !user.householdUserIds.includes(account.plaidItem.userId)) {
       return Response.json({ error: 'Account not found' }, { status: 404 });
     }
 
