@@ -199,9 +199,15 @@ export function OptionsExplorationPage({
       ).sort((a, b) => a - b)
     : [];
 
+  // Find the single closest strike (ATM)
+  const atmStrike = allStrikes.length > 0
+    ? allStrikes.reduce((closest, strike) =>
+        Math.abs(strike - currentPrice) < Math.abs(closest - currentPrice) ? strike : closest
+      )
+    : null;
+
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
-    const diff = Math.abs(strike - currentPrice);
-    if (diff < 1) return 'atm';
+    if (strike === atmStrike) return 'atm';
     if (selectedType === 'call') {
       return strike > currentPrice ? 'otm' : 'itm';
     } else {
@@ -209,57 +215,63 @@ export function OptionsExplorationPage({
     }
   };
 
-  // Find ATM index
-  const atmIndex = allStrikes.length > 0
-    ? allStrikes.findIndex((s) => Math.abs(s - currentPrice) < 1)
-    : -1;
+  // Find ATM index (for navigation only, strikes shown might be filtered)
+  const atmIndex = atmStrike ? allStrikes.indexOf(atmStrike) : -1;
+
+  // Filter strikes to only show those with data in at least one chain
+  const strikeData = new Set<number>();
+  allChains.forEach((item) => {
+    const key = (selectedType + 's') as 'calls' | 'puts';
+    const options = item.chain?.[key];
+    if (Array.isArray(options)) {
+      options.forEach((opt) => strikeData.add(opt.strike));
+    }
+  });
+  const filteredStrikes = allStrikes.filter((s) => strikeData.has(s));
+  const atmIndexInFiltered = atmStrike ? filteredStrikes.indexOf(atmStrike) : -1;
 
   // Reset strike scroll index when call/put changes or chains load
   useEffect(() => {
-    if (atmIndex >= 0) {
-      const centered = Math.max(0, Math.min(atmIndex - 6, allStrikes.length - 12));
+    if (atmIndexInFiltered >= 0) {
+      const centered = Math.max(0, Math.min(atmIndexInFiltered - 6, filteredStrikes.length - 12));
       setStrikeScrollIndex(centered);
     }
-  }, [selectedType, atmIndex, allStrikes.length]);
+  }, [selectedType, atmIndexInFiltered, filteredStrikes.length]);
 
   const handleJumpToATM = () => {
-    if (atmIndex >= 0) {
-      const centered = Math.max(0, Math.min(atmIndex - 6, allStrikes.length - 12));
+    if (atmIndexInFiltered >= 0) {
+      const centered = Math.max(0, Math.min(atmIndexInFiltered - 6, filteredStrikes.length - 12));
       setStrikeScrollIndex(centered);
     }
   };
 
   const handleJumpToITM = () => {
-    if (atmIndex < 0) return;
+    if (atmIndexInFiltered < 0) return;
     let targetStrike: number;
     if (selectedType === 'call') {
-      // ITM for calls = lower strikes, find 3rd ITM strike going backwards
-      const itmStrikes = allStrikes.slice(0, atmIndex).reverse();
-      targetStrike = itmStrikes[2] ?? allStrikes[0];
+      const itmStrikes = filteredStrikes.slice(0, atmIndexInFiltered).reverse();
+      targetStrike = itmStrikes[2] ?? filteredStrikes[0];
     } else {
-      // ITM for puts = higher strikes, find 3rd ITM strike going forwards
-      const itmStrikes = allStrikes.slice(atmIndex + 1);
-      targetStrike = itmStrikes[2] ?? allStrikes[allStrikes.length - 1];
+      const itmStrikes = filteredStrikes.slice(atmIndexInFiltered + 1);
+      targetStrike = itmStrikes[2] ?? filteredStrikes[filteredStrikes.length - 1];
     }
-    const targetIndex = allStrikes.indexOf(targetStrike);
-    const centered = Math.max(0, Math.min(targetIndex - 6, allStrikes.length - 12));
+    const targetIndex = filteredStrikes.indexOf(targetStrike);
+    const centered = Math.max(0, Math.min(targetIndex - 6, filteredStrikes.length - 12));
     setStrikeScrollIndex(centered);
   };
 
   const handleJumpToOTM = () => {
-    if (atmIndex < 0) return;
+    if (atmIndexInFiltered < 0) return;
     let targetStrike: number;
     if (selectedType === 'call') {
-      // OTM for calls = higher strikes, find 3rd OTM strike going forwards
-      const otmStrikes = allStrikes.slice(atmIndex + 1);
-      targetStrike = otmStrikes[2] ?? allStrikes[allStrikes.length - 1];
+      const otmStrikes = filteredStrikes.slice(atmIndexInFiltered + 1);
+      targetStrike = otmStrikes[2] ?? filteredStrikes[filteredStrikes.length - 1];
     } else {
-      // OTM for puts = lower strikes, find 3rd OTM strike going backwards
-      const otmStrikes = allStrikes.slice(0, atmIndex).reverse();
-      targetStrike = otmStrikes[2] ?? allStrikes[0];
+      const otmStrikes = filteredStrikes.slice(0, atmIndexInFiltered).reverse();
+      targetStrike = otmStrikes[2] ?? filteredStrikes[0];
     }
-    const targetIndex = allStrikes.indexOf(targetStrike);
-    const centered = Math.max(0, Math.min(targetIndex - 6, allStrikes.length - 12));
+    const targetIndex = filteredStrikes.indexOf(targetStrike);
+    const centered = Math.max(0, Math.min(targetIndex - 6, filteredStrikes.length - 12));
     setStrikeScrollIndex(centered);
   };
 
@@ -414,7 +426,7 @@ export function OptionsExplorationPage({
 
           {selectedTicker && allChainsLoading ? (
             <HeatMapSkeleton />
-          ) : selectedTicker && allChains.length > 0 && allStrikes.length > 0 ? (
+          ) : selectedTicker && allChains.length > 0 && filteredStrikes.length > 0 ? (
             <>
               <div
                 ref={tableContainerRef}
@@ -426,7 +438,7 @@ export function OptionsExplorationPage({
                       <th className="px-3 py-3 text-left font-bold text-gray-900 dark:text-gray-100 w-24 sticky left-0 bg-gray-100 dark:bg-gray-800 z-20 border-r border-gray-300 dark:border-gray-600">
                         Expiry
                       </th>
-                      {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                      {filteredStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
                         const status = getStrikeStatus(strike);
                         const isATM = status === 'atm';
                         return (
@@ -456,7 +468,7 @@ export function OptionsExplorationPage({
                             ({item.daysToExpiry}d)
                           </div>
                         </td>
-                        {allStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
+                        {filteredStrikes.slice(strikeScrollIndex, strikeScrollIndex + 12).map((strike) => {
                           const key = (selectedType + 's') as 'calls' | 'puts';
                           const chainOptions = item.chain?.[key];
                           const option = Array.isArray(chainOptions)
@@ -517,11 +529,11 @@ export function OptionsExplorationPage({
                   ← Lower
                 </button>
                 <div className="text-xs text-gray-600 dark:text-gray-400">
-                  Strikes: ${allStrikes[strikeScrollIndex]?.toFixed(0) || '—'} to ${allStrikes[Math.min(strikeScrollIndex + 11, allStrikes.length - 1)]?.toFixed(0) || '—'}
+                  Strikes: ${filteredStrikes[strikeScrollIndex]?.toFixed(0) || '—'} to ${filteredStrikes[Math.min(strikeScrollIndex + 11, filteredStrikes.length - 1)]?.toFixed(0) || '—'}
                 </div>
                 <button
-                  onClick={() => setStrikeScrollIndex(Math.min(allStrikes.length - 12, strikeScrollIndex + 6))}
-                  disabled={strikeScrollIndex >= allStrikes.length - 12}
+                  onClick={() => setStrikeScrollIndex(Math.min(filteredStrikes.length - 12, strikeScrollIndex + 6))}
+                  disabled={strikeScrollIndex >= filteredStrikes.length - 12}
                   className={`px-2 py-1 rounded font-bold transition text-sm ${
                     strikeScrollIndex < allStrikes.length - 12
                       ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'

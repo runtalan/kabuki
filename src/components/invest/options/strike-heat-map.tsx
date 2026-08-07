@@ -30,26 +30,32 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
     new Set(allStrikes.map((s) => s.strike))
   ).sort((a, b) => a - b);
 
-  // Find ATM index
-  const atmIndex = allStrikesArray.findIndex((s) => Math.abs(s - currentPrice) < 1);
+  // Find the single closest strike (ATM)
+  const atmStrike = allStrikesArray.reduce((closest, strike) =>
+    Math.abs(strike - currentPrice) < Math.abs(closest - currentPrice) ? strike : closest
+  );
+
+  // Filter strikes to only show those with data
+  const strikesByType = new Set(options.map((o) => o.strike));
+  const strikesWithData = allStrikesArray.filter((s) => strikesByType.has(s));
 
   // Initialize to show ATM centered, clamped to valid range
   const getInitialIndex = () => {
-    if (atmIndex < 0) return 0;
-    const centered = atmIndex - Math.floor(STRIKES_PER_VIEW / 2);
-    return Math.max(0, Math.min(centered, allStrikesArray.length - STRIKES_PER_VIEW));
+    const atmIndexInFiltered = strikesWithData.indexOf(atmStrike);
+    if (atmIndexInFiltered < 0) return 0;
+    const centered = atmIndexInFiltered - Math.floor(STRIKES_PER_VIEW / 2);
+    return Math.max(0, Math.min(centered, Math.max(0, strikesWithData.length - STRIKES_PER_VIEW)));
   };
 
   const [startIndex, setStartIndex] = useState(getInitialIndex());
 
-  const strikes = allStrikesArray.slice(startIndex, startIndex + STRIKES_PER_VIEW);
+  const strikes = strikesWithData.slice(startIndex, startIndex + STRIKES_PER_VIEW);
 
   const canScrollLeft = startIndex > 0;
-  const canScrollRight = startIndex < allStrikesArray.length - STRIKES_PER_VIEW;
+  const canScrollRight = startIndex < strikesWithData.length - STRIKES_PER_VIEW;
 
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
-    const diff = Math.abs(strike - currentPrice);
-    if (diff < 1) return 'atm';
+    if (strike === atmStrike) return 'atm';
     if (selectedType === 'call') {
       return strike > currentPrice ? 'otm' : 'itm';
     } else {
@@ -82,7 +88,8 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   };
 
   const handleJumpToATM = () => {
-    const newStart = Math.max(0, Math.min(atmIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    const atmIndexInFiltered = strikesWithData.indexOf(atmStrike);
+    const newStart = Math.max(0, Math.min(atmIndexInFiltered - Math.floor(STRIKES_PER_VIEW / 2), Math.max(0, strikesWithData.length - STRIKES_PER_VIEW)));
     setStartIndex(newStart);
   };
 
@@ -91,49 +98,43 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   };
 
   const handleScrollRight = () => {
-    const maxStart = Math.max(0, allStrikesArray.length - STRIKES_PER_VIEW);
+    const maxStart = Math.max(0, strikesWithData.length - STRIKES_PER_VIEW);
     setStartIndex(Math.min(maxStart, startIndex + Math.floor(STRIKES_PER_VIEW / 2)));
   };
 
   const handleJumpToITM = () => {
-    // For calls: ITM = lower strikes, so find 3rd ITM strike going backwards from ATM
-    // For puts: ITM = higher strikes, so find 3rd ITM strike going forwards from ATM
-    if (atmIndex < 0) return;
+    const atmIndexInFiltered = strikesWithData.indexOf(atmStrike);
+    if (atmIndexInFiltered < 0) return;
 
     let targetStrike: number;
     if (selectedType === 'call') {
-      // ITM for calls = strikes below current price
-      const itmStrikes = allStrikesArray.slice(0, atmIndex).reverse();
-      targetStrike = itmStrikes[2] ?? allStrikesArray[0];
+      const itmStrikes = strikesWithData.slice(0, atmIndexInFiltered).reverse();
+      targetStrike = itmStrikes[2] ?? strikesWithData[0];
     } else {
-      // ITM for puts = strikes above current price
-      const itmStrikes = allStrikesArray.slice(atmIndex + 1);
-      targetStrike = itmStrikes[2] ?? allStrikesArray[allStrikesArray.length - 1];
+      const itmStrikes = strikesWithData.slice(atmIndexInFiltered + 1);
+      targetStrike = itmStrikes[2] ?? strikesWithData[strikesWithData.length - 1];
     }
 
-    const targetIndex = allStrikesArray.indexOf(targetStrike);
-    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    const targetIndex = strikesWithData.indexOf(targetStrike);
+    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), Math.max(0, strikesWithData.length - STRIKES_PER_VIEW)));
     setStartIndex(newStart);
   };
 
   const handleJumpToOTM = () => {
-    // For calls: OTM = higher strikes, so find 3rd OTM strike going forwards from ATM
-    // For puts: OTM = lower strikes, so find 3rd OTM strike going backwards from ATM
-    if (atmIndex < 0) return;
+    const atmIndexInFiltered = strikesWithData.indexOf(atmStrike);
+    if (atmIndexInFiltered < 0) return;
 
     let targetStrike: number;
     if (selectedType === 'call') {
-      // OTM for calls = strikes above current price
-      const otmStrikes = allStrikesArray.slice(atmIndex + 1);
-      targetStrike = otmStrikes[2] ?? allStrikesArray[allStrikesArray.length - 1];
+      const otmStrikes = strikesWithData.slice(atmIndexInFiltered + 1);
+      targetStrike = otmStrikes[2] ?? strikesWithData[strikesWithData.length - 1];
     } else {
-      // OTM for puts = strikes below current price
-      const otmStrikes = allStrikesArray.slice(0, atmIndex).reverse();
-      targetStrike = otmStrikes[2] ?? allStrikesArray[0];
+      const otmStrikes = strikesWithData.slice(0, atmIndexInFiltered).reverse();
+      targetStrike = otmStrikes[2] ?? strikesWithData[0];
     }
 
-    const targetIndex = allStrikesArray.indexOf(targetStrike);
-    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    const targetIndex = strikesWithData.indexOf(targetStrike);
+    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), Math.max(0, strikesWithData.length - STRIKES_PER_VIEW)));
     setStartIndex(newStart);
   };
 
@@ -197,7 +198,7 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
       <div className="space-y-2 mb-3 w-full">
         <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
           Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
-          <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+          <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, strikesWithData.length)} of {strikesWithData.length})</span>
         </div>
         <div className="flex gap-2 justify-center">
           <button
