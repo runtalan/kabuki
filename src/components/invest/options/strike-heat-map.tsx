@@ -95,6 +95,48 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
     setStartIndex(Math.min(maxStart, startIndex + Math.floor(STRIKES_PER_VIEW / 2)));
   };
 
+  const handleJumpToITM = () => {
+    // For calls: ITM = lower strikes, so find 3rd ITM strike going backwards from ATM
+    // For puts: ITM = higher strikes, so find 3rd ITM strike going forwards from ATM
+    if (atmIndex < 0) return;
+
+    let targetStrike: number;
+    if (selectedType === 'call') {
+      // ITM for calls = strikes below current price
+      const itmStrikes = allStrikesArray.slice(0, atmIndex).reverse();
+      targetStrike = itmStrikes[2] ?? allStrikesArray[0];
+    } else {
+      // ITM for puts = strikes above current price
+      const itmStrikes = allStrikesArray.slice(atmIndex + 1);
+      targetStrike = itmStrikes[2] ?? allStrikesArray[allStrikesArray.length - 1];
+    }
+
+    const targetIndex = allStrikesArray.indexOf(targetStrike);
+    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    setStartIndex(newStart);
+  };
+
+  const handleJumpToOTM = () => {
+    // For calls: OTM = higher strikes, so find 3rd OTM strike going forwards from ATM
+    // For puts: OTM = lower strikes, so find 3rd OTM strike going backwards from ATM
+    if (atmIndex < 0) return;
+
+    let targetStrike: number;
+    if (selectedType === 'call') {
+      // OTM for calls = strikes above current price
+      const otmStrikes = allStrikesArray.slice(atmIndex + 1);
+      targetStrike = otmStrikes[2] ?? allStrikesArray[allStrikesArray.length - 1];
+    } else {
+      // OTM for puts = strikes below current price
+      const otmStrikes = allStrikesArray.slice(0, atmIndex).reverse();
+      targetStrike = otmStrikes[2] ?? allStrikesArray[0];
+    }
+
+    const targetIndex = allStrikesArray.indexOf(targetStrike);
+    const newStart = Math.max(0, Math.min(targetIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    setStartIndex(newStart);
+  };
+
   return (
     <div className="w-full space-y-4">
       {/* Controls */}
@@ -133,10 +175,32 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
         </div>
       </div>
 
-      {/* Strike Range Info */}
-      <div className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
-        Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
-        <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+      {/* Strike Range Info & Quick Jump Buttons */}
+      <div className="space-y-2 mb-3">
+        <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+          Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
+          <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+        </div>
+        <div className="flex gap-2 justify-center">
+          <button
+            onClick={handleJumpToITM}
+            className="px-3 py-1 text-xs rounded font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60 transition"
+          >
+            3 ITM
+          </button>
+          <button
+            onClick={handleJumpToATM}
+            className="px-3 py-1 text-xs rounded font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition"
+          >
+            Center ATM
+          </button>
+          <button
+            onClick={handleJumpToOTM}
+            className="px-3 py-1 text-xs rounded font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 transition"
+          >
+            3 OTM
+          </button>
+        </div>
       </div>
 
       {/* Heatmap Table with Side Arrows */}
