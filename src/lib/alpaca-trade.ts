@@ -33,6 +33,25 @@ export interface OrderResponse {
   createdAt: string;
 }
 
+export interface Position {
+  symbol: string;
+  qty: number;
+  marketValue: number;
+  costBasis: number;
+  unrealizedPl: number;
+  unrealizedPlpc: number;
+  currentPrice: number;
+  assetClass: string;
+}
+
+export interface PortfolioSummary {
+  totalPortfolioValue: number;
+  totalCash: number;
+  buyingPower: number;
+  dailyPl: number;
+  dailyPlpc: number;
+}
+
 export async function getAccountInfo(): Promise<AccountInfo> {
   const account = await alpaca.trading.account.getAccount();
 
@@ -72,6 +91,33 @@ export async function submitOrder(
     filledQty: typeof order.filled_qty === "number" ? order.filled_qty : parseInt(String(order.filled_qty || 0)),
     filledAvgPrice: order.filled_avg_price?.toString() || "0",
     createdAt: String(order.created_at),
+  };
+}
+
+export async function getPositions(): Promise<Position[]> {
+  const positions = await alpaca.trading.positions.getAllOpenPositions();
+
+  return positions.map((position: any) => ({
+    symbol: String(position.symbol),
+    qty: parseFloat(String(position.qty || 0)),
+    marketValue: parseFloat(String(position.market_value || 0)),
+    costBasis: parseFloat(String(position.cost_basis || 0)),
+    unrealizedPl: parseFloat(String(position.unrealized_pl || 0)),
+    unrealizedPlpc: parseFloat(String(position.unrealized_plpc || 0)),
+    currentPrice: parseFloat(String(position.current_price || 0)),
+    assetClass: String(position.asset_class || "equity"),
+  }));
+}
+
+export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+  const account = await alpaca.trading.account.getAccount();
+
+  return {
+    totalPortfolioValue: parseFloat(String(account.portfolio_value || 0)),
+    totalCash: parseFloat(String(account.cash || 0)),
+    buyingPower: parseFloat(String(account.buying_power || 0)),
+    dailyPl: parseFloat(String(account.daily_pl || 0)),
+    dailyPlpc: parseFloat(String(account.daily_plpc || 0)),
   };
 }
 
