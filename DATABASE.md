@@ -50,17 +50,18 @@
 | 2026-08-06 | `0020_trading_and_options.sql` | `trading_orders` and `option_holdings` tables — trade execution history and active option contracts |
 | 2026-08-06 | `0021_add_email_column.sql` | Add `users.email` column + populate for existing users; make `users.password_hash` optional (for Google OIDC migration) |
 | 2026-08-06 | `0022_trades_table.sql` | `trades` table — tracks buy/sell orders (symbol, qty, price, type, side, status) |
+| 2026-08-07 | `0023_categories_order_column.sql` | Add `categories.order` column for drag-to-reorder budget tiles |
 
 ## Current schema state
 
-Tables as of the last migration above. Reflects sandbox and production alike — both are in sync as of `0013`.
+Tables as of the last migration above. Reflects sandbox and production alike — both are in sync as of `0023`.
 
 | Table | Added in | Notes |
 |---|---|---|
 | `users` | 0000 | Shared household login; +`is_demo` (0013); +`email` (0021); `password_hash` now optional (0021) |
 | `plaid_items` | 0000 | +`is_manual` (0006) |
 | `accounts` | 0000 | +`display_name`,`icon` (0002); +`owner` (0004); +`kind`,`liability_type`,`is_manual` (0006); +`mask` (0007); +`asset_type`,`address` (0009) |
-| `categories` | 0000 | +`monthly_budget` (0010) |
+| `categories` | 0000 | +`monthly_budget` (0010); +`order` (0023) |
 | `transactions` | 0000 | +`category_source` (0005); +`owner_override` (0008); +`hidden` (0011); +`merchant_entity_id`,`merchant_logo_url`,`pfc_primary`,`pfc_detailed` (0015); +`transfer_type` (0016) |
 | `transaction_splits` | 0001 | |
 | `rules` | 0003 | |
