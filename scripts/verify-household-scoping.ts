@@ -21,6 +21,30 @@ async function main() {
   assertEqual(fromClaudia, new Set([renato.id, claudia.id]), 'claudia -> household');
   assertEqual(fromDemo, new Set([demo.id]), 'demo -> isolated');
 
+  const { getUserAccounts, getSpendingByCategory } = await import('@/lib/queries');
+
+  const renatoAccounts = await getUserAccounts(renato.id);
+  const claudiaAccounts = await getUserAccounts(claudia.id);
+  const renatoNames = new Set(renatoAccounts.map((a) => a.name));
+  const claudiaNames = new Set(claudiaAccounts.map((a) => a.name));
+
+  if (!renatoNames.has('Claudia Checking')) {
+    throw new Error('getUserAccounts(renato.id) should include Claudia\'s seeded checking account');
+  }
+  if (!claudiaNames.has('Renato Checking')) {
+    throw new Error('getUserAccounts(claudia.id) should include Renato\'s seeded checking account');
+  }
+  console.log('  ok: getUserAccounts is household-wide in both directions');
+
+  const demoAccounts = await getUserAccounts(demo.id);
+  if (demoAccounts.some((a) => a.name === 'Claudia Checking' || a.name === 'Renato Checking')) {
+    throw new Error('getUserAccounts(demo.id) leaked real household accounts');
+  }
+  console.log('  ok: getUserAccounts stays isolated for the demo account');
+
+  await getSpendingByCategory(renato.id); // smoke test — must not throw
+  console.log('  ok: getSpendingByCategory(renato.id) runs without error');
+
   console.log('household.ts: all checks passed');
 }
 
