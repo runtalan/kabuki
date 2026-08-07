@@ -5,6 +5,8 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureDemoDataFresh } from "@/lib/demo-data";
 
+// Token refresh fix: JWT callback now updates email from database on token refresh
+
 // Only these two Google accounts may sign in — this is a shared-household
 // app, not a public signup (see AGENTS.md / ENVIRONMENTS.md). The shared
 // demo account is a separate, non-Google flow (see handleDemoLogin below).
