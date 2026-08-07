@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { OptionChain } from '@/lib/yahoo-finance-client';
 
 interface StrikeHeatMapProps {
@@ -28,11 +28,6 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
     new Set(allStrikes.map((s) => s.strike))
   ).sort((a, b) => a - b);
 
-  const maxVolume = Math.max(
-    ...options.map((s) => s.volume),
-    1
-  );
-
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
     const diff = Math.abs(strike - currentPrice);
     if (diff < 1) return 'atm';
@@ -46,19 +41,25 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   const getHeaderColor = (strike: number) => {
     const status = getStrikeStatus(strike);
     if (status === 'atm')
-      return 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100';
+      return 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-blue-300';
     if (status === 'itm')
-      return 'bg-green-100 dark:bg-green-900 text-green-900 dark:text-green-100';
-    return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
+      return 'bg-green-100 dark:bg-green-900 text-green-900 dark:text-green-100 border-green-300';
+    return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300';
   };
 
-  const getHeatColor = (volume: number) => {
-    if (!volume) return 'bg-gray-50 dark:bg-gray-900';
-    const ratio = volume / maxVolume;
-    if (ratio > 0.75) return 'bg-green-100 dark:bg-green-900';
-    if (ratio > 0.5) return 'bg-yellow-100 dark:bg-yellow-900';
-    if (ratio > 0.25) return 'bg-orange-100 dark:bg-orange-900';
-    return 'bg-gray-100 dark:bg-gray-800';
+  const getCellColor = (profitPercent: number) => {
+    if (profitPercent >= 2) return 'bg-green-100 dark:bg-green-900/40';
+    if (profitPercent >= 1) return 'bg-green-50 dark:bg-green-900/20';
+    if (profitPercent >= 0.5) return 'bg-yellow-50 dark:bg-yellow-900/20';
+    if (profitPercent > 0) return 'bg-orange-50 dark:bg-orange-900/20';
+    return 'bg-gray-50 dark:bg-gray-800/50';
+  };
+
+  const calculateMetrics = (option: (typeof options)[0]) => {
+    const midPrice = (option.bid + option.ask) / 2;
+    const profitPercent = (midPrice / currentPrice) * 100;
+    const dailyDecay = midPrice / Math.max(daysToExpiry, 1);
+    return { midPrice, profitPercent, dailyDecay };
   };
 
   const handleJumpToATM = () => {
@@ -77,34 +78,35 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   return (
     <div className="w-full space-y-4">
       {/* Controls */}
-      <div className="flex gap-2 items-center justify-between">
+      <div className="flex gap-2 items-center justify-between mb-4">
         <div className="flex gap-2">
           <button
             onClick={() => setSelectedType('call')}
-            className={`px-5 py-2 rounded-lg font-bold transition text-sm ${
+            className={`px-4 py-2 rounded font-semibold transition text-sm ${
               selectedType === 'call'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
             }`}
           >
             Call
           </button>
           <button
             onClick={() => setSelectedType('put')}
-            className={`px-5 py-2 rounded-lg font-bold transition text-sm ${
+            className={`px-4 py-2 rounded font-semibold transition text-sm ${
               selectedType === 'put'
-                ? 'bg-red-500 text-white'
-                : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white hover:bg-gray-400 dark:hover:bg-gray-500'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
             }`}
           >
             Put
           </button>
         </div>
-        <div className="flex gap-3 items-center text-xs text-gray-600 dark:text-gray-400">
-          <span>Spot: ${currentPrice.toFixed(2)} | {daysToExpiry}d</span>
+        <div className="flex gap-4 items-center text-xs text-gray-600 dark:text-gray-400">
+          <span className="font-semibold">Spot: ${currentPrice.toFixed(2)}</span>
+          <span className="font-semibold">DTE: {daysToExpiry}d</span>
           <button
             onClick={handleJumpToATM}
-            className="px-3 py-1 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 font-semibold transition"
+            className="px-3 py-1 rounded text-xs bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-700 font-semibold transition"
           >
             Center ATM
           </button>
@@ -112,62 +114,69 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
       </div>
 
       {/* Heatmap Table */}
-      <div ref={tableRef} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
-        <table className="border-collapse text-xs bg-white dark:bg-gray-900">
+      <div ref={tableRef} className="border border-gray-300 dark:border-gray-600 rounded overflow-x-auto bg-white dark:bg-gray-900">
+        <table className="border-collapse text-xs w-full">
           <thead>
-            <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <th className="px-2 py-1.5 text-left font-semibold text-gray-700 dark:text-gray-300 w-16 sticky left-0 bg-gray-50 dark:bg-gray-800 z-10">
-                Exp
+            <tr className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
+              <th className="px-3 py-3 text-left font-bold text-gray-900 dark:text-gray-100 w-20 sticky left-0 bg-gray-100 dark:bg-gray-800 z-10 border-r border-gray-300 dark:border-gray-600">
+                Strike Price
               </th>
-              {strikes.map((strike) => (
-                <th
-                  key={`header-${strike}`}
-                  data-strike={strike}
-                  className={`px-1 py-1.5 text-center font-bold border-l border-gray-200 dark:border-gray-700 min-w-[60px] ${getHeaderColor(
-                    strike
-                  )}`}
-                >
-                  <div className="font-bold text-xs">${strike.toFixed(0)}</div>
-                  <div className="text-xs font-normal opacity-60">
-                    {getStrikeStatus(strike).toUpperCase()[0]}
-                  </div>
-                </th>
-              ))}
+              {strikes.map((strike) => {
+                const status = getStrikeStatus(strike);
+                return (
+                  <th
+                    key={`header-${strike}`}
+                    data-strike={strike}
+                    className={`px-3 py-3 text-center font-bold border-r border-gray-200 dark:border-gray-700 min-w-[110px] ${getHeaderColor(strike)}`}
+                  >
+                    <div className="font-bold">${strike.toFixed(0)}</div>
+                    <div className="text-xs font-normal opacity-70">
+                      ({status.toUpperCase()})
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
-              <td className="px-2 py-1.5 font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 sticky left-0 z-10 text-xs">
+            <tr className="border-b border-gray-200 dark:border-gray-700">
+              <td className="px-3 py-3 font-bold text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-800/50 sticky left-0 z-10 border-r border-gray-300 dark:border-gray-600 text-sm">
                 <div>Today</div>
+                <div className="text-xs font-normal text-gray-600 dark:text-gray-400">
+                  {daysToExpiry}d
+                </div>
               </td>
               {strikes.map((strike) => {
                 const option = options.find((o) => o.strike === strike);
+                const metrics = option ? calculateMetrics(option) : null;
+
                 return (
                   <td
                     key={`cell-${strike}`}
-                    className={`px-1 py-1.5 text-center border-l border-gray-200 dark:border-gray-700 cursor-pointer transition hover:shadow-lg ${getHeatColor(
-                      option?.volume || 0
-                    )}`}
-                    onClick={() => onStrikeClick(strike, selectedType === 'call')}
+                    className={`px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700 cursor-pointer transition hover:shadow-md ${
+                      metrics ? getCellColor(metrics.profitPercent) : 'bg-gray-50 dark:bg-gray-800'
+                    }`}
+                    onClick={() => option && onStrikeClick(strike, selectedType === 'call')}
                     title={
                       option
-                        ? `${selectedType === 'call' ? 'Call' : 'Put'} @ $${strike}\nPrice: $${((option.bid + option.ask) / 2).toFixed(2)}\nVol: ${option.volume}\nOI: ${option.openInterest}\nBid: $${option.bid?.toFixed(2) || 'N/A'} | Ask: $${option.ask?.toFixed(2) || 'N/A'}`
+                        ? `${selectedType === 'call' ? 'Call' : 'Put'} @ $${strike}\nMid: $${metrics?.midPrice.toFixed(2)}\nVol: ${option.volume} | OI: ${option.openInterest}\nBid: $${option.bid?.toFixed(2) || 'N/A'} | Ask: $${option.ask?.toFixed(2) || 'N/A'}`
                         : `No data`
                     }
                   >
-                    {option ? (
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-gray-900 dark:text-white text-xs">
-                          ${((option.bid + option.ask) / 2).toFixed(2)}
+                    {option && metrics ? (
+                      <div className="space-y-1">
+                        <div className="font-bold text-gray-900 dark:text-white">
+                          {metrics.profitPercent.toFixed(2)}%
                         </div>
-                        {option.volume > 0 && (
-                          <div className="text-xs text-blue-700 dark:text-blue-300 font-semibold">
-                            v:{option.volume}
-                          </div>
-                        )}
+                        <div className="text-gray-700 dark:text-gray-300 font-semibold">
+                          ${metrics.midPrice.toFixed(2)}
+                        </div>
+                        <div className="text-gray-600 dark:text-gray-400">
+                          ${metrics.dailyDecay.toFixed(2)}/day
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-gray-400 dark:text-gray-600 text-xs">—</div>
+                      <div className="text-gray-400 dark:text-gray-600 py-2">—</div>
                     )}
                   </td>
                 );
@@ -178,29 +187,19 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
       </div>
 
       {/* Legend */}
-      <div className="text-xs text-gray-600 dark:text-gray-400 space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            <div className="w-4 h-4 bg-blue-100 dark:bg-blue-900 rounded border border-gray-300"></div>
-            <span className="font-semibold">ATM</span>
+      <div className="text-xs text-gray-600 dark:text-gray-400">
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-100 dark:bg-green-900/40 rounded border border-green-300"></div>
+            <span>High Profit (≥2%)</span>
           </div>
-          <div className="flex gap-2">
-            <div className="w-4 h-4 bg-green-100 dark:bg-green-900 rounded border border-gray-300"></div>
-            <span className="font-semibold">ITM</span>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200"></div>
+            <span>Medium Profit (0.5-2%)</span>
           </div>
-          <div className="flex gap-2">
-            <div className="w-4 h-4 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300"></div>
-            <span className="font-semibold">OTM</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            <div className="w-4 h-4 bg-green-100 dark:bg-green-900 rounded border border-gray-300"></div>
-            <span>High Volume</span>
-          </div>
-          <div className="flex gap-2">
-            <div className="w-4 h-4 bg-orange-100 dark:bg-orange-900 rounded border border-gray-300"></div>
-            <span>Medium Volume</span>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200"></div>
+            <span>Low Profit (0-0.5%)</span>
           </div>
         </div>
       </div>
