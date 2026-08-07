@@ -7,6 +7,35 @@ interface StockTradingFormProps {
   onTradeExecuted?: () => void;
 }
 
+const OPTIONS_ERROR_MESSAGE = 'Options trading is available on the Options tab';
+
+/**
+ * Returns true if the given symbol looks like an option contract rather than
+ * a plain equity ticker. Covers:
+ *  - Colon-delimited contract notation, e.g. "AAPL:230721C200"
+ *  - OCC-style contract symbols, e.g. "AAPL230721C00200000"
+ *  - Space-separated shorthand, e.g. "AAPL 200C" or "AAPL 07/21/2023 C200"
+ */
+function isOptionSymbol(rawSymbol: string): boolean {
+  const value = rawSymbol.trim().toUpperCase();
+  if (!value) return false;
+
+  // Colon-delimited contract notation (e.g. "AAPL:230721C200")
+  if (value.includes(':')) return true;
+
+  // Contains whitespace followed by a strike/expiry-like suffix (e.g. "AAPL 200C", "AAPL 07/21/2023 C200")
+  if (/\s/.test(value) && /\d+[CP]\b|[CP]\d+/.test(value.replace(/\s+/g, ''))) {
+    return true;
+  }
+
+  // OCC-style contract symbol: root + 6-digit date (YYMMDD) + C/P + 8-digit strike
+  if (/^[A-Z]{1,6}\d{6}[CP]\d{8}$/.test(value.replace(/\s+/g, ''))) {
+    return true;
+  }
+
+  return false;
+}
+
 export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFormProps) {
   const [symbol, setSymbol] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -34,6 +63,10 @@ export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFor
 
       if (!symbol || !qty || qty <= 0) {
         throw new Error('Please enter valid symbol and quantity');
+      }
+
+      if (isOptionSymbol(symbol)) {
+        throw new Error(OPTIONS_ERROR_MESSAGE);
       }
 
       if (orderType === 'limit' && (!limitPrice || parseFloat(limitPrice) <= 0)) {
@@ -116,6 +149,9 @@ export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFor
           className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           disabled={isSubmitting}
         />
+        {isOptionSymbol(symbol) && (
+          <p className="mt-1 text-sm text-red-600">{OPTIONS_ERROR_MESSAGE}</p>
+        )}
       </div>
 
       {/* Quantity */}
@@ -196,7 +232,7 @@ export function StockTradingForm({ accountId, onTradeExecuted }: StockTradingFor
       {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting || !accountId}
+        disabled={isSubmitting || !accountId || isOptionSymbol(symbol)}
         className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
           side === 'buy'
             ? 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50'
