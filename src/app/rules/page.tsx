@@ -2,12 +2,27 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Trash2, ToggleLeft, X, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ToggleLeft, X, Loader2, Pencil } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
 import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
 import { useIsDemo } from '@/hooks/use-is-demo';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { DraggableRuleCard } from '@/components/rules/draggable-rule-card';
 
 interface Category {
   id: string;
@@ -49,10 +64,12 @@ function RulesPageInner() {
   const searchParams = useSearchParams();
   const prefillMerchant = searchParams.get('merchant');
   const [rules, setRules] = useState<Rule[]>([]);
+  const [orderedRules, setOrderedRules] = useState<Rule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(!!prefillMerchant);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     merchantName: prefillMerchant || '',
     matchType: 'contains' as 'exact' | 'contains' | 'startsWith',
@@ -66,11 +83,49 @@ function RulesPageInner() {
   );
   const [creating, setCreating] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   useEffect(() => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    setOrderedRules(rules);
+  }, [rules]);
+
   useEscapeKey(() => setPreview(null), !!preview);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = orderedRules.findIndex((r) => r.id === active.id);
+    const newIndex = orderedRules.findIndex((r) => r.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    const newOrder = arrayMove(orderedRules, oldIndex, newIndex);
+    setOrderedRules(newOrder);
+
+    try {
+      await fetch('/api/rules/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ruleIds: newOrder.map((r) => r.id) }),
+      });
+    } catch (error) {
+      console.error('Failed to save rule order:', error);
+      setOrderedRules(rules);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -102,49 +157,86 @@ function RulesPageInner() {
     }
   };
 
+  const openCreate = () => {
+    setEditingId(null);
+    setFormData({ merchantName: '', matchType: 'contains', categoryId: '', priority: 0, retroactive: false });
+    setPreview(null);
+    setShowForm(true);
+  };
+
+  const openEdit = (rule: Rule, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(rule.id);
+    setFormData({
+      merchantName: rule.merchantName,
+      matchType: rule.matchType,
+      categoryId: rule.categoryId,
+      priority: rule.priority,
+      retroactive: false,
+    });
+    setPreview(null);
+    setShowForm(true);
+  };
+
   const resetForm = () => {
     setFormData({ merchantName: '', matchType: 'contains', categoryId: '', priority: 0, retroactive: false });
+    setEditingId(null);
     setShowForm(false);
     setPreview(null);
   };
 
-  const createRule = async (retroactive: boolean) => {
+  const saveRule = async (retroactive: boolean = false) => {
     setCreating(true);
     try {
-      const response = await fetch('/api/rules', {
-        method: 'POST',
+      const isEdit = !!editingId;
+      const method = isEdit ? 'PUT' : 'POST';
+      const url = isEdit ? `/api/rules/${editingId}` : '/api/rules';
+      const body = isEdit ? formData : { ...formData, retroactive };
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, retroactive }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
         const data = await response.json();
         await fetchData();
         resetForm();
-        alert(
-          retroactive
-            ? `✅ Rule created and applied to ${data.retagged} transaction${data.retagged === 1 ? '' : 's'}!`
-            : '✅ Rule created!'
-        );
+        if (isEdit) {
+          alert('✅ Rule updated!');
+        } else {
+          alert(
+            retroactive
+              ? `✅ Rule created and applied to ${data.retagged} transaction${data.retagged === 1 ? '' : 's'}!`
+              : '✅ Rule created!'
+          );
+        }
       } else {
-        alert('Failed to create rule');
+        alert(`Failed to ${isEdit ? 'update' : 'create'} rule`);
       }
     } catch (error) {
-      alert('Error: ' + (error instanceof Error ? error.message : 'Failed to create'));
+      alert('Error: ' + (error instanceof Error ? error.message : 'Failed to save'));
     } finally {
       setCreating(false);
     }
   };
 
-  const handleCreateRule = async (e: React.FormEvent) => {
+  const handleSaveRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.merchantName.trim() || !formData.categoryId) {
       alert('Please fill in all fields');
       return;
     }
 
+    const isEdit = !!editingId;
+    if (isEdit) {
+      await saveRule(false);
+      return;
+    }
+
     if (!formData.retroactive) {
-      await createRule(false);
+      await saveRule(false);
       return;
     }
 
@@ -237,7 +329,7 @@ function RulesPageInner() {
             <p className="text-muted-foreground">Automatically tag transactions based on merchant patterns</p>
           </div>
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={openCreate}
             disabled={isDemo}
             title={isDemo ? 'View-only in demo mode' : undefined}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -250,7 +342,10 @@ function RulesPageInner() {
         {/* Form */}
         {showForm && (
           <div className="bg-card border border-border rounded-lg p-6 mb-8">
-            <form onSubmit={handleCreateRule} className="space-y-4">
+            <h2 className="text-lg font-semibold text-foreground mb-4">
+              {editingId ? 'Edit Rule' : 'New Rule'}
+            </h2>
+            <form onSubmit={handleSaveRule} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
@@ -313,24 +408,30 @@ function RulesPageInner() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.retroactive}
-                  onChange={(e) => setFormData({ ...formData, retroactive: e.target.checked })}
-                  className="w-4 h-4 rounded border-border"
-                />
-                Apply this rule retroactively to existing transactions
-              </label>
+              {!editingId && (
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.retroactive}
+                    onChange={(e) => setFormData({ ...formData, retroactive: e.target.checked })}
+                    className="w-4 h-4 rounded border-border"
+                  />
+                  Apply this rule retroactively to existing transactions
+                </label>
+              )}
 
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  disabled={previewLoading}
+                  disabled={previewLoading || creating}
                   className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
                 >
-                  {previewLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {formData.retroactive ? 'Preview & Create Rule' : 'Create Rule'}
+                  {(previewLoading || creating) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editingId
+                    ? 'Save Changes'
+                    : formData.retroactive
+                      ? 'Preview & Create Rule'
+                      : 'Create Rule'}
                 </button>
                 <button
                   type="button"
@@ -401,7 +502,7 @@ function RulesPageInner() {
 
               <div className="flex gap-2 mt-6">
                 <button
-                  onClick={() => createRule(true)}
+                  onClick={() => saveRule(true)}
                   disabled={creating}
                   className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2"
                 >
@@ -421,68 +522,40 @@ function RulesPageInner() {
         )}
 
         {/* Rules List */}
-        <div className="space-y-3">
-          {rules.length === 0 ? (
-            <div className="bg-card border border-border rounded-lg p-8 text-center">
-              <p className="text-muted-foreground mb-2">No rules created yet</p>
-              <p className="text-sm text-muted-foreground">
-                Create a rule to automatically tag transactions based on merchant names
-              </p>
-            </div>
-          ) : (
-            rules
-              .sort((a, b) => b.priority - a.priority)
-              .map((rule) => (
-                <div
-                  key={rule.id}
-                  className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    <button
-                      onClick={() => handleToggleRule(rule.id, rule.enabled)}
-                      title={rule.enabled ? 'Disable rule' : 'Enable rule'}
-                      className={`p-2 rounded transition-colors ${
-                        rule.enabled
-                          ? 'text-primary bg-primary/10'
-                          : 'text-muted-foreground bg-muted'
-                      }`}
-                    >
-                      <ToggleLeft className="w-5 h-5" />
-                    </button>
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">
-                        {rule.matchType === 'contains' && `Contains "${rule.merchantName}"`}
-                        {rule.matchType === 'exact' && `Exact: "${rule.merchantName}"`}
-                        {rule.matchType === 'startsWith' && `Starts with "${rule.merchantName}"`}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium"
-                          style={{
-                            backgroundColor: rule.category?.color + '20',
-                            color: rule.category?.color || '#6b7280',
-                          }}
-                        >
-                          <CategoryIcon icon={rule.category?.icon} className="w-3.5 h-3.5" />
-                          {rule.category?.name || 'Unknown'}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Priority: {rule.priority}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteRule(rule.id)}
-                    title="Delete rule"
-                    className="p-2 rounded opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </button>
-                </div>
-              ))
-          )}
-        </div>
+        {orderedRules.length === 0 ? (
+          <div className="bg-card border border-border rounded-lg p-8 text-center">
+            <p className="text-muted-foreground mb-2">No rules created yet</p>
+            <p className="text-sm text-muted-foreground">
+              Create a rule to automatically tag transactions based on merchant names
+            </p>
+          </div>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={orderedRules.map((r) => r.id)}>
+              <div className="space-y-3">
+                {orderedRules.map((rule) => (
+                  <DraggableRuleCard
+                    key={rule.id}
+                    id={rule.id}
+                    merchantName={rule.merchantName}
+                    matchType={rule.matchType}
+                    category={rule.category}
+                    priority={rule.priority}
+                    enabled={rule.enabled}
+                    totalRules={orderedRules.length}
+                    onToggle={handleToggleRule}
+                    onEdit={(e) => openEdit(rule, e)}
+                    onDelete={handleDeleteRule}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
     </AppLayout>
   );
