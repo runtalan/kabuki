@@ -49,6 +49,7 @@
 | 2026-08-06 | `0019_properties_and_holdings.sql` | `properties`, `property_value_history`, `holdings` tables — real estate tracking (excluded from net worth) and investment holdings |
 | 2026-08-06 | `0020_trading_and_options.sql` | `trading_orders` and `option_holdings` tables — trade execution history and active option contracts |
 | 2026-08-06 | `0021_add_email_column.sql` | Add `users.email` column + populate for existing users; make `users.password_hash` optional (for Google OIDC migration) |
+| 2026-08-06 | `0022_trades_table.sql` | `trades` table — tracks buy/sell orders (symbol, qty, price, type, side, status) |
 
 ## Current schema state
 
@@ -73,6 +74,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `properties` | 0019 | Manually-tracked real estate; deliberately not linked to `accounts` — excluded from net worth |
 | `property_value_history` | 0019 | Manual value snapshots; drives the combined equity chart |
 | `holdings` | 0019 | Investment holdings inside a brokerage `accounts` row |
+| `trades` | 0022 | Trade execution history (symbol, qty, price, order type, side, status) |
 
 ## Quick reference
 
