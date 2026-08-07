@@ -1,251 +1,375 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { OptionsOrderForm } from './options-order-form';
-import { OptionsHeatmap } from './options-heatmap';
-import { OptionsGuideModal } from './options-guide-modal';
-import { OptionsDashboard } from './options-dashboard';
-import { TickerSearch } from './ticker-search';
-import { TickerSwitcher } from './ticker-switcher';
-import { WatchlistTable } from '../watchlist/watchlist-table';
-import { useWatchList } from '@/lib/watch-list-context';
-import { generateMockStockData } from '@/lib/ticker-data';
-import { generateMockOptionContracts } from '@/lib/mock-options-data';
-import type { Holding, OptionContract, OrderState } from '@/lib/options-types';
+import { useState, useRef, useEffect } from 'react';
+import { StrikeHeatMap } from './strike-heat-map';
+import {
+  WatchlistSkeleton,
+  HeatMapSkeleton,
+  OrderFormSkeleton,
+} from './skeleton-loaders';
+import { cache } from '@/lib/cache';
+import type { OptionChain } from '@/lib/yahoo-finance-client';
 
 interface OptionsExplorationPageProps {
-  holdings: Holding[];
-  availableContracts: OptionContract[];
-  currentPriceMap: Record<string, number>;
   initialTicker?: string;
 }
 
+interface WatchlistItem {
+  ticker: string;
+  name: string;
+  currentPrice: number;
+  dayChange: number;
+  dayChangePercent: number;
+  volume: number;
+}
+
 export function OptionsExplorationPage({
-  holdings,
-  availableContracts,
-  currentPriceMap,
   initialTicker,
 }: OptionsExplorationPageProps) {
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(initialTicker || null);
-  const [selectedContract, setSelectedContract] = useState<OptionContract | null>(null);
-  const [isHeatmapModalOpen, setIsHeatmapModalOpen] = useState(false);
-  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
-  const [selectedExpiry, setSelectedExpiry] = useState<Date | null>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const { watchList } = useWatchList();
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(
+    initialTicker || null
+  );
+  const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
+  const [selectedStrike, setSelectedStrike] = useState<number | null>(null);
+  const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
+
+  const [watchlistData, setWatchlistData] = useState<WatchlistItem[]>([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(true);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+
+  const [expirations, setExpirations] = useState<string[]>([]);
+  const [expiryLoading, setExpiryLoading] = useState(false);
+
+  const [chainData, setChainData] = useState<OptionChain | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
   const orderFormRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (selectedTicker && orderFormRef.current) {
-      orderFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    const loadWatchlist = async () => {
+      try {
+        setWatchlistLoading(true);
+        setWatchlistError(null);
+        const data = await cache(
+          'watchlist',
+          30,
+          async () => {
+            const res = await fetch('/api/watchlist');
+            if (!res.ok) throw new Error('Failed to fetch watchlist');
+            const json = await res.json();
+            return json.watchlist;
+          }
+        );
+        setWatchlistData(data);
+        if (!selectedTicker && data.length > 0) {
+          setSelectedTicker(data[0].ticker);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load watchlist';
+        setWatchlistError(msg);
+      } finally {
+        setWatchlistLoading(false);
+      }
+    };
+    loadWatchlist();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTicker) return;
+
+    const loadExpirations = async () => {
+      try {
+        setExpiryLoading(true);
+        const data = await cache(
+          `expirations-${selectedTicker}`,
+          60,
+          async () => {
+            const res = await fetch(
+              `/api/options/expirations?ticker=${selectedTicker}`
+            );
+            if (!res.ok) throw new Error('Failed to fetch expirations');
+            const json = await res.json();
+            return json.expirations;
+          }
+        );
+        setExpirations(data);
+        if (data.length > 0 && !selectedExpiry) {
+          setSelectedExpiry(data[0]);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load expirations';
+        setError(msg);
+        setTimeout(() => setError(null), 5000);
+        setExpirations([]);
+      } finally {
+        setExpiryLoading(false);
+      }
+    };
+    loadExpirations();
   }, [selectedTicker]);
 
   useEffect(() => {
-    if (showFeedback) {
-      const timer = setTimeout(() => setShowFeedback(false), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [showFeedback]);
+    if (!selectedTicker || !selectedExpiry) return;
 
-  const watchListItems = useMemo(() => {
-    return watchList.map((ticker) => generateMockStockData(ticker));
-  }, [watchList]);
-
-  const selectedHolding = useMemo(() => {
-    if (!selectedTicker) return null;
-
-    // First check if it's in actual holdings
-    const holding = holdings.find((h) => h.ticker === selectedTicker);
-    if (holding) return holding;
-
-    // If not, create a temporary holding for exploration
-    const stockData = generateMockStockData(selectedTicker);
-    return {
-      id: selectedTicker,
-      ticker: selectedTicker,
-      assetType: 'stock' as const,
-      quantity: 0,
-      avgCost: 0,
-      currentPrice: stockData.currentPrice,
-      totalValue: 0,
-      unrealizedPnL: 0,
-      unrealizedPnLPct: 0,
+    const loadChain = async () => {
+      try {
+        setChainLoading(true);
+        const data = await cache(
+          `chain-${selectedTicker}-${selectedExpiry}`,
+          60,
+          async () => {
+            const res = await fetch(
+              `/api/options/chain?ticker=${selectedTicker}&expiry=${selectedExpiry}`
+            );
+            if (!res.ok) throw new Error('Failed to fetch option chain');
+            return res.json();
+          }
+        );
+        setChainData(data);
+        setSelectedStrike(null);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load option chain';
+        setError(msg);
+        setTimeout(() => setError(null), 5000);
+        setChainData(null);
+      } finally {
+        setChainLoading(false);
+      }
     };
-  }, [selectedTicker, holdings]);
+    loadChain();
+  }, [selectedTicker, selectedExpiry]);
 
-  const selectedContractsList = useMemo(() => {
-    if (!selectedTicker) return [];
-
-    // Check if contracts are in availableContracts
-    let contracts = availableContracts.filter((c) => c.ticker === selectedTicker);
-
-    // If no contracts, generate them for this ticker
-    if (contracts.length === 0) {
-      contracts = generateMockOptionContracts(selectedTicker);
+  useEffect(() => {
+    if (selectedTicker && orderFormRef.current) {
+      orderFormRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     }
+  }, [selectedTicker]);
 
-    return contracts;
-  }, [selectedTicker, availableContracts]);
-
-  const handleSelectContractFromHeatmap = (
-    contract: OptionContract,
-    strike: number,
-    expiry: Date
-  ) => {
-    setSelectedContract(contract);
-    setSelectedExpiry(expiry);
-    setShowFeedback(true);
-
-    // Flash effect and scroll up
-    if (orderFormRef.current) {
-      orderFormRef.current.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-50');
-      orderFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-      setTimeout(() => {
-        orderFormRef.current?.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50');
-      }, 1500);
-    }
-  };
-
-  const handleOrderSubmit = (order: OrderState) => {
-    console.log('Order submitted:', order);
-  };
-
-  const handleSearchTicker = (ticker: string) => {
+  const handleWatchlistSelect = (ticker: string) => {
     setSelectedTicker(ticker);
   };
 
+  const handleStrikeClick = (strike: number, isCall: boolean) => {
+    setSelectedStrike(strike);
+    setSelectedType(isCall ? 'call' : 'put');
+  };
+
+  const currentPrice = chainData?.currentPrice || 0;
+
   return (
-    <>
-      <div className="space-y-8">
-        {/* Hero Section */}
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">
-            Options
-          </h1>
-          <p className="text-lg text-neutral-600 dark:text-neutral-300">
-            Analyze options strategies for your holdings and optimize income generation
-          </p>
+    <div className="w-full">
+      {error && (
+        <div className="mb-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded">
+          {error}
         </div>
+      )}
 
-        {/* Dashboard */}
-        <section>
-          <OptionsDashboard holdings={holdings} contracts={availableContracts} />
-        </section>
-
-        {/* Ticker Switcher */}
-        <TickerSwitcher
-          holdings={holdings}
-          selectedTicker={selectedTicker}
-          onSelectTicker={handleSearchTicker}
-        />
-
-        {/* Watch List Section */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-              Watch List
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        {/* LEFT COLUMN: Watchlist */}
+        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              Watchlist
             </h2>
-            <a
-              href="/invest/watchlist"
-              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-            >
-              Manage Watch List →
-            </a>
           </div>
-          {watchListItems.length > 0 ? (
-            <WatchlistTable
-              items={watchListItems}
-              onSelect={(ticker) => handleSearchTicker(ticker)}
-            />
+          {watchlistLoading ? (
+            <WatchlistSkeleton />
+          ) : watchlistError ? (
+            <div className="text-sm text-red-600 dark:text-red-400 p-4 bg-red-50 dark:bg-red-900/20 rounded">
+              {watchlistError}
+            </div>
+          ) : watchlistData.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-gray-400 p-4">
+              No tickers in watchlist
+            </div>
           ) : (
-            <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-8 text-center">
-              <p className="text-neutral-600 dark:text-neutral-400">
-                No tickers in watch list. Add some using the star icon to see them here.
-              </p>
+            <div className="space-y-2">
+              {watchlistData.map((item) => (
+                <button
+                  key={item.ticker}
+                  onClick={() => handleWatchlistSelect(item.ticker)}
+                  className={`
+                    w-full text-left p-3 rounded transition
+                    ${
+                      selectedTicker === item.ticker
+                        ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-500'
+                        : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    }
+                    hover:bg-gray-100 dark:hover:bg-gray-700
+                  `}
+                >
+                  <div className="font-bold text-gray-900 dark:text-gray-100">
+                    {item.ticker}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    ${item.currentPrice.toFixed(2)}
+                  </div>
+                  <div
+                    className={`text-xs font-semibold ${
+                      item.dayChangePercent >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {item.dayChangePercent >= 0 ? '+' : ''}
+                    {item.dayChangePercent.toFixed(2)}%
+                  </div>
+                </button>
+              ))}
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Search & Ticker Entry */}
-        <section className="space-y-4">
-          <label className="block text-sm font-semibold text-neutral-900 dark:text-white mb-2">
-            Search Ticker
-          </label>
-          <TickerSearch onSearch={handleSearchTicker} />
-        </section>
-
-        {/* Order Form */}
-        {selectedTicker && selectedHolding && (
-          <section ref={orderFormRef} className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-8">
-            {showFeedback && (
-              <div
-                className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm font-medium animate-fade-out"
-                style={{
-                  animation: 'fadeOut 1s ease-out forwards',
-                }}
-              >
-                <style>{`
-                  @keyframes fadeOut {
-                    0% { opacity: 1; }
-                    100% { opacity: 0; }
-                  }
-                `}</style>
-                ✓ Form pre-filled from heatmap selection
-              </div>
-            )}
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white mb-6">
-              Order Builder — {selectedTicker}
+        {/* CENTER COLUMN: Strike Heat Map */}
+        <div className="md:col-span-1 border-r border-gray-200 dark:border-gray-800 pr-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {selectedTicker ? `${selectedTicker} Options` : 'Select a ticker'}
             </h2>
-            <OptionsOrderForm
-              ticker={selectedTicker}
-              currentPrice={selectedHolding.currentPrice}
-              onSubmit={handleOrderSubmit}
-              onExpiryChange={setSelectedExpiry}
-              prefilledStrike={selectedContract?.strike}
-              prefilledExpiry={selectedExpiry || undefined}
-              onClearPrefill={() => {
-                setSelectedContract(null);
-                setSelectedExpiry(null);
-              }}
-            />
-          </section>
-        )}
+            {selectedTicker && (
+              <select
+                value={selectedExpiry || ''}
+                onChange={(e) => setSelectedExpiry(e.target.value)}
+                className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm"
+              >
+                <option value="">Loading expirations...</option>
+                {expirations.map((expiry) => (
+                  <option key={expiry} value={expiry}>
+                    {new Date(expiry + 'T00:00:00').toLocaleDateString()} (
+                    {expiry})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-        {/* Options Heatmap */}
-        {selectedTicker && selectedHolding && selectedContractsList.length > 0 && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-8">
-            <OptionsHeatmap
-              ticker={selectedTicker}
-              currentPrice={selectedHolding.currentPrice}
-              contracts={selectedContractsList}
-              onSelectContract={handleSelectContractFromHeatmap}
-              openGuideModal={() => setIsGuideModalOpen(true)}
-              selectedExpiry={selectedExpiry}
-            />
-          </section>
-        )}
-
-        {/* Empty State */}
-        {!selectedTicker && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-12 text-center">
-            <div className="max-w-md mx-auto space-y-3">
-              <p className="text-neutral-600 dark:text-neutral-400 font-medium">
-                Search for a ticker to explore options strategies
-              </p>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Enter a stock ticker above to view available options and build positions
-              </p>
+          {chainLoading ? (
+            <HeatMapSkeleton />
+          ) : chainData ? (
+            <StrikeHeatMap data={chainData} onStrikeClick={handleStrikeClick} />
+          ) : (
+            <div className="text-center text-gray-500 py-8 text-sm">
+              {selectedTicker && selectedExpiry
+                ? 'No chain data available'
+                : 'Select a ticker and expiry'}
             </div>
-          </section>
-        )}
-      </div>
+          )}
+        </div>
 
-      <OptionsGuideModal
-        isOpen={isGuideModalOpen}
-        onClose={() => setIsGuideModalOpen(false)}
-      />
-    </>
+        {/* RIGHT COLUMN: Order Builder */}
+        <div className="md:col-span-1" ref={orderFormRef}>
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              Order Builder
+            </h2>
+          </div>
+
+          {selectedTicker && selectedExpiry && chainData ? (
+            <div className="space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              {/* Ticker & Expiry Summary */}
+              <div className="text-sm">
+                <div className="font-bold text-gray-900 dark:text-gray-100">
+                  {selectedTicker} @ ${currentPrice.toFixed(2)}
+                </div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  Exp:{' '}
+                  {new Date(selectedExpiry + 'T00:00:00').toLocaleDateString()}
+                </div>
+              </div>
+
+              {/* Call/Put Toggle */}
+              <div>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">
+                  Type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedType('call')}
+                    className={`flex-1 py-2 rounded font-bold transition ${
+                      selectedType === 'call'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    Call
+                  </button>
+                  <button
+                    onClick={() => setSelectedType('put')}
+                    className={`flex-1 py-2 rounded font-bold transition ${
+                      selectedType === 'put'
+                        ? 'bg-red-500 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    Put
+                  </button>
+                </div>
+              </div>
+
+              {/* Strike Input */}
+              <div>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">
+                  Strike
+                </label>
+                <input
+                  type="number"
+                  value={selectedStrike || ''}
+                  onChange={(e) =>
+                    setSelectedStrike(
+                      e.target.value ? parseFloat(e.target.value) : null
+                    )
+                  }
+                  placeholder="Click heatmap or enter"
+                  className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                />
+              </div>
+
+              {/* Quantity */}
+              <div>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  defaultValue="1"
+                  placeholder="1"
+                  className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                />
+              </div>
+
+              {/* Order Type */}
+              <div>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">
+                  Order Type
+                </label>
+                <select className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm">
+                  <option>Market</option>
+                  <option>Limit</option>
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4">
+                <button className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded transition text-sm">
+                  Buy
+                </button>
+                <button className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded transition text-sm">
+                  Sell
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8 text-sm">
+              Select a ticker and expiry to place an order
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
