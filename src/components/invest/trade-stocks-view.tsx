@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { HoldingWithValue } from '@/lib/holdings';
 import { RealtimeQuoteTicker } from './realtime-quote-ticker';
 import { StockTradingForm } from './stock-trading-form';
@@ -11,12 +11,33 @@ interface TradeStocksViewProps {
   accountId: string | null;
 }
 
-export function TradeStocksView({ holdings, accountId }: TradeStocksViewProps) {
+export function TradeStocksView({ holdings: initialHoldings, accountId }: TradeStocksViewProps) {
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentHoldings, setCurrentHoldings] = useState<HoldingWithValue[]>(initialHoldings);
+  const [isLoadingHoldings, setIsLoadingHoldings] = useState(false);
 
-  const handleTradeExecuted = () => {
+  const fetchHoldings = async () => {
+    try {
+      setIsLoadingHoldings(true);
+      const res = await fetch('/api/investments/holdings');
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentHoldings(data.holdings || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch updated holdings:', error);
+    } finally {
+      setIsLoadingHoldings(false);
+    }
+  };
+
+  const handleTradeExecuted = async () => {
     setRefreshKey((k) => k + 1);
+    // Refresh holdings after a short delay to allow Alpaca to process the order
+    setTimeout(() => {
+      fetchHoldings();
+    }, 1000);
   };
 
   return (
@@ -60,8 +81,17 @@ export function TradeStocksView({ holdings, accountId }: TradeStocksViewProps) {
 
       {/* Current Holdings */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Current Holdings</h2>
-        <CurrentHoldingsForTrading holdings={holdings} />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Current Holdings</h2>
+          <button
+            onClick={fetchHoldings}
+            disabled={isLoadingHoldings}
+            className="text-xs px-3 py-1 rounded bg-muted text-muted-foreground hover:bg-muted-foreground hover:text-background disabled:opacity-50"
+          >
+            {isLoadingHoldings ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+        <CurrentHoldingsForTrading holdings={currentHoldings} />
       </div>
     </>
   );

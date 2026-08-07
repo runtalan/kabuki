@@ -23,7 +23,8 @@ export default async function InvestPage() {
     try {
       [positions, portfolioSummary] = await Promise.all([getPositions(user.id), getPortfolioSummary(user.id)]);
     } catch (error) {
-      console.error('Failed to fetch Alpaca data:', error);
+      console.error('Failed to fetch Alpaca data:', error instanceof Error ? error.message : error);
+      // Even if Alpaca fails, we still show the page with empty data
     }
   }
 
