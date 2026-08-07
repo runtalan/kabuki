@@ -133,38 +133,44 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
         </div>
       </div>
 
-      {/* Strike Navigation */}
-      <div className="flex items-center gap-3 mb-3">
+      {/* Strike Range Info */}
+      <div className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
+        Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
+        <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+      </div>
+
+      {/* Heatmap Table with Overlaid Arrows */}
+      <div className="relative">
+        {/* Left Arrow */}
         <button
           onClick={handleScrollLeft}
           disabled={!canScrollLeft}
-          className={`px-3 py-1.5 rounded font-bold transition text-sm ${
+          className={`absolute left-0 top-1/2 -translate-y-1/2 z-20 px-2 py-3 rounded-r font-bold transition ${
             canScrollLeft
               ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
               : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
           }`}
+          title="Lower strikes (ITM)"
         >
-          ← Lower Strikes
+          ‹
         </button>
-        <div className="flex-1 text-xs text-gray-600 dark:text-gray-400 text-center">
-          Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
-          <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
-        </div>
+
+        {/* Right Arrow */}
         <button
           onClick={handleScrollRight}
           disabled={!canScrollRight}
-          className={`px-3 py-1.5 rounded font-bold transition text-sm ${
+          className={`absolute right-0 top-1/2 -translate-y-1/2 z-20 px-2 py-3 rounded-l font-bold transition ${
             canScrollRight
               ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
               : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
           }`}
+          title="Higher strikes (OTM)"
         >
-          Higher Strikes →
+          ›
         </button>
-      </div>
 
-      {/* Heatmap Table */}
-      <div ref={tableRef} className="border border-gray-300 dark:border-gray-600 rounded overflow-x-auto bg-white dark:bg-gray-900">
+        {/* Heatmap Table */}
+        <div ref={tableRef} className="border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900">
         <table className="border-collapse text-xs w-full">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
@@ -234,6 +240,7 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Legend */}
