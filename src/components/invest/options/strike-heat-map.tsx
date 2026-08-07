@@ -8,8 +8,11 @@ interface StrikeHeatMapProps {
   onStrikeClick: (strike: number, isCall: boolean) => void;
 }
 
+const STRIKES_PER_VIEW = 14;
+
 export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
+  const [strikeOffset, setStrikeOffset] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
   const { calls, puts, currentPrice, daysToExpiry } = data;
 
@@ -24,9 +27,21 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   }
 
   const allStrikes = calls.concat(puts);
-  const strikes = Array.from(
+  const allStrikesArray = Array.from(
     new Set(allStrikes.map((s) => s.strike))
   ).sort((a, b) => a - b);
+
+  // Find ATM index to center view when offset is 0
+  const atmIndex = allStrikesArray.findIndex((s) => Math.abs(s - currentPrice) < 1);
+  const centerOffset = Math.max(0, atmIndex - Math.floor(STRIKES_PER_VIEW / 2));
+
+  const strikes = allStrikesArray.slice(
+    strikeOffset + centerOffset,
+    strikeOffset + centerOffset + STRIKES_PER_VIEW
+  );
+
+  const canScrollLeft = strikeOffset + centerOffset > 0;
+  const canScrollRight = strikeOffset + centerOffset + STRIKES_PER_VIEW < allStrikesArray.length;
 
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
     const diff = Math.abs(strike - currentPrice);
@@ -63,16 +78,16 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   };
 
   const handleJumpToATM = () => {
-    if (tableRef.current) {
-      const atmStrikes = strikes.filter((s) => Math.abs(s - currentPrice) < 1);
-      if (atmStrikes.length > 0) {
-        const atmStrike = atmStrikes[0];
-        const atmElement = tableRef.current.querySelector(`[data-strike="${atmStrike}"]`);
-        if (atmElement) {
-          atmElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      }
-    }
+    setStrikeOffset(0);
+  };
+
+  const handleScrollLeft = () => {
+    setStrikeOffset(Math.max(0, strikeOffset - Math.floor(STRIKES_PER_VIEW / 2)));
+  };
+
+  const handleScrollRight = () => {
+    const maxOffset = Math.max(0, allStrikesArray.length - STRIKES_PER_VIEW - centerOffset);
+    setStrikeOffset(Math.min(maxOffset, strikeOffset + Math.floor(STRIKES_PER_VIEW / 2)));
   };
 
   return (
@@ -111,6 +126,36 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
             Center ATM
           </button>
         </div>
+      </div>
+
+      {/* Strike Navigation */}
+      <div className="flex items-center gap-3 mb-3">
+        <button
+          onClick={handleScrollLeft}
+          disabled={!canScrollLeft}
+          className={`px-3 py-1.5 rounded font-bold transition text-sm ${
+            canScrollLeft
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          ← Lower Strikes
+        </button>
+        <div className="flex-1 text-xs text-gray-600 dark:text-gray-400 text-center">
+          Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
+          <span className="ml-2 font-semibold">({strikeOffset + centerOffset + 1}–{Math.min(strikeOffset + centerOffset + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+        </div>
+        <button
+          onClick={handleScrollRight}
+          disabled={!canScrollRight}
+          className={`px-3 py-1.5 rounded font-bold transition text-sm ${
+            canScrollRight
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Higher Strikes →
+        </button>
       </div>
 
       {/* Heatmap Table */}
