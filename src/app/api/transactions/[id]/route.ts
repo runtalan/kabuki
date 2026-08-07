@@ -27,7 +27,7 @@ export async function GET(
       },
     });
 
-    if (!tx || tx.account.plaidItem.userId !== user.id) {
+    if (!tx || !user.householdUserIds.includes(tx.account.plaidItem.userId)) {
       return Response.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
@@ -62,7 +62,7 @@ export async function PATCH(
       with: { account: { with: { plaidItem: true } } },
     });
 
-    if (!existing || existing.account.plaidItem.userId !== user.id) {
+    if (!existing || !user.householdUserIds.includes(existing.account.plaidItem.userId)) {
       return Response.json({ error: 'Transaction not found' }, { status: 404 });
     }
 

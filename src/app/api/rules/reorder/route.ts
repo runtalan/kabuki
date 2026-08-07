@@ -35,7 +35,7 @@ export async function POST(request: Request) {
           priority: update.priority,
           updatedAt: new Date(),
         })
-        .where(and(eq(rules.id, update.id), eq(rules.userId, user.id)));
+        .where(and(eq(rules.id, update.id), inArray(rules.userId, user.householdUserIds)));
     }
 
     return Response.json({ success: true });

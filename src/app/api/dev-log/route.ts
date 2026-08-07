@@ -1,7 +1,7 @@
 import { getUser } from '@/lib/auth';
 import { db } from '@/db';
 import { plaidItems, accounts } from '@/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 
 export async function GET() {
   try {
@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     const items = await db.query.plaidItems.findMany({
-      where: eq(plaidItems.userId, user.id),
+      where: inArray(plaidItems.userId, user.householdUserIds),
     });
 
     const itemIds = items.map((i) => i.id);

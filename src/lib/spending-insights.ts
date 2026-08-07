@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { accounts, transactions, categories, plaidItems } from '@/db/schema';
 import { and, eq, gte, lt, inArray, isNull } from 'drizzle-orm';
 import { type OwnerFilter, matchesOwnerFilter } from './owner-filter';
+import { getHouseholdUserIds } from './household';
 
 const NOT_HIDDEN = eq(transactions.hidden, false);
 // See queries.ts's NOT_TRANSFER for the rationale — internal transfers /
@@ -14,7 +15,7 @@ const NOT_TRANSFER = isNull(transactions.transferType);
 // accountId -> owner lookup for that filtering step.
 async function getUserAccountContext(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
   const itemIds = userItems.map((item) => item.id);
   if (itemIds.length === 0) {

@@ -11,6 +11,7 @@ import {
   filterAccountsByOwner,
   matchesOwnerFilter,
 } from './owner-filter';
+import { getHouseholdUserIds } from './household';
 
 // Hidden transactions are excluded from spending totals, budgets, cash
 // flow, and recent activity — but stay visible (dimmed) in the raw
@@ -25,7 +26,7 @@ const NOT_TRANSFER = isNull(transactions.transferType);
 // Get all accounts for a user
 export async function getUserAccounts(userId: string, ownerFilter: OwnerFilter = 'all') {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);
@@ -45,7 +46,7 @@ export async function getSpendingByCategory(
   ownerFilter: OwnerFilter = 'all'
 ) {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);
@@ -121,7 +122,7 @@ export async function getSpendingByCategory(
 // Get cash flow data (last 6 months)
 export async function getCashFlowData(userId: string, ownerFilter: OwnerFilter = 'all') {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);
@@ -216,7 +217,7 @@ export async function getCashFlowSeries(
   ownerFilter: OwnerFilter = 'all'
 ) {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);
@@ -300,7 +301,7 @@ export async function getMonthTransactions(
   ownerFilter: OwnerFilter = 'all'
 ) {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);
@@ -380,7 +381,7 @@ export async function getRecentTransactions(
   ownerFilter: OwnerFilter = 'all'
 ) {
   const userItems = await db.query.plaidItems.findMany({
-    where: eq(plaidItems.userId, userId),
+    where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
 
   const itemIds = userItems.map((item) => item.id);

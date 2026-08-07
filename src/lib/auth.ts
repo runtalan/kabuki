@@ -2,12 +2,14 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getHouseholdUserIds } from "./household";
 
 export interface AuthUser {
   id: string;
   email: string;
   username: string;
   isDemo: boolean;
+  householdUserIds: string[];
 }
 
 export interface AuthSession {
@@ -38,6 +40,7 @@ export async function getUser(): Promise<AuthUser | null> {
     email: dbUser.email,
     username: dbUser.username,
     isDemo: dbUser.isDemo,
+    householdUserIds: await getHouseholdUserIds(dbUser.id),
   };
 }
 

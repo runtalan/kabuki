@@ -1,7 +1,7 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
 import { rules } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export async function PUT(
   request: Request,
@@ -29,7 +29,7 @@ export async function PUT(
         enabled: enabled !== undefined ? enabled : undefined,
         updatedAt: new Date(),
       })
-      .where(and(eq(rules.id, id), eq(rules.userId, user.id)))
+      .where(and(eq(rules.id, id), inArray(rules.userId, user.householdUserIds)))
       .returning();
 
     if (result.length === 0) {
@@ -61,7 +61,7 @@ export async function DELETE(
     const { id } = await params;
     const result = await db
       .delete(rules)
-      .where(and(eq(rules.id, id), eq(rules.userId, user.id)))
+      .where(and(eq(rules.id, id), inArray(rules.userId, user.householdUserIds)))
       .returning();
 
     if (result.length === 0) {

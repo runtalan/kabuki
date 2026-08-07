@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       with: { plaidItem: true },
     });
 
-    if (!existing || existing.plaidItem.userId !== user.id) {
+    if (!existing || !user.householdUserIds.includes(existing.plaidItem.userId)) {
       return Response.json({ error: 'Account not found' }, { status: 404 });
     }
 

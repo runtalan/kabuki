@@ -3,7 +3,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { plaidItems, accounts } from "@/db/schema";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { getHouseholdUserIds } from "@/lib/household";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Get Plaid items with accounts
     const items = await db.query.plaidItems.findMany({
-      where: eq(plaidItems.userId, user.id),
+      where: inArray(plaidItems.userId, await getHouseholdUserIds(user.id)),
       columns: { accessToken: false },
       with: {
         accounts: true,

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * pageSize;
 
     const userItems = await db.query.plaidItems.findMany({
-      where: eq(plaidItems.userId, user.id),
+      where: inArray(plaidItems.userId, user.householdUserIds),
     });
 
     const itemIds = userItems.map((item) => item.id);
