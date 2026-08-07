@@ -199,9 +199,29 @@ export function OptionsExplorationPage({
       ).sort((a, b) => a - b)
     : [];
 
+  // Different expirations quote strikes at different increments (e.g. $2.50
+  // near-term vs $5 for LEAPS), so the strike closest to currentPrice often
+  // only has data in one or two of the loaded chains. Prefer a strike that
+  // has data in every loaded chain so the ATM column isn't mostly "—".
+  const chainCoverageByStrike = new Map<number, number>();
+  allChains.forEach((item) => {
+    const key = (selectedType + 's') as 'calls' | 'puts';
+    const options = item.chain?.[key];
+    if (Array.isArray(options)) {
+      const strikesInChain = new Set(options.map((opt) => opt.strike));
+      strikesInChain.forEach((strike) => {
+        chainCoverageByStrike.set(strike, (chainCoverageByStrike.get(strike) || 0) + 1);
+      });
+    }
+  });
+  const fullyCoveredStrikes = allStrikes.filter(
+    (s) => chainCoverageByStrike.get(s) === allChains.length
+  );
+  const atmCandidates = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
+
   // Find the single closest strike (ATM)
-  const atmStrike = allStrikes.length > 0
-    ? allStrikes.reduce((closest, strike) =>
+  const atmStrike = atmCandidates.length > 0
+    ? atmCandidates.reduce((closest, strike) =>
         Math.abs(strike - currentPrice) < Math.abs(closest - currentPrice) ? strike : closest
       )
     : null;
@@ -218,16 +238,11 @@ export function OptionsExplorationPage({
   // Find ATM index (for navigation only, strikes shown might be filtered)
   const atmIndex = atmStrike ? allStrikes.indexOf(atmStrike) : -1;
 
-  // Filter strikes to only show those with data in at least one chain
-  const strikeData = new Set<number>();
-  allChains.forEach((item) => {
-    const key = (selectedType + 's') as 'calls' | 'puts';
-    const options = item.chain?.[key];
-    if (Array.isArray(options)) {
-      options.forEach((opt) => strikeData.add(opt.strike));
-    }
-  });
-  const filteredStrikes = allStrikes.filter((s) => strikeData.has(s));
+  // Only show strikes quoted in every loaded expiration — strikes that exist
+  // in just one or two chains (e.g. a LEAP's $1 increments vs $2.50/$5
+  // elsewhere) render as almost all "—" and aren't worth a column. Fall back
+  // to showing everything if no strike clears that bar.
+  const filteredStrikes = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
   const atmIndexInFiltered = atmStrike ? filteredStrikes.indexOf(atmStrike) : -1;
 
   // Reset strike scroll index when call/put changes or chains load
@@ -238,11 +253,36 @@ export function OptionsExplorationPage({
     }
   }, [selectedType, atmIndexInFiltered, filteredStrikes.length]);
 
+  // Scroll container to center the ATM column horizontally on load/change
+  useEffect(() => {
+    if (atmStrike === null) return;
+    requestAnimationFrame(() => {
+      const container = tableContainerRef.current;
+      if (!container) return;
+      const el = container.querySelector<HTMLElement>(`[data-strike="${atmStrike}"]`);
+      if (!el) return;
+      const target = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
+      container.scrollLeft = Math.max(0, target);
+    });
+  }, [atmStrike]);
+
   const handleJumpToATM = () => {
-    if (atmIndexInFiltered >= 0) {
-      const centered = Math.max(0, Math.min(atmIndexInFiltered - 6, filteredStrikes.length - 12));
-      setStrikeScrollIndex(centered);
-    }
+    if (atmIndexInFiltered < 0 || atmStrike === null) return;
+    const centered = Math.max(0, Math.min(atmIndexInFiltered - 6, filteredStrikes.length - 12));
+    setStrikeScrollIndex(centered);
+    // The 12-strike window above only gets the ATM column onscreen; it
+    // doesn't account for how many columns actually fit in the container
+    // at the current viewport width. Scroll the container so the ATM `<th>`
+    // (tagged with data-strike) lands at the true horizontal center, once
+    // the window update above has committed to the DOM.
+    requestAnimationFrame(() => {
+      const container = tableContainerRef.current;
+      if (!container) return;
+      const el = container.querySelector<HTMLElement>(`[data-strike="${atmStrike}"]`);
+      if (!el) return;
+      const target = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
+      container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+    });
   };
 
   const handleJumpToITM = () => {
