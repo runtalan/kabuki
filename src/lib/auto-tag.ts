@@ -1,7 +1,8 @@
 import { db } from '@/db';
 import { rules, transactions, categories } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { guessCategoryName, mapPfcToCategoryName } from './smart-categorize';
+import { getHouseholdUserIds } from './household';
 
 // Override precedence: manual (user click) > rule (user-authored) > smart
 // (built-in merchant guess). A lower-precedence source may only write a
@@ -38,7 +39,7 @@ export async function autoTagTransaction(
   pfc?: { primary?: string | null; detailed?: string | null }
 ) {
   const userRules = await db.query.rules.findMany({
-    where: eq(rules.userId, userId),
+    where: inArray(rules.userId, await getHouseholdUserIds(userId)),
     orderBy: (rule, { desc }) => desc(rule.priority),
   });
 
@@ -80,8 +81,9 @@ export async function findMatchingTransactions(
   userId: string,
   rule: { categoryId: string; merchantName: string; matchType: string }
 ) {
+  const householdIds = await getHouseholdUserIds(userId);
   const rows = await db.query.plaidItems.findMany({
-    where: (item, { eq: eqOp }) => eqOp(item.userId, userId),
+    where: (item, { inArray: inArrayOp }) => inArrayOp(item.userId, householdIds),
     with: {
       accounts: {
         with: {
@@ -125,8 +127,9 @@ export async function applyRuleToExistingTransactions(
 // over existing/historical transactions, and safe to re-run any time — it
 // never touches manual or rule-sourced categories.
 export async function runSmartCategorization(userId: string): Promise<number> {
+  const householdIds = await getHouseholdUserIds(userId);
   const rows = await db.query.plaidItems.findMany({
-    where: (item, { eq: eqOp }) => eqOp(item.userId, userId),
+    where: (item, { inArray: inArrayOp }) => inArrayOp(item.userId, householdIds),
     with: {
       accounts: {
         with: {
