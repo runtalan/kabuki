@@ -164,7 +164,10 @@ export function OptionsHeatmap({
 
   // Event Handlers
 
-  const handleFilterChange = (key: keyof HeatmapFilterState, value: any) => {
+  const handleFilterChange = (
+    key: keyof HeatmapFilterState,
+    value: 'call' | 'put' | 'both' | MetricMode | MoneynessCategoryFilter
+  ) => {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
