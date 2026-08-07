@@ -38,13 +38,14 @@ export async function POST(request: Request) {
       !Number.isNaN(currentBalance) &&
       currentBalance.toString() !== existing.currentBalance;
 
+    const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     const result = await db
       .update(accounts)
       .set({
         displayName: displayName || null,
         icon: icon || null,
         ...(owner && validOwners.includes(owner) ? { owner } : {}),
-        ...(balanceChanged ? { currentBalance: currentBalance.toString() } : {}),
+        ...(balanceChanged ? { currentBalance: currentBalance.toString(), balanceMonth: monthKey } : {}),
         updatedAt: new Date(),
       })
       .where(eq(accounts.id, accountId))
