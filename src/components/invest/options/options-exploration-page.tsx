@@ -6,6 +6,9 @@ import { OptionsContractsTable } from './options-contracts-table';
 import { OptionsOrderForm } from './options-order-form';
 import { OptionsHeatmap } from './options-heatmap';
 import { OptionsGuideModal } from './options-guide-modal';
+import { OptionsDashboard } from './options-dashboard';
+import { TickerSearch } from './ticker-search';
+import { PositionManagementModal } from './position-management-modal';
 import type { Holding, OptionContract, OrderState } from '@/lib/options-types';
 
 interface OptionsExplorationPageProps {
@@ -21,8 +24,9 @@ export function OptionsExplorationPage({
 }: OptionsExplorationPageProps) {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<OptionContract | null>(null);
-  const [isHeatmapVisible, setIsHeatmapVisible] = useState(false);
+  const [isHeatmapModalOpen, setIsHeatmapModalOpen] = useState(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
+  const [positionManagementTicker, setPositionManagementTicker] = useState<string | null>(null);
 
   const selectedHolding = holdings.find((h) => h.ticker === selectedTicker);
   const selectedContractsList = selectedTicker
@@ -43,116 +47,165 @@ export function OptionsExplorationPage({
 
   const handleOrderSubmit = (order: OrderState) => {
     console.log('Order submitted:', order);
-    // TODO: Send order to API/backend
+  };
+
+  const handleSearchTicker = (ticker: string) => {
+    setSelectedTicker(ticker);
+  };
+
+  const handleViewChain = (ticker: string) => {
+    setSelectedTicker(ticker);
+    setIsHeatmapModalOpen(true);
+  };
+
+  const handlePositionManagementOpen = (ticker: string) => {
+    setPositionManagementTicker(ticker);
+  };
+
+  const handleHoldingClick = (ticker: string) => {
+    handlePositionManagementOpen(ticker);
   };
 
   return (
     <>
-    <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">
-          Options Exploration
-        </h1>
-        <p className="text-lg text-neutral-600 dark:text-neutral-300">
-          Analyze options strategies for your holdings and optimize income generation
-        </p>
-      </div>
+      <div className="space-y-8">
+        {/* Hero Section */}
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">
+            Options
+          </h1>
+          <p className="text-lg text-neutral-600 dark:text-neutral-300">
+            Analyze options strategies for your holdings and optimize income generation
+          </p>
+        </div>
 
-      {/* Phase 1: Holdings Analysis */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-          Your Holdings
-        </h2>
-        <HoldingsTable holdings={holdings} onSelectHolding={setSelectedTicker} />
-      </section>
-
-      {/* Phase 2: Order Form */}
-      {selectedTicker && selectedHolding && (
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-8">
-          <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white mb-6">
-            Order Builder — {selectedTicker}
-          </h2>
-          <OptionsOrderForm
-            ticker={selectedTicker}
-            currentPrice={selectedHolding.currentPrice}
-            onSubmit={handleOrderSubmit}
-          />
+        {/* Dashboard */}
+        <section>
+          <OptionsDashboard holdings={holdings} contracts={availableContracts} />
         </section>
-      )}
 
-      {/* Phase 1: Options Contracts Table */}
-      {selectedTicker && selectedContractsList.length > 0 && selectedHolding && (
+        {/* Search & New Ticker Entry */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">
+            Search for New Tickers
+          </h2>
+          <TickerSearch onSearch={handleSearchTicker} />
+        </section>
+
+        {/* Holdings Analysis */}
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-            Available Strategies
+            Your Holdings
           </h2>
-          <OptionsContractsTable
-            contracts={selectedContractsList}
-            ticker={selectedTicker}
-            currentPrice={selectedHolding.currentPrice}
-            onSelectContract={handleSelectContractFromTable}
+          <HoldingsTable
+            holdings={holdings}
+            onSelectHolding={handleHoldingClick}
+            onViewChain={handleViewChain}
+            onRoll={(ticker) => {
+              setSelectedTicker(ticker);
+              handlePositionManagementOpen(ticker);
+            }}
+            onClosePosition={(ticker) => {
+              setSelectedTicker(ticker);
+              handlePositionManagementOpen(ticker);
+            }}
           />
         </section>
-      )}
 
-      {/* Phase 3: Strike Heatmap */}
-      {selectedTicker && selectedHolding && (
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-              Strike Heat Map — {selectedTicker}
+        {/* Position Management - Modal triggered by clicking owned ticker */}
+        <PositionManagementModal
+          holding={positionManagementTicker ? holdings.find((h) => h.ticker === positionManagementTicker) || null : null}
+          isOpen={positionManagementTicker !== null}
+          onClose={() => setPositionManagementTicker(null)}
+          onViewChain={() => {
+            if (positionManagementTicker) {
+              setSelectedTicker(positionManagementTicker);
+              setIsHeatmapModalOpen(true);
+            }
+          }}
+          onRoll={() => {
+            if (positionManagementTicker) {
+              setSelectedTicker(positionManagementTicker);
+            }
+          }}
+        />
+
+        {/* Order Form */}
+        {selectedTicker && selectedHolding && (
+          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-8">
+            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white mb-6">
+              Order Builder — {selectedTicker}
             </h2>
-            <button
-              onClick={() => setIsHeatmapVisible(!isHeatmapVisible)}
-              className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors"
-            >
-              {isHeatmapVisible ? 'Hide Heatmap' : 'View Heatmap'}
-            </button>
-          </div>
-
-          {isHeatmapVisible && selectedContractsList.length > 0 && (
-            <OptionsHeatmap
+            <OptionsOrderForm
               ticker={selectedTicker}
               currentPrice={selectedHolding.currentPrice}
-              contracts={selectedContractsList}
-              onSelectContract={handleSelectContractFromHeatmap}
-              openGuideModal={() => setIsGuideModalOpen(true)}
+              onSubmit={handleOrderSubmit}
             />
-          )}
+          </section>
+        )}
 
-          {!isHeatmapVisible && (
-            <div className="flex items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
-              <div className="text-center space-y-2">
-                <p className="text-sm font-medium">Click "View Heatmap" to explore strike prices and expirations</p>
-                <p className="text-xs">
-                  See returns by strike and expiration at a glance
-                </p>
+        {/* Options Contracts Table */}
+        {selectedTicker && selectedContractsList.length > 0 && selectedHolding && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+              Available Strategies
+            </h2>
+            <OptionsContractsTable
+              contracts={selectedContractsList}
+              ticker={selectedTicker}
+              currentPrice={selectedHolding.currentPrice}
+              onSelectContract={handleSelectContractFromTable}
+            />
+          </section>
+        )}
+
+        {/* Heatmap Modal */}
+        {isHeatmapModalOpen && selectedTicker && selectedHolding && selectedContractsList.length > 0 && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-neutral-950 rounded-lg border border-neutral-200 dark:border-neutral-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-950">
+                <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+                  Strike Heatmap — {selectedTicker}
+                </h2>
+                <button
+                  onClick={() => setIsHeatmapModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="p-6">
+                <OptionsHeatmap
+                  ticker={selectedTicker}
+                  currentPrice={selectedHolding.currentPrice}
+                  contracts={selectedContractsList}
+                  onSelectContract={handleSelectContractFromHeatmap}
+                  openGuideModal={() => setIsGuideModalOpen(true)}
+                />
               </div>
             </div>
-          )}
-        </section>
-      )}
-
-      {/* Empty State */}
-      {!selectedTicker && (
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-12 text-center">
-          <div className="max-w-md mx-auto space-y-3">
-            <p className="text-neutral-600 dark:text-neutral-400 font-medium">
-              Select a holding to explore options strategies
-            </p>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Click any ticker in the table above to view available options and build positions
-            </p>
           </div>
-        </section>
-      )}
-    </div>
+        )}
 
-    <OptionsGuideModal
-      isOpen={isGuideModalOpen}
-      onClose={() => setIsGuideModalOpen(false)}
-    />
+        {/* Empty State */}
+        {!selectedTicker && (
+          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-12 text-center">
+            <div className="max-w-md mx-auto space-y-3">
+              <p className="text-neutral-600 dark:text-neutral-400 font-medium">
+                Select a holding to explore options strategies
+              </p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Click any ticker in your holdings above or search for a new ticker to view available options
+              </p>
+            </div>
+          </section>
+        )}
+      </div>
+
+      <OptionsGuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+      />
     </>
   );
 }
