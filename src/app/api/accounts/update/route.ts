@@ -31,21 +31,24 @@ export async function POST(request: Request) {
     }
 
     // Balance is only user-editable on manual accounts — Plaid-linked
-    // balances are owned by the sync, not the form.
+    // balances are owned by the sync, not the form. Pay-in-full accounts
+    // (resetBalanceMonthly) are excluded too — their balance is always
+    // recomputed from this month's transactions (see monthly-balance.ts),
+    // so a manual edit here would just get overwritten on the next login.
     const balanceChanged =
       existing.isManual &&
+      !existing.resetBalanceMonthly &&
       typeof currentBalance === 'number' &&
       !Number.isNaN(currentBalance) &&
       currentBalance.toString() !== existing.currentBalance;
 
-    const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     const result = await db
       .update(accounts)
       .set({
         displayName: displayName || null,
         icon: icon || null,
         ...(owner && validOwners.includes(owner) ? { owner } : {}),
-        ...(balanceChanged ? { currentBalance: currentBalance.toString(), balanceMonth: monthKey } : {}),
+        ...(balanceChanged ? { currentBalance: currentBalance.toString() } : {}),
         updatedAt: new Date(),
       })
       .where(eq(accounts.id, accountId))

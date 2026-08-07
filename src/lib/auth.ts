@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getHouseholdUserIds } from "./household";
-import { resetStaleMonthlyBalances } from "./balance-reset";
+import { refreshMonthlyBalances } from "./monthly-balance";
 
 export interface AuthUser {
   id: string;
@@ -37,11 +37,11 @@ export async function getUser(): Promise<AuthUser | null> {
   }
 
   try {
-    await resetStaleMonthlyBalances(dbUser.id);
+    await refreshMonthlyBalances(dbUser.id);
   } catch (error) {
-    // Never let a balance-reset failure break auth resolution — this is a
+    // Never let a balance-refresh failure break auth resolution — this is a
     // side effect of login, not core to it.
-    console.error("[getUser] resetStaleMonthlyBalances failed:", error);
+    console.error("[getUser] refreshMonthlyBalances failed:", error);
   }
 
   return {
