@@ -184,90 +184,112 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {navSections.map((section) => (
-          <div key={section.label} className="mb-5">
-            <p className="px-3 mb-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
-              {section.label}
-            </p>
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                // "Active page" (root) vs "active section" (a child is
-                // open) are tracked separately so the parent row only gets
-                // the bold/primary treatment when it's genuinely the page
-                // you're on — not just because you're two levels deep in
-                // one of its children.
-                const isRootActive = pathname === item.href;
-                const hasChildren = !!item.children?.length;
-                const childActive =
-                  hasChildren && item.children!.some((c) => isChildActive(pathname, c));
-                const sectionActive = isRootActive || childActive;
-                const isOpen = hasChildren
-                  ? manualOpen[item.label] ?? sectionActive
-                  : false;
+        {navSections.map((section) => {
+          const sectionHasCollapsible = section.label === 'Organize';
+          const sectionIsOpen = sectionHasCollapsible
+            ? manualOpen[section.label] ?? isOrganizeSectionActive(pathname)
+            : true;
 
-                return (
-                  <li key={item.href}>
-                    <div className="flex items-center gap-0.5">
-                      <Link
-                        href={item.href}
-                        onClick={onNavigate}
-                        className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 min-w-0 ${
-                          isRootActive
-                            ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-sm'
-                            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
-                        }`}
-                      >
-                        <Icon
-                          className={`w-[18px] h-[18px] flex-shrink-0 transition-colors duration-200 ${
-                            isRootActive ? 'text-primary' : 'text-muted-foreground'
-                          }`}
-                        />
-                        <span className="truncate">{item.label}</span>
-                      </Link>
-                      {hasChildren && (
-                        <button
-                          type="button"
-                          onClick={() => setManualOpen((prev) => ({ ...prev, [item.label]: !isOpen }))}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-200 flex-shrink-0"
-                          aria-label={isOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
-                          aria-expanded={isOpen}
-                        >
-                          <ChevronDown
-                            className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
-                          />
-                        </button>
-                      )}
-                    </div>
+          return (
+            <div key={section.label} className="mb-5">
+              {sectionHasCollapsible ? (
+                <button
+                  type="button"
+                  onClick={() => setManualOpen((prev) => ({ ...prev, [section.label]: !sectionIsOpen }))}
+                  className="w-full flex items-center justify-between px-3 mb-2 py-1.5 rounded-lg text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground/60 transition-colors duration-200"
+                  aria-label={sectionIsOpen ? `Collapse ${section.label}` : `Expand ${section.label}`}
+                  aria-expanded={sectionIsOpen}
+                >
+                  <span>{section.label}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${
+                      sectionIsOpen ? '' : '-rotate-90'
+                    }`}
+                  />
+                </button>
+              ) : (
+                <p className="px-3 mb-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+                  {section.label}
+                </p>
+              )}
 
-                    {hasChildren && isOpen && (
-                      <ul className="mt-0.5 mb-1 ml-[35px] pl-4 border-l border-sidebar-border/70 space-y-0.5">
-                        {item.children!.map((child) => {
-                          const active = isChildActive(pathname, child);
-                          return (
-                            <li key={child.href}>
-                              <Link
-                                href={child.href}
-                                onClick={onNavigate}
-                                className={`block px-3 py-1.5 rounded-lg text-sm transition-all duration-200 truncate ${
-                                  active
-                                    ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold'
-                                    : 'text-muted-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
-                                }`}
-                              >
-                                {child.label}
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+              {sectionIsOpen && (
+                <ul className="space-y-0.5">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const isRootActive = pathname === item.href;
+                    const hasChildren = !!item.children?.length;
+                    const childActive =
+                      hasChildren && item.children!.some((c) => isChildActive(pathname, c));
+                    const sectionActive = isRootActive || childActive;
+                    const isOpen = hasChildren
+                      ? manualOpen[item.label] ?? sectionActive
+                      : false;
+
+                    return (
+                      <li key={item.href}>
+                        <div className="flex items-center gap-0.5">
+                          <Link
+                            href={item.href}
+                            onClick={onNavigate}
+                            className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 min-w-0 ${
+                              isRootActive
+                                ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-sm'
+                                : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
+                            }`}
+                          >
+                            <Icon
+                              className={`w-[18px] h-[18px] flex-shrink-0 transition-colors duration-200 ${
+                                isRootActive ? 'text-primary' : 'text-muted-foreground'
+                              }`}
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                          {hasChildren && (
+                            <button
+                              type="button"
+                              onClick={() => setManualOpen((prev) => ({ ...prev, [item.label]: !isOpen }))}
+                              className="p-2 rounded-lg text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-200 flex-shrink-0"
+                              aria-label={isOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                              aria-expanded={isOpen}
+                            >
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
+                              />
+                            </button>
+                          )}
+                        </div>
+
+                        {hasChildren && isOpen && (
+                          <ul className="mt-0.5 mb-1 ml-[35px] pl-4 border-l border-sidebar-border/70 space-y-0.5">
+                            {item.children!.map((child) => {
+                              const active = isChildActive(pathname, child);
+                              return (
+                                <li key={child.href}>
+                                  <Link
+                                    href={child.href}
+                                    onClick={onNavigate}
+                                    className={`block px-3 py-1.5 rounded-lg text-sm transition-all duration-200 truncate ${
+                                      active
+                                        ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold'
+                                        : 'text-muted-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground font-medium'
+                                    }`}
+                                  >
+                                    {child.label}
+                                  </Link>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer: user profile + sign out */}
