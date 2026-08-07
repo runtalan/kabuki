@@ -12,7 +12,6 @@ const STRIKES_PER_VIEW = 14;
 
 export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
-  const [strikeOffset, setStrikeOffset] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
   const { calls, puts, currentPrice, daysToExpiry } = data;
 
@@ -31,17 +30,16 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
     new Set(allStrikes.map((s) => s.strike))
   ).sort((a, b) => a - b);
 
-  // Find ATM index to center view when offset is 0
+  // Find ATM index and initialize startIndex to center on ATM
   const atmIndex = allStrikesArray.findIndex((s) => Math.abs(s - currentPrice) < 1);
-  const centerOffset = Math.max(0, atmIndex - Math.floor(STRIKES_PER_VIEW / 2));
+  const initialStartIndex = Math.max(0, Math.min(atmIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
 
-  const strikes = allStrikesArray.slice(
-    strikeOffset + centerOffset,
-    strikeOffset + centerOffset + STRIKES_PER_VIEW
-  );
+  const [startIndex, setStartIndex] = useState(initialStartIndex);
 
-  const canScrollLeft = strikeOffset + centerOffset > 0;
-  const canScrollRight = strikeOffset + centerOffset + STRIKES_PER_VIEW < allStrikesArray.length;
+  const strikes = allStrikesArray.slice(startIndex, startIndex + STRIKES_PER_VIEW);
+
+  const canScrollLeft = startIndex > 0;
+  const canScrollRight = startIndex + STRIKES_PER_VIEW < allStrikesArray.length;
 
   const getStrikeStatus = (strike: number): 'atm' | 'itm' | 'otm' => {
     const diff = Math.abs(strike - currentPrice);
@@ -78,16 +76,17 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
   };
 
   const handleJumpToATM = () => {
-    setStrikeOffset(0);
+    const newStart = Math.max(0, Math.min(atmIndex - Math.floor(STRIKES_PER_VIEW / 2), allStrikesArray.length - STRIKES_PER_VIEW));
+    setStartIndex(newStart);
   };
 
   const handleScrollLeft = () => {
-    setStrikeOffset(Math.max(0, strikeOffset - Math.floor(STRIKES_PER_VIEW / 2)));
+    setStartIndex(Math.max(0, startIndex - Math.floor(STRIKES_PER_VIEW / 2)));
   };
 
   const handleScrollRight = () => {
-    const maxOffset = Math.max(0, allStrikesArray.length - STRIKES_PER_VIEW - centerOffset);
-    setStrikeOffset(Math.min(maxOffset, strikeOffset + Math.floor(STRIKES_PER_VIEW / 2)));
+    const maxStart = Math.max(0, allStrikesArray.length - STRIKES_PER_VIEW);
+    setStartIndex(Math.min(maxStart, startIndex + Math.floor(STRIKES_PER_VIEW / 2)));
   };
 
   return (
@@ -143,7 +142,7 @@ export function StrikeHeatMap({ data, onStrikeClick }: StrikeHeatMapProps) {
         </button>
         <div className="flex-1 text-xs text-gray-600 dark:text-gray-400 text-center">
           Showing ${strikes[0]?.toFixed(0) || '—'} to ${strikes[strikes.length - 1]?.toFixed(0) || '—'}
-          <span className="ml-2 font-semibold">({strikeOffset + centerOffset + 1}–{Math.min(strikeOffset + centerOffset + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
+          <span className="ml-2 font-semibold">({startIndex + 1}–{Math.min(startIndex + STRIKES_PER_VIEW, allStrikesArray.length)} of {allStrikesArray.length})</span>
         </div>
         <button
           onClick={handleScrollRight}
