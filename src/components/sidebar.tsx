@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Rocket,
 } from 'lucide-react';
 import { ButtonsLogo } from './buttons-logo';
 import { OWNERS } from './owner-badge';
@@ -103,6 +104,22 @@ const navSections: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
+    label: 'AI Orbit',
+    items: [
+      {
+        href: '/ai-orbit',
+        label: 'Fleet Command',
+        icon: Rocket,
+        children: [
+          { href: '/ai-orbit/logs', label: 'Flight Logs' },
+          { href: '/ai-orbit/lab', label: 'Strategy Lab' },
+          { href: '/ai-orbit/analytics', label: 'Yield Analytics' },
+          { href: '/ai-orbit/settings', label: 'Launch Control' },
+        ],
+      },
+    ],
+  },
+  {
     label: 'Organize',
     items: [
       { href: '/categories', label: 'Categories', icon: Shapes },
@@ -118,6 +135,13 @@ const navSections: { label: string; items: NavItem[] }[] = [
 
 function isChildActive(pathname: string, child: NavChild) {
   return pathname === child.href || pathname.startsWith(child.href + '/');
+}
+
+function isOrganizeSectionActive(pathname: string) {
+  const organizeRoutes = ['/categories', '/tags', '/rules'];
+  return organizeRoutes.some(
+    (route) => pathname === route || pathname.startsWith(route + '/')
+  );
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
