@@ -94,7 +94,9 @@ const navSections: { label: string; items: NavItem[] }[] = [
         // Holdings is the root (the "Invest" link itself) — these are its
         // sub-pages, not a duplicate "Holdings" entry.
         children: [
+          { href: '/invest/stocks', label: 'Trade Stocks' },
           { href: '/invest/options', label: 'Options' },
+          { href: '/invest/watchlist', label: 'Watch List' },
           { href: '/invest/predictions', label: 'Predictions' },
         ],
       },
