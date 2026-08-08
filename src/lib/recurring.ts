@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { recurringSeries } from '@/db/schema';
+import { recurringSeries, transactionRecurring } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { getRecurringItems, normalizeMerchant } from './spending-insights';
 import { isoDay, perMonthFactor, type Frequency, type RecurringEntry } from './recurring-shared';
@@ -14,9 +14,13 @@ export async function getRecurringEntries(
   ownerFilter: OwnerFilter = 'all'
 ): Promise<RecurringEntry[]> {
   const householdIds = await getHouseholdUserIds(userId);
-  const [detected, overrides, allCategories] = await Promise.all([
+  const [detected, overrides, txOverrides, allCategories] = await Promise.all([
     getRecurringItems(userId, ownerFilter),
     db.query.recurringSeries.findMany({ where: inArray(recurringSeries.userId, householdIds) }),
+    db.query.transactionRecurring.findMany({
+      where: inArray(transactionRecurring.userId, householdIds),
+      with: { transaction: true },
+    }),
     db.query.categories.findMany(),
   ]);
 
@@ -84,6 +88,39 @@ export async function getRecurringEntries(
       isIncome: row.isIncome,
       isManual: true,
       manualSource: 'series' as const,
+      needsReview: false,
+      previousAmount: null,
+      priceIncreased: false,
+      occurrences: 0,
+    });
+  }
+
+  // Per-transaction overrides — each becomes its own entry, independent of
+  // (and in addition to) any merchant-level entry for the same merchant.
+  for (const row of txOverrides) {
+    const tx = row.transaction;
+    if (!tx) continue;
+    const frequency = row.frequency as Frequency;
+    const amount = Math.abs(Number(tx.amount));
+    const category = tx.categoryId ? categoryMap.get(tx.categoryId) : null;
+
+    entries.push({
+      id: row.transactionId,
+      merchantKey: normalizeMerchant(tx.merchant || tx.name),
+      merchant: tx.merchant || tx.name,
+      categoryId: category?.id ?? null,
+      categoryName: category?.name ?? null,
+      categoryIcon: category?.icon ?? null,
+      categoryColor: category?.color ?? null,
+      logoUrl: null,
+      frequency,
+      intervalDays: row.intervalDays,
+      amount,
+      monthlyCost: amount * perMonthFactor(frequency, row.intervalDays),
+      nextDate: isoDay(row.nextDate),
+      isIncome: Number(tx.amount) > 0,
+      isManual: true,
+      manualSource: 'transaction',
       needsReview: false,
       previousAmount: null,
       priceIncreased: false,

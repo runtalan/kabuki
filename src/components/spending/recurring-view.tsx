@@ -43,6 +43,14 @@ function money(value: number, decimals = 2) {
   })}`;
 }
 
+// Entries now may share a merchantKey (a detected merchant-wide entry and a
+// transaction-scoped override can coexist) — id is unique whenever present;
+// merchantKey alone is only safe as a fallback for detected-but-unreviewed
+// entries, which are always singular per merchant.
+function entryKey(entry: RecurringEntry): string {
+  return entry.id ?? entry.merchantKey;
+}
+
 // Compact form for calendar cells, where space is tight: $1.2K, $69.84, $9.
 function compactMoney(value: number) {
   const abs = Math.abs(value);
@@ -241,8 +249,14 @@ export function RecurringView({
   const remove = async (entry: RecurringEntry): Promise<boolean> => {
     setMenuOpenId(null);
     if (!confirm(`Remove "${entry.merchant}" from recurring?`)) return false;
-    setEntries((prev) => prev.filter((e) => e.merchantKey !== entry.merchantKey));
-    if (entry.id) {
+    setEntries((prev) => prev.filter((e) => entryKey(e) !== entryKey(entry)));
+    if (entry.manualSource === 'transaction') {
+      await fetch(`/api/transactions/${entry.id}/recurring`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dismiss' }),
+      });
+    } else if (entry.id) {
       await fetch(`/api/recurring/${entry.id}`, { method: 'DELETE' });
     } else {
       // Detected but never reviewed — dismissing is the same as answering "No".
@@ -444,7 +458,7 @@ export function RecurringView({
           /* List view */
           <div className="divide-y divide-border">
             {entries.map((entry) => (
-                <div key={entry.merchantKey} className="flex items-center gap-3 px-6 py-3.5">
+                <div key={entryKey(entry)} className="flex items-center gap-3 px-6 py-3.5">
                   <MerchantAvatar entry={entry} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -500,9 +514,9 @@ export function RecurringView({
                   </div>
                   <RowMenu
                     entry={entry}
-                    open={menuOpenId === entry.merchantKey}
+                    open={menuOpenId === entryKey(entry)}
                     onToggle={() =>
-                      setMenuOpenId(menuOpenId === entry.merchantKey ? null : entry.merchantKey)
+                      setMenuOpenId(menuOpenId === entryKey(entry) ? null : entryKey(entry))
                     }
                     onEdit={() => {
                       setMenuOpenId(null);
@@ -709,7 +723,7 @@ function RowMenu({
         <>
           <div className="fixed inset-0 z-10" onClick={onToggle} />
           <div className="absolute right-0 top-9 z-20 w-44 bg-popover border border-border rounded-xl shadow-xl overflow-hidden py-1">
-            {entry.isManual && (
+            {entry.manualSource === 'series' && (
               <button
                 onClick={onEdit}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
