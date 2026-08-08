@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2, Repeat } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS, OwnerAvatar } from './owner-badge';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
+import { FREQUENCY_LABELS, type Frequency } from '@/lib/recurring-shared';
 
 interface Category {
   id: string;
@@ -72,6 +73,15 @@ export function TransactionEditModal({
   );
   const [notes, setNotes] = useState(transaction.notes || '');
 
+  const [recurring, setRecurring] = useState<{
+    isRecurring: boolean;
+    frequency: Frequency | null;
+    nextDate: string | null;
+  } | null>(null);
+  const [recurringLoading, setRecurringLoading] = useState(true);
+  const [savingRecurring, setSavingRecurring] = useState(false);
+  const [recurringError, setRecurringError] = useState('');
+
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagSearch, setTagSearch] = useState('');
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
@@ -104,6 +114,15 @@ export function TransactionEditModal({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => data && setAllTags(data.tags || []));
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/transactions/${transaction.id}/recurring`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setRecurring(data);
+      })
+      .finally(() => setRecurringLoading(false));
+  }, [transaction.id]);
 
   // Mount closed, then slide in — gives the transform a frame to animate from.
   useEffect(() => {
@@ -275,6 +294,33 @@ export function TransactionEditModal({
       }
     } finally {
       setSavingRule(false);
+    }
+  };
+
+  const toggleRecurring = async () => {
+    if (!recurring || savingRecurring) return;
+    const action = recurring.isRecurring ? 'dismiss' : 'confirm';
+    const previous = recurring;
+    setSavingRecurring(true);
+    setRecurringError('');
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/recurring`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        setRecurring(await res.json());
+      } else {
+        const data = await res.json();
+        setRecurringError(data.error || 'Failed to update recurring status');
+        setRecurring(previous);
+      }
+    } catch {
+      setRecurringError('Failed to update recurring status');
+      setRecurring(previous);
+    } finally {
+      setSavingRecurring(false);
     }
   };
 
@@ -490,6 +536,47 @@ export function TransactionEditModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Recurring */}
+          <div className={rowClass}>
+            <div className="flex-1 pr-3">
+              <p className="text-sm text-foreground inline-flex items-center gap-1.5">
+                <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
+                Recurring
+              </p>
+              {recurring?.isRecurring && recurring.frequency && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {FREQUENCY_LABELS[recurring.frequency]}
+                  {recurring.nextDate
+                    ? ` · next ${new Date(`${recurring.nextDate}T00:00:00`).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}`
+                    : ''}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Applies to every transaction from this merchant, not just this one.
+              </p>
+              {recurringError && <p className="text-xs text-red-500 mt-1">{recurringError}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={toggleRecurring}
+              disabled={recurringLoading || savingRecurring}
+              role="switch"
+              aria-checked={!!recurring?.isRecurring}
+              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 ${
+                recurring?.isRecurring ? 'bg-primary' : 'bg-muted'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  recurring?.isRecurring ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Auto-tag rule */}
