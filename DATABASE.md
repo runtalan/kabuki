@@ -89,7 +89,7 @@ the log is accurate.
 
 ## Current schema state
 
-Tables as of the last migration above. Reflects sandbox and production alike — both are back in sync as of `0025`, following the drift closure above.
+Tables as of the last migration above. Reflects sandbox and production alike — both are back in sync as of `0028`, applied to production 2026-08-08 alongside the `origin/main` push that shipped it.
 
 | Table | Added in | Notes |
 |---|---|---|
