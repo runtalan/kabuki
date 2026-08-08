@@ -13,7 +13,7 @@ const NOT_TRANSFER = isNull(transactions.transferType);
 // fetching transactions, since it must respect each transaction's own
 // `ownerOverride`, not just the owning account's `owner`) plus an
 // accountId -> owner lookup for that filtering step.
-async function getUserAccountContext(userId: string) {
+export async function getUserAccountContext(userId: string) {
   const userItems = await db.query.plaidItems.findMany({
     where: inArray(plaidItems.userId, await getHouseholdUserIds(userId)),
   });
@@ -518,4 +518,88 @@ export async function getRecurringItems(
   }
 
   return items.sort((a, b) => b.monthlyCost - a.monthlyCost);
+}
+
+// All of a household's transactions at a given normalized merchant, no time
+// window — unlike getRecurringItems (which only looks at the last year for
+// live detection), this must find a transaction being edited even if it's
+// old, since the modal's "mark as recurring" action needs every occurrence.
+export async function getTransactionsForMerchant(
+  userId: string,
+  merchantKey: string,
+  ownerFilter: OwnerFilter = 'all'
+) {
+  const { accountIds, ownerByAccount } = await getUserAccountContext(userId);
+  if (accountIds.length === 0) return [];
+
+  const rows = (
+    await db
+      .select()
+      .from(transactions)
+      .where(and(inArray(transactions.accountId, accountIds), NOT_HIDDEN, NOT_TRANSFER))
+  ).filter(
+    (tx) =>
+      matchesOwnerFilter(tx.ownerOverride, ownerByAccount.get(tx.accountId), ownerFilter) &&
+      normalizeMerchant(tx.merchant || tx.name) === merchantKey
+  );
+
+  return rows;
+}
+
+export interface RecurrenceEstimate {
+  frequency: RecurringItem['frequency'];
+  amount: number; // absolute value, latest occurrence
+  nextDate: Date;
+  categoryId: string | null;
+  isIncome: boolean;
+}
+
+// Best-effort recurrence estimate for a user-confirmed merchant. Unlike
+// getRecurringItems (which requires a clean, consistent pattern before ever
+// suggesting recurrence unprompted), this never refuses — the user has
+// already said "this is recurring," so we give our best guess instead of
+// nothing. A single transaction is assumed monthly, anchored on its date, per
+// product decision; two or more transactions reuse getRecurringItems's
+// median-gap-to-bucket lookup, falling back to the closest bucket by
+// midpoint when the gap doesn't cleanly land in any range.
+export function estimateRecurrence(
+  txs: { date: Date; amount: string; categoryId: string | null }[]
+): RecurrenceEstimate {
+  const sorted = [...txs].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const latest = sorted[sorted.length - 1];
+  const latestAmount = Math.abs(Number(latest.amount));
+  const isIncome = Number(latest.amount) > 0;
+
+  if (sorted.length < 2) {
+    const nextDate = new Date(latest.date);
+    nextDate.setMonth(nextDate.getMonth() + 1);
+    return { frequency: 'monthly', amount: latestAmount, nextDate, categoryId: latest.categoryId, isIncome };
+  }
+
+  const gaps: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    gaps.push((sorted[i].date.getTime() - sorted[i - 1].date.getTime()) / 86_400_000);
+  }
+  gaps.sort((a, b) => a - b);
+  const medianGap = gaps[Math.floor(gaps.length / 2)];
+
+  const inRange = FREQUENCY_BUCKETS.find((b) => medianGap >= b.min && medianGap <= b.max);
+  const bucket =
+    inRange ||
+    FREQUENCY_BUCKETS.reduce((closest, b) => {
+      const mid = (b.min + b.max) / 2;
+      const closestMid = (closest.min + closest.max) / 2;
+      return Math.abs(medianGap - mid) < Math.abs(medianGap - closestMid) ? b : closest;
+    });
+
+  const nextDate = new Date(latest.date);
+  nextDate.setDate(nextDate.getDate() + Math.round(medianGap));
+
+  return {
+    frequency: bucket.label,
+    amount: latestAmount,
+    nextDate,
+    categoryId: latest.categoryId,
+    isIncome,
+  };
 }
