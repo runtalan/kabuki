@@ -53,6 +53,7 @@
 | 2026-08-07 | `0023_categories_order_column.sql` | Add `categories.order` column for drag-to-reorder budget tiles |
 | 2026-08-07 | `0021_watchlist.sql`, `0024_refactor_holdings_for_alpaca.sql`, `0025_alpaca_settings.sql` | Applied late — see drift note below |
 | 2026-08-07 | `0026_apple_card_balance_tracking.sql` | `accounts.reset_balance_monthly` + `accounts.balance_month` — lets pay-in-full cards (Apple Card) accumulate a balance through the month and zero out on the 1st |
+| 2026-08-08 | `0027_transaction_recurring.sql` | `transaction_recurring` table — per-transaction recurring override, independent of `recurring_series` |
 
 ## Drift found and closed, 2026-08-07
 
@@ -113,6 +114,7 @@ Tables as of the last migration above. Reflects sandbox and production alike —
 | `trades` | 0022 | Trade execution history (symbol, qty, price, order type, side, status) |
 | `watchlist` | 0021 | Per-user ticker watchlist (options trading UI) |
 | `alpaca_settings` | 0025 | Per-user Alpaca API credentials (paper trading) |
+| `transaction_recurring` | 0027 | Per-transaction recurring override (frequency/next-date), separate from `recurring_series` |
 
 ## Quick reference
 

@@ -320,6 +320,45 @@ export const recurringSeries = pgTable(
   ]
 );
 
+// Per-transaction recurring override — independent of recurring_series.
+// One row per transaction: marks that exact transaction (not the whole
+// merchant) as recurring, with a user-editable frequency/next-date. Amount,
+// category, and income/expense direction are read live off the linked
+// transaction rather than snapshotted here, since this row represents
+// exactly one transaction rather than an abstract merchant pattern.
+export const transactionRecurring = pgTable(
+  "transaction_recurring",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    transactionId: varchar("transaction_id", { length: 36 })
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    frequency: varchar("frequency", { length: 20 }).notNull(), // weekly | biweekly | monthly | yearly | custom
+    intervalDays: integer("interval_days"), // set only when frequency = 'custom'
+    nextDate: timestamp("next_date").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_transaction_recurring_transaction_id").on(table.transactionId),
+    index("idx_transaction_recurring_user_id").on(table.userId),
+  ]
+);
+
+export const transactionRecurringRelations = relations(transactionRecurring, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [transactionRecurring.transactionId],
+    references: [transactions.id],
+  }),
+  user: one(users, {
+    fields: [transactionRecurring.userId],
+    references: [users.id],
+  }),
+}));
+
 // Per-user API tokens for personal transaction-ingest integrations (Apple
 // Card Sync today; `provider` leaves room for more later). Only a SHA-256
 // hash of the token is stored — the plaintext is shown once at generation
@@ -554,6 +593,7 @@ export const watchlist = pgTable(
 export const usersRelations = relations(users, ({ many, one }) => ({
   plaidItems: many(plaidItems),
   recurringSeries: many(recurringSeries),
+  transactionRecurring: many(transactionRecurring),
   integrationTokens: many(integrationTokens),
   holdings: many(holdings),
   alpacaSettings: one(alpacaSettings),
