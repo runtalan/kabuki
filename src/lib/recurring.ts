@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { recurringSeries } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { getRecurringItems, normalizeMerchant } from './spending-insights';
-import { isoDay, PER_MONTH, type Frequency, type RecurringEntry } from './recurring-shared';
+import { isoDay, perMonthFactor, type Frequency, type RecurringEntry } from './recurring-shared';
 import type { OwnerFilter } from './owner-filter';
 import { getHouseholdUserIds } from './household';
 
@@ -46,11 +46,13 @@ export async function getRecurringEntries(
       categoryColor: category?.color ?? null,
       logoUrl: item.logoUrl,
       frequency,
+      intervalDays: null,
       amount,
-      monthlyCost: amount * PER_MONTH[frequency],
+      monthlyCost: amount * perMonthFactor(frequency),
       nextDate: override?.nextDate ? isoDay(override.nextDate) : item.nextDate,
       isIncome: item.isIncome,
       isManual: false,
+      manualSource: null,
       needsReview: !override,
       previousAmount: item.previousAmount,
       priceIncreased: item.priceIncreased,
@@ -75,11 +77,13 @@ export async function getRecurringEntries(
       categoryColor: category?.color ?? null,
       logoUrl: null,
       frequency,
+      intervalDays: null,
       amount,
-      monthlyCost: amount * PER_MONTH[frequency],
+      monthlyCost: amount * perMonthFactor(frequency),
       nextDate: row.nextDate ? isoDay(row.nextDate) : isoDay(new Date()),
       isIncome: row.isIncome,
       isManual: true,
+      manualSource: 'series' as const,
       needsReview: false,
       previousAmount: null,
       priceIncreased: false,

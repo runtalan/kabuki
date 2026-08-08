@@ -2,25 +2,33 @@
 // for projecting a series onto a calendar month. Kept free of DB imports so
 // client components can use it without pulling the postgres driver into the
 // browser bundle — the server-only half lives in ./recurring.
-export type Frequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+export type Frequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly' | 'custom';
 
 export const FREQUENCY_LABELS: Record<Frequency, string> = {
   weekly: 'Weekly',
   biweekly: 'Biweekly',
   monthly: 'Monthly',
   yearly: 'Annual',
+  custom: 'Custom',
 };
 
 // How many times a cadence lands in a month — used to pro-rate to a monthly figure.
-export const PER_MONTH: Record<Frequency, number> = {
+export const PER_MONTH: Record<Exclude<Frequency, 'custom'>, number> = {
   weekly: 4.33,
   biweekly: 2.17,
   monthly: 1,
   yearly: 1 / 12,
 };
 
+// Monthly-cost factor for any cadence, including a custom "every N days"
+// interval that PER_MONTH can't hold as a fixed constant.
+export function perMonthFactor(frequency: Frequency, intervalDays?: number | null): number {
+  if (frequency === 'custom') return 30.44 / (intervalDays || 30);
+  return PER_MONTH[frequency];
+}
+
 export interface RecurringEntry {
-  id: string | null; // recurring_series row id, null when detected-but-unreviewed
+  id: string | null; // recurring_series row id or transaction id, null when detected-but-unreviewed
   merchantKey: string;
   merchant: string;
   categoryId: string | null;
@@ -29,11 +37,15 @@ export interface RecurringEntry {
   categoryColor: string | null;
   logoUrl: string | null;
   frequency: Frequency;
+  intervalDays: number | null; // set only when frequency === 'custom'
   amount: number;
   monthlyCost: number;
   nextDate: string; // ISO yyyy-mm-dd
   isIncome: boolean;
   isManual: boolean;
+  // Which backing table a manual entry's Edit/Remove actions target — null
+  // for pure detections (no manual row at all yet).
+  manualSource: 'series' | 'transaction' | null;
   // Detected but not yet confirmed or dismissed — drives the review queue.
   needsReview: boolean;
   previousAmount: number | null;
@@ -97,9 +109,10 @@ export function occurrencesInMonth(
       continue;
     }
 
-    // Weekly / biweekly: step by a fixed interval from the anchor in both
-    // directions until we cover the visible month.
-    const stepDays = entry.frequency === 'weekly' ? 7 : 14;
+    // Weekly / biweekly / custom: step by a fixed interval from the anchor in
+    // both directions until we cover the visible month.
+    const stepDays =
+      entry.frequency === 'weekly' ? 7 : entry.frequency === 'biweekly' ? 14 : entry.intervalDays || 30;
     const cursor = new Date(anchor);
     // Rewind to at or before the start of the month.
     while (cursor > monthStart) cursor.setDate(cursor.getDate() - stepDays);
