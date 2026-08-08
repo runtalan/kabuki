@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ExpiryOption {
   expiry: string; // YYYY-MM-DD
@@ -24,6 +25,43 @@ function toDateKey(year: number, month: number, day: number): string {
 export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Position the popover relative to the viewport (not the trigger's DOM
+  // parent) and portal it to <body>. The Order Builder panel has
+  // overflow-y-auto, which clips any absolutely-positioned descendant that
+  // extends past its bounds — the calendar was rendering fully off-screen.
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const updatePosition = () => {
+      const rect = buttonRef.current!.getBoundingClientRect();
+      const popoverWidth = 288; // w-72
+      const left = Math.min(
+        Math.max(8, rect.left),
+        window.innerWidth - popoverWidth - 8
+      );
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const popoverHeight = popoverRef.current?.offsetHeight ?? 320;
+      const top = spaceBelow >= popoverHeight + 8
+        ? rect.bottom + 8
+        : Math.max(8, rect.top - popoverHeight - 8);
+      setPopoverStyle({ top, left, width: popoverWidth });
+    };
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open]);
 
   const optionByExpiry = new Map(options.map((o) => [o.expiry, o]));
   const selected = value ? parseDateOnly(value) : null;
@@ -40,7 +78,11 @@ export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerP
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -56,7 +98,6 @@ export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerP
   );
   const sortedMonthKeys = Array.from(availableMonthKeys).sort();
   const currentMonthKey = `${viewYear}-${viewMonth}`;
-  const currentMonthKeyIndex = sortedMonthKeys.indexOf(currentMonthKey);
   const canGoPrevMonth = sortedMonthKeys.some((k) => k < currentMonthKey);
   const canGoNextMonth = sortedMonthKeys.some((k) => k > currentMonthKey);
 
@@ -90,6 +131,7 @@ export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerP
     <div className="relative" ref={containerRef}>
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-2 p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm hover:border-blue-400 dark:hover:border-blue-500 transition shadow-sm"
       >
@@ -135,8 +177,12 @@ export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerP
         </svg>
       </button>
 
-      {open && (
-        <div className="absolute z-30 mt-2 w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
+      {open && mounted && popoverStyle && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-50 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
+          style={{ top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+        >
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
@@ -220,7 +266,8 @@ export function ExpiryDatePicker({ value, options, onChange }: ExpiryDatePickerP
           <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 dark:text-gray-500">
             Highlighted dates have listed expirations
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
