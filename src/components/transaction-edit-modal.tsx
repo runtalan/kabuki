@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2 } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS, OwnerAvatar } from './owner-badge';
@@ -55,6 +56,7 @@ export function TransactionEditModal({
   onClose,
   onSaved,
 }: TransactionEditModalProps) {
+  const router = useRouter();
   const [name, setName] = useState(transaction.name);
   const [type, setType] = useState<'debit' | 'credit'>(transaction.type);
   const [amount, setAmount] = useState(Math.abs(parseFloat(transaction.amount)).toString());
@@ -88,9 +90,11 @@ export function TransactionEditModal({
   const [ruleMerchantName, setRuleMerchantName] = useState(transaction.merchant || transaction.name);
   const [ruleCategoryId, setRuleCategoryId] = useState(transaction.categoryId || '');
   const [ruleApplyNow, setRuleApplyNow] = useState(true);
+  const [ruleRetroactive, setRuleRetroactive] = useState(false);
   const [savingRule, setSavingRule] = useState(false);
   const [ruleError, setRuleError] = useState('');
   const [ruleCreated, setRuleCreated] = useState(false);
+  const [ruleCreatedMessage, setRuleCreatedMessage] = useState('');
 
   const tagBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const categoryBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -163,7 +167,10 @@ export function TransactionEditModal({
     }
   };
 
-  const persist = async (overrides: Record<string, unknown> = {}) => {
+  const persist = async (
+    overrides: Record<string, unknown> = {},
+    opts: { silent?: boolean } = {}
+  ) => {
     setSaving(true);
     setError('');
     try {
@@ -185,7 +192,11 @@ export function TransactionEditModal({
         }),
       });
       if (res.ok) {
-        onSaved();
+        // Silent persists (e.g. applying a category from a just-created rule)
+        // update this transaction without triggering the parent's onSaved,
+        // which every caller wires to close this whole panel — the user
+        // should get to see the result, not have it vanish mid-confirmation.
+        if (!opts.silent) onSaved();
         return true;
       }
       const data = await res.json();
@@ -229,16 +240,35 @@ export function TransactionEditModal({
           merchantName: ruleMerchantName.trim(),
           matchType: ruleMatchType,
           categoryId: ruleCategoryId,
+          retroactive: ruleRetroactive,
         }),
       });
       if (res.ok) {
+        const data = await res.json();
+        const messages: string[] = ['Rule created ✓'];
         if (ruleApplyNow) {
           setCategoryId(ruleCategoryId);
-          await persist({ categoryId: ruleCategoryId });
+          // Silent — stay open so the confirmation below is actually seen;
+          // refresh the underlying list ourselves instead of relying on
+          // onSaved's close-the-panel side effect.
+          const ok = await persist(
+            { categoryId: ruleCategoryId, categorySource: 'rule' },
+            { silent: true }
+          );
+          if (ok) {
+            router.refresh();
+            messages.push('category applied to this transaction');
+          }
+        }
+        if (ruleRetroactive) {
+          const retagged = data.retagged || 0;
+          messages.push(`${retagged} past transaction${retagged === 1 ? '' : 's'} retagged`);
+          if (retagged > 0) router.refresh();
         }
         setRuleSectionOpen(false);
+        setRuleCreatedMessage(messages.join(' — '));
         setRuleCreated(true);
-        setTimeout(() => setRuleCreated(false), 2500);
+        setTimeout(() => setRuleCreated(false), 4000);
       } else {
         const data = await res.json();
         setRuleError(data.error || 'Failed to create rule');
@@ -475,6 +505,7 @@ export function TransactionEditModal({
                   if (!ruleSectionOpen) {
                     setRuleMerchantName(transaction.merchant || transaction.name);
                     setRuleCategoryId(categoryId);
+                    setRuleRetroactive(false);
                   }
                   setRuleSectionOpen((v) => !v);
                 }}
@@ -485,7 +516,7 @@ export function TransactionEditModal({
             </div>
 
             {ruleCreated && (
-              <p className="text-xs text-emerald-500 font-medium">Rule created ✓</p>
+              <p className="text-xs text-emerald-500 font-medium">{ruleCreatedMessage}</p>
             )}
 
             {ruleSectionOpen && (
@@ -538,6 +569,16 @@ export function TransactionEditModal({
                     className="rounded border-border"
                   />
                   Also apply to this transaction now
+                </label>
+
+                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ruleRetroactive}
+                    onChange={(e) => setRuleRetroactive(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  Also apply to matching transactions in the past
                 </label>
 
                 {ruleError && <p className="text-xs text-red-500">{ruleError}</p>}
