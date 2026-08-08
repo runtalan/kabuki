@@ -6,6 +6,7 @@ import { generateId } from '@/lib/id';
 
 const VALID_OWNERS = ['renato', 'claudia', 'joint'];
 const VALID_TRANSFER_TYPES = ['transfer', 'credit_card_payment'];
+const VALID_CATEGORY_SOURCES = ['manual', 'rule', 'smart'];
 
 export async function GET(
   request: Request,
@@ -67,8 +68,19 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, amount, type, date, categoryId, ownerOverride, tagIds, hidden, transferType, notes } =
-      body;
+    const {
+      name,
+      amount,
+      type,
+      date,
+      categoryId,
+      categorySource,
+      ownerOverride,
+      tagIds,
+      hidden,
+      transferType,
+      notes,
+    } = body;
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -77,7 +89,9 @@ export async function PATCH(
     if (date) updates.date = new Date(date);
     if (categoryId !== undefined) {
       updates.categoryId = categoryId || null;
-      updates.categorySource = categoryId ? 'manual' : null;
+      updates.categorySource = categoryId
+        ? VALID_CATEGORY_SOURCES.includes(categorySource) ? categorySource : 'manual'
+        : null;
     }
     if (ownerOverride !== undefined) {
       updates.ownerOverride =

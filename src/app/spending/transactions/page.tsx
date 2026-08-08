@@ -162,6 +162,7 @@ function TransactionsPageContent() {
     matchType: 'contains' as 'exact' | 'contains' | 'startsWith',
     categoryId: '',
     applyNow: true,
+    retroactive: false,
   });
   const [savingRule, setSavingRule] = useState(false);
   const [smartTagging, setSmartTagging] = useState(false);
@@ -302,6 +303,7 @@ function TransactionsPageContent() {
       matchType: 'contains',
       categoryId: tx.categoryId || '',
       applyNow: true,
+      retroactive: false,
     });
   };
 
@@ -316,15 +318,21 @@ function TransactionsPageContent() {
           merchantName: ruleForm.merchantName.trim(),
           matchType: ruleForm.matchType,
           categoryId: ruleForm.categoryId,
+          retroactive: ruleForm.retroactive,
         }),
       });
 
       if (response.ok) {
+        const data = await response.json();
         if (ruleForm.applyNow) {
           await fetch('/api/transactions/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transactionId: ruleModalTx.id, categoryId: ruleForm.categoryId }),
+            body: JSON.stringify({
+              transactionId: ruleModalTx.id,
+              categoryId: ruleForm.categoryId,
+              categorySource: 'rule',
+            }),
           });
           const category = categories.find((c) => c.id === ruleForm.categoryId) || null;
           setTransactions((prev) =>
@@ -334,6 +342,11 @@ function TransactionsPageContent() {
           );
         }
         setRuleModalTx(null);
+        if (ruleForm.retroactive) {
+          const retagged = data.retagged || 0;
+          await fetchTransactions({ silent: true });
+          alert(`✅ Rule created — retagged ${retagged} past transaction${retagged === 1 ? '' : 's'}.`);
+        }
       }
     } catch (error) {
       console.error('Failed to create rule:', error);
@@ -1108,6 +1121,16 @@ function TransactionsPageContent() {
                   className="rounded border-border"
                 />
                 Also apply to this transaction now
+              </label>
+
+              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ruleForm.retroactive}
+                  onChange={(e) => setRuleForm({ ...ruleForm, retroactive: e.target.checked })}
+                  className="rounded border-border"
+                />
+                Also apply to matching transactions in the past
               </label>
 
               <div className="flex gap-2 pt-2">
