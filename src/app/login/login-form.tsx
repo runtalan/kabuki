@@ -12,7 +12,13 @@ export function LoginForm() {
 
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingDemo, setIsLoadingDemo] = useState(false);
+  const [isLoadingDev, setIsLoadingDev] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Next.js statically inlines process.env.NODE_ENV in the client bundle at
+  // build time (no NEXT_PUBLIC_ prefix needed) — this is never 'development'
+  // in a deployed build, so this button can't render outside local dev.
+  const isDev = process.env.NODE_ENV !== 'production';
 
   async function handleGoogleSignIn() {
     setIsLoadingGoogle(true);
@@ -39,6 +45,27 @@ export function LoginForm() {
     } catch (err) {
       setError('Demo login error.');
       setIsLoadingDemo(false);
+    }
+  }
+
+  async function handleDevLogin(username: string) {
+    setIsLoadingDev(username);
+    setError(null);
+    try {
+      const response = await fetch('/api/auth/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      if (response.ok) {
+        router.push('/dashboard');
+      } else {
+        setError('Dev login failed.');
+        setIsLoadingDev(null);
+      }
+    } catch (err) {
+      setError('Dev login error.');
+      setIsLoadingDev(null);
     }
   }
 
@@ -87,6 +114,30 @@ export function LoginForm() {
         <Sparkles className="w-5 h-5" />
         {isLoadingDemo ? 'Loading demo...' : 'Try the Demo'}
       </button>
+
+      {/* Local-dev-only bypass — statically stripped from any production
+          build, see the isDev comment above. */}
+      {isDev && (
+        <div className="pt-2 border-t border-dashed border-border space-y-2">
+          <p className="text-xs text-muted-foreground text-center pt-2">Dev only</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleDevLogin('renato')}
+              disabled={!!isLoadingDev}
+              className="flex-1 px-3 py-2 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/70 disabled:opacity-50 transition-colors"
+            >
+              {isLoadingDev === 'renato' ? 'Signing in...' : 'Dev login: renato'}
+            </button>
+            <button
+              onClick={() => handleDevLogin('claudia')}
+              disabled={!!isLoadingDev}
+              className="flex-1 px-3 py-2 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/70 disabled:opacity-50 transition-colors"
+            >
+              {isLoadingDev === 'claudia' ? 'Signing in...' : 'Dev login: claudia'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
