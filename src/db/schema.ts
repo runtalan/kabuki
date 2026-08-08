@@ -339,6 +339,12 @@ export const transactionRecurring = pgTable(
     frequency: varchar("frequency", { length: 20 }).notNull(), // weekly | biweekly | monthly | yearly | custom
     intervalDays: integer("interval_days"), // set only when frequency = 'custom'
     nextDate: timestamp("next_date").notNull(),
+    // True means the user explicitly said "not recurring" for this one
+    // transaction even though its merchant is otherwise auto-detected as
+    // recurring — this row still wins over detection (frequency/nextDate
+    // are unused placeholders in that case), so it sticks instead of
+    // snapping back on.
+    dismissed: boolean("dismissed").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

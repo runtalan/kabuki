@@ -8,6 +8,7 @@ import {
   getTransactionsForMerchant,
   estimateRecurrence,
   normalizeMerchant,
+  matchesRecurringAmount,
 } from '@/lib/spending-insights';
 import { isoDay, parseDateInput, type Frequency } from '@/lib/recurring-shared';
 
@@ -34,6 +35,12 @@ function resolveStatus(
   override: typeof transactionRecurring.$inferSelect | undefined,
   detected: { frequency: Frequency; nextDate: string } | null
 ): RecurringStatus {
+  if (override?.dismissed) {
+    // User explicitly said "not recurring" for this transaction — this
+    // wins even if the merchant is still auto-detected as recurring, so
+    // dismissing actually sticks instead of snapping back on.
+    return { isRecurring: false, frequency: null, intervalDays: null, nextDate: null, source: 'override' };
+  }
   if (override) {
     return {
       isRecurring: true,
@@ -55,9 +62,16 @@ function resolveStatus(
   return { isRecurring: false, frequency: null, intervalDays: null, nextDate: null, source: null };
 }
 
-async function findDetected(userId: string, merchantKey: string) {
+// Merchant-level detection alone isn't enough to call a specific transaction
+// "recurring" — a merchant can have both a real recurring charge (e.g.
+// Chipotle $32/mo) and unrelated incidental purchases (a $17 lunch). Only
+// treat this transaction as detected if its own amount actually fits the
+// pattern the merchant was detected for.
+async function findDetected(userId: string, merchantKey: string, txAmount: number) {
   const detected = await getRecurringItems(userId);
-  return detected.find((item) => item.merchantKey === merchantKey) || null;
+  const item = detected.find((i) => i.merchantKey === merchantKey);
+  if (!item || !matchesRecurringAmount(txAmount, item)) return null;
+  return item;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -72,7 +86,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const merchantKey = normalizeMerchant(tx.merchant || tx.name);
     const [override, detectedItem] = await Promise.all([
       db.query.transactionRecurring.findFirst({ where: eq(transactionRecurring.transactionId, tx.id) }),
-      findDetected(user.id, merchantKey),
+      findDetected(user.id, merchantKey, Number(tx.amount)),
     ]);
 
     return Response.json(resolveStatus(override, detectedItem));
@@ -105,11 +119,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
 
     if (action === 'dismiss') {
+      // Persist an explicit "not recurring" override rather than deleting —
+      // otherwise this snaps right back to 'detected' on the next GET
+      // whenever the merchant is still auto-detected as recurring.
       if (existing) {
-        await db.delete(transactionRecurring).where(eq(transactionRecurring.id, existing.id));
+        await db
+          .update(transactionRecurring)
+          .set({ dismissed: true, updatedAt: new Date() })
+          .where(eq(transactionRecurring.id, existing.id));
+      } else {
+        await db.insert(transactionRecurring).values({
+          id: generateId(),
+          transactionId: tx.id,
+          userId: user.id,
+          frequency: 'monthly',
+          intervalDays: null,
+          nextDate: new Date(),
+          dismissed: true,
+        });
       }
-      const detectedItem = await findDetected(user.id, merchantKey);
-      return Response.json(resolveStatus(undefined, detectedItem));
+      return Response.json({
+        isRecurring: false,
+        frequency: null,
+        intervalDays: null,
+        nextDate: null,
+        source: 'override',
+      } satisfies RecurringStatus);
     }
 
     let frequency: Frequency;
@@ -132,13 +167,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
       nextDate = parseDateInput(body.nextDate);
     } else {
-      // action === 'confirm': no explicit values — an existing override
-      // always wins as-is; otherwise seed from detection, falling back to
-      // an estimate against this merchant's history.
-      if (existing) {
+      // action === 'confirm': no explicit values — an existing, non-dismissed
+      // override always wins as-is; otherwise (including re-confirming a
+      // previously dismissed transaction) seed from detection, falling back
+      // to an estimate against this merchant's history.
+      if (existing && !existing.dismissed) {
         return Response.json(resolveStatus(existing, null));
       }
-      const detectedItem = await findDetected(user.id, merchantKey);
+      const detectedItem = await findDetected(user.id, merchantKey, Number(tx.amount));
       if (detectedItem) {
         frequency = detectedItem.frequency;
         nextDate = parseDateInput(detectedItem.nextDate);
@@ -153,7 +189,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (existing) {
       await db
         .update(transactionRecurring)
-        .set({ frequency, intervalDays, nextDate, updatedAt: new Date() })
+        .set({ frequency, intervalDays, nextDate, dismissed: false, updatedAt: new Date() })
         .where(eq(transactionRecurring.id, existing.id));
     } else {
       await db.insert(transactionRecurring).values({

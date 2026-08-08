@@ -98,6 +98,7 @@ export async function getRecurringEntries(
   // Per-transaction overrides — each becomes its own entry, independent of
   // (and in addition to) any merchant-level entry for the same merchant.
   for (const row of txOverrides) {
+    if (row.dismissed) continue;
     const tx = row.transaction;
     if (!tx) continue;
     const frequency = row.frequency as Frequency;

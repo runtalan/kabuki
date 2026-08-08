@@ -54,6 +54,7 @@
 | 2026-08-07 | `0021_watchlist.sql`, `0024_refactor_holdings_for_alpaca.sql`, `0025_alpaca_settings.sql` | Applied late — see drift note below |
 | 2026-08-07 | `0026_apple_card_balance_tracking.sql` | `accounts.reset_balance_monthly` + `accounts.balance_month` — lets pay-in-full cards (Apple Card) accumulate a balance through the month and zero out on the 1st |
 | 2026-08-08 | `0027_transaction_recurring.sql` | `transaction_recurring` table — per-transaction recurring override, independent of `recurring_series` |
+| 2026-08-08 | `0028_transaction_recurring_dismissed.sql` | Add `transaction_recurring.dismissed` boolean — lets a user explicitly mark one transaction "not recurring" and have it stick, even when its merchant is still auto-detected as recurring |
 
 ## Drift found and closed, 2026-08-07
 

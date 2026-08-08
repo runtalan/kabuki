@@ -376,6 +376,8 @@ export interface RecurringItem {
   logoUrl: string | null;
   frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly';
   amount: number; // latest charge
+  medianAmount: number; // typical charge across the detected pattern — used to tell a
+  // pattern-matching transaction apart from an incidental purchase at the same merchant
   previousAmount: number | null; // charge before that (for price-change flag)
   priceIncreased: boolean;
   monthlyCost: number; // normalized to a monthly figure
@@ -383,6 +385,16 @@ export interface RecurringItem {
   nextDate: string; // ISO, projected
   occurrences: number;
   isIncome: boolean;
+}
+
+// Same tolerance getRecurringItems uses internally to decide a group's amounts
+// are "consistent" — reused so a single transaction can be checked against an
+// already-detected pattern (e.g. is this specific Chipotle charge part of the
+// $32/mo pattern, or just an unrelated lunch at the same merchant?).
+export const RECURRING_AMOUNT_TOLERANCE = 0.35;
+
+export function matchesRecurringAmount(amount: number, item: RecurringItem): boolean {
+  return Math.abs(Math.abs(amount) - item.medianAmount) / item.medianAmount <= RECURRING_AMOUNT_TOLERANCE;
 }
 
 const FREQUENCY_BUCKETS: {
@@ -475,7 +487,7 @@ export async function getRecurringItems(
     const medianAmount = [...amounts].sort((a, b) => a - b)[Math.floor(amounts.length / 2)];
     if (medianAmount < 1) continue;
     const consistent = amounts.filter(
-      (a) => Math.abs(a - medianAmount) / medianAmount <= 0.35
+      (a) => Math.abs(a - medianAmount) / medianAmount <= RECURRING_AMOUNT_TOLERANCE
     ).length;
     if (consistent / amounts.length < 0.6) continue;
 
@@ -504,6 +516,7 @@ export async function getRecurringItems(
       logoUrl: latest.merchantLogoUrl || null,
       frequency: bucket.label,
       amount: latestAmount,
+      medianAmount,
       previousAmount,
       priceIncreased:
         !isIncome &&
