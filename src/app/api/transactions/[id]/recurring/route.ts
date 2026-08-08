@@ -1,7 +1,7 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { db } from '@/db';
-import { transactions, recurringSeries } from '@/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { transactions, transactionRecurring } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 import {
   getRecurringItems,
@@ -9,12 +9,16 @@ import {
   estimateRecurrence,
   normalizeMerchant,
 } from '@/lib/spending-insights';
-import { isoDay } from '@/lib/recurring-shared';
+import { isoDay, parseDateInput, type Frequency } from '@/lib/recurring-shared';
+
+const VALID_FREQUENCIES: Frequency[] = ['weekly', 'biweekly', 'monthly', 'yearly', 'custom'];
 
 interface RecurringStatus {
   isRecurring: boolean;
-  frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly' | null;
+  frequency: Frequency | null;
+  intervalDays: number | null;
   nextDate: string | null;
+  source: 'override' | 'detected' | null;
 }
 
 async function loadTransaction(id: string, householdUserIds: string[]) {
@@ -26,10 +30,34 @@ async function loadTransaction(id: string, householdUserIds: string[]) {
   return tx;
 }
 
-async function findSeries(householdUserIds: string[], merchantKey: string) {
-  return db.query.recurringSeries.findFirst({
-    where: and(inArray(recurringSeries.userId, householdUserIds), eq(recurringSeries.merchantKey, merchantKey)),
-  });
+function resolveStatus(
+  override: typeof transactionRecurring.$inferSelect | undefined,
+  detected: { frequency: Frequency; nextDate: string } | null
+): RecurringStatus {
+  if (override) {
+    return {
+      isRecurring: true,
+      frequency: override.frequency as Frequency,
+      intervalDays: override.intervalDays,
+      nextDate: isoDay(override.nextDate),
+      source: 'override',
+    };
+  }
+  if (detected) {
+    return {
+      isRecurring: true,
+      frequency: detected.frequency,
+      intervalDays: null,
+      nextDate: detected.nextDate,
+      source: 'detected',
+    };
+  }
+  return { isRecurring: false, frequency: null, intervalDays: null, nextDate: null, source: null };
+}
+
+async function findDetected(userId: string, merchantKey: string) {
+  const detected = await getRecurringItems(userId);
+  return detected.find((item) => item.merchantKey === merchantKey) || null;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -42,23 +70,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!tx) return Response.json({ error: 'Transaction not found' }, { status: 404 });
 
     const merchantKey = normalizeMerchant(tx.merchant || tx.name);
-    const [detected, series] = await Promise.all([
-      getRecurringItems(user.id),
-      findSeries(user.householdUserIds, merchantKey),
+    const [override, detectedItem] = await Promise.all([
+      db.query.transactionRecurring.findFirst({ where: eq(transactionRecurring.transactionId, tx.id) }),
+      findDetected(user.id, merchantKey),
     ]);
-    const detectedItem = detected.find((item) => item.merchantKey === merchantKey) || null;
 
-    const isRecurring = series?.status === 'confirmed' || (!!detectedItem && series?.status !== 'dismissed');
-    const frequency = isRecurring
-      ? (series?.frequency as RecurringStatus['frequency']) || detectedItem?.frequency || null
-      : null;
-    const nextDate = isRecurring
-      ? series?.nextDate
-        ? isoDay(series.nextDate)
-        : detectedItem?.nextDate || null
-      : null;
-
-    return Response.json({ isRecurring, frequency, nextDate } satisfies RecurringStatus);
+    return Response.json(resolveStatus(override, detectedItem));
   } catch (error) {
     console.error('Error fetching transaction recurring status:', error);
     return Response.json({ error: 'Failed to fetch recurring status' }, { status: 500 });
@@ -76,92 +93,85 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const tx = await loadTransaction(id, user.householdUserIds);
     if (!tx) return Response.json({ error: 'Transaction not found' }, { status: 404 });
 
-    const { action } = await request.json();
-    if (action !== 'confirm' && action !== 'dismiss') {
-      return Response.json({ error: 'action must be "confirm" or "dismiss"' }, { status: 400 });
+    const body = await request.json();
+    const { action } = body;
+    if (action !== 'confirm' && action !== 'dismiss' && action !== 'update') {
+      return Response.json({ error: 'action must be "confirm", "dismiss", or "update"' }, { status: 400 });
     }
 
-    const merchantName = tx.merchant || tx.name;
-    const merchantKey = normalizeMerchant(merchantName);
-    if (merchantKey.length < 3) {
-      return Response.json({ error: 'Merchant name is too short to track' }, { status: 400 });
-    }
-
-    const existingSeries = await findSeries(user.householdUserIds, merchantKey);
+    const merchantKey = normalizeMerchant(tx.merchant || tx.name);
+    const existing = await db.query.transactionRecurring.findFirst({
+      where: eq(transactionRecurring.transactionId, tx.id),
+    });
 
     if (action === 'dismiss') {
-      if (existingSeries) {
-        await db
-          .update(recurringSeries)
-          .set({ status: 'dismissed', updatedAt: new Date() })
-          .where(eq(recurringSeries.id, existingSeries.id));
-      } else {
-        await db.insert(recurringSeries).values({
-          id: generateId(),
-          userId: user.id,
-          merchantKey,
-          merchantName,
-          status: 'dismissed',
-          isManual: false,
-        });
+      if (existing) {
+        await db.delete(transactionRecurring).where(eq(transactionRecurring.id, existing.id));
       }
-      return Response.json({ isRecurring: false, frequency: null, nextDate: null } satisfies RecurringStatus);
+      const detectedItem = await findDetected(user.id, merchantKey);
+      return Response.json(resolveStatus(undefined, detectedItem));
     }
 
-    // action === 'confirm'
-    const detected = await getRecurringItems(user.id);
-    const detectedItem = detected.find((item) => item.merchantKey === merchantKey) || null;
+    let frequency: Frequency;
+    let intervalDays: number | null = null;
+    let nextDate: Date;
 
-    if (detectedItem) {
-      if (existingSeries) {
-        await db
-          .update(recurringSeries)
-          .set({ status: 'confirmed', isManual: false, updatedAt: new Date() })
-          .where(eq(recurringSeries.id, existingSeries.id));
-      } else {
-        await db.insert(recurringSeries).values({
-          id: generateId(),
-          userId: user.id,
-          merchantKey,
-          merchantName,
-          status: 'confirmed',
-          isManual: false,
-        });
+    if (action === 'update') {
+      if (!VALID_FREQUENCIES.includes(body.frequency)) {
+        return Response.json({ error: 'Invalid frequency' }, { status: 400 });
       }
-      return Response.json({
-        isRecurring: true,
-        frequency: detectedItem.frequency,
-        nextDate: detectedItem.nextDate,
-      } satisfies RecurringStatus);
-    }
-
-    const matchingTxs = await getTransactionsForMerchant(user.id, merchantKey);
-    const estimate = estimateRecurrence(matchingTxs);
-    const values = {
-      merchantKey,
-      merchantName,
-      status: 'confirmed' as const,
-      isManual: true,
-      frequency: estimate.frequency,
-      amount: estimate.amount.toString(),
-      categoryId: estimate.categoryId,
-      nextDate: estimate.nextDate,
-      isIncome: estimate.isIncome,
-    };
-
-    if (existingSeries) {
-      await db
-        .update(recurringSeries)
-        .set({ ...values, updatedAt: new Date() })
-        .where(eq(recurringSeries.id, existingSeries.id));
+      frequency = body.frequency;
+      if (frequency === 'custom') {
+        if (!Number.isInteger(body.intervalDays) || body.intervalDays < 1) {
+          return Response.json({ error: 'intervalDays must be a positive integer' }, { status: 400 });
+        }
+        intervalDays = body.intervalDays;
+      }
+      if (typeof body.nextDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.nextDate)) {
+        return Response.json({ error: 'nextDate is required (yyyy-mm-dd)' }, { status: 400 });
+      }
+      nextDate = parseDateInput(body.nextDate);
     } else {
-      await db.insert(recurringSeries).values({ id: generateId(), userId: user.id, ...values });
+      // action === 'confirm': no explicit values — an existing override
+      // always wins as-is; otherwise seed from detection, falling back to
+      // an estimate against this merchant's history.
+      if (existing) {
+        return Response.json(resolveStatus(existing, null));
+      }
+      const detectedItem = await findDetected(user.id, merchantKey);
+      if (detectedItem) {
+        frequency = detectedItem.frequency;
+        nextDate = parseDateInput(detectedItem.nextDate);
+      } else {
+        const matchingTxs = await getTransactionsForMerchant(user.id, merchantKey);
+        const estimate = estimateRecurrence(matchingTxs);
+        frequency = estimate.frequency;
+        nextDate = estimate.nextDate;
+      }
+    }
+
+    if (existing) {
+      await db
+        .update(transactionRecurring)
+        .set({ frequency, intervalDays, nextDate, updatedAt: new Date() })
+        .where(eq(transactionRecurring.id, existing.id));
+    } else {
+      await db.insert(transactionRecurring).values({
+        id: generateId(),
+        transactionId: tx.id,
+        userId: user.id,
+        frequency,
+        intervalDays,
+        nextDate,
+      });
     }
 
     return Response.json({
       isRecurring: true,
-      frequency: estimate.frequency,
-      nextDate: isoDay(estimate.nextDate),
+      frequency,
+      intervalDays,
+      nextDate: isoDay(nextDate),
+      source: 'override',
     } satisfies RecurringStatus);
   } catch (error) {
     console.error('Error updating transaction recurring status:', error);
