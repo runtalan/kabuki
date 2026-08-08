@@ -76,11 +76,21 @@ export function TransactionEditModal({
   const [recurring, setRecurring] = useState<{
     isRecurring: boolean;
     frequency: Frequency | null;
+    intervalDays: number | null;
     nextDate: string | null;
+    source: 'override' | 'detected' | null;
   } | null>(null);
   const [recurringLoading, setRecurringLoading] = useState(true);
   const [savingRecurring, setSavingRecurring] = useState(false);
   const [recurringError, setRecurringError] = useState('');
+  const [editFrequency, setEditFrequency] = useState<Frequency>('monthly');
+  const [editIntervalDays, setEditIntervalDays] = useState('30');
+  const [editNextDate, setEditNextDate] = useState('');
+  // Tracks which `recurring` snapshot the edit fields were last synced from
+  // — adjusted during render (React's sanctioned alternative to an effect
+  // here: https://react.dev/learn/you-might-not-need-an-effect) rather than
+  // in a useEffect, since this is deriving state from a prop-like value.
+  const [syncedRecurring, setSyncedRecurring] = useState<typeof recurring>(null);
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagSearch, setTagSearch] = useState('');
@@ -123,6 +133,13 @@ export function TransactionEditModal({
       })
       .finally(() => setRecurringLoading(false));
   }, [transaction.id]);
+
+  if (recurring?.isRecurring && recurring !== syncedRecurring) {
+    setSyncedRecurring(recurring);
+    setEditFrequency(recurring.frequency || 'monthly');
+    setEditIntervalDays(recurring.intervalDays ? String(recurring.intervalDays) : '30');
+    setEditNextDate(recurring.nextDate || '');
+  }
 
   // Mount closed, then slide in — gives the transform a frame to animate from.
   useEffect(() => {
@@ -308,6 +325,32 @@ export function TransactionEditModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        setRecurring(await res.json());
+      } else {
+        const data = await res.json();
+        setRecurringError(data.error || 'Failed to update recurring status');
+        setRecurring(previous);
+      }
+    } catch {
+      setRecurringError('Failed to update recurring status');
+      setRecurring(previous);
+    } finally {
+      setSavingRecurring(false);
+    }
+  };
+
+  const saveFrequency = async (next: { frequency: Frequency; intervalDays?: number; nextDate: string }) => {
+    if (savingRecurring) return;
+    const previous = recurring;
+    setSavingRecurring(true);
+    setRecurringError('');
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/recurring`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', ...next }),
       });
       if (res.ok) {
         setRecurring(await res.json());
@@ -547,7 +590,10 @@ export function TransactionEditModal({
               </p>
               {recurring?.isRecurring && recurring.frequency && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {FREQUENCY_LABELS[recurring.frequency]}
+                  {recurring.source === 'detected' ? 'Auto-detected · ' : ''}
+                  {recurring.frequency === 'custom'
+                    ? `Every ${recurring.intervalDays} days`
+                    : FREQUENCY_LABELS[recurring.frequency]}
                   {recurring.nextDate
                     ? ` · next ${new Date(`${recurring.nextDate}T00:00:00`).toLocaleDateString('en-US', {
                         month: 'short',
@@ -556,10 +602,70 @@ export function TransactionEditModal({
                     : ''}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Applies to every transaction from this merchant, not just this one.
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Applies only to this transaction.</p>
               {recurringError && <p className="text-xs text-red-500 mt-1">{recurringError}</p>}
+              {recurring?.isRecurring && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select
+                    value={editFrequency}
+                    onChange={(e) => {
+                      const freq = e.target.value as Frequency;
+                      setEditFrequency(freq);
+                      if (freq !== 'custom') {
+                        saveFrequency({ frequency: freq, nextDate: editNextDate || recurring.nextDate || '' });
+                      }
+                    }}
+                    className="px-2 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs"
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Annual</option>
+                    <option value="custom">Other</option>
+                  </select>
+                  {editFrequency === 'custom' && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      every
+                      <input
+                        type="number"
+                        min="1"
+                        value={editIntervalDays}
+                        onChange={(e) => setEditIntervalDays(e.target.value)}
+                        onBlur={() => {
+                          const days = parseInt(editIntervalDays, 10);
+                          if (Number.isInteger(days) && days > 0) {
+                            saveFrequency({
+                              frequency: 'custom',
+                              intervalDays: days,
+                              nextDate: editNextDate || recurring.nextDate || '',
+                            });
+                          }
+                        }}
+                        className="w-14 px-1.5 py-1 rounded-lg border border-border bg-background text-foreground text-xs"
+                      />
+                      days
+                    </span>
+                  )}
+                  <input
+                    type="date"
+                    value={editNextDate}
+                    onChange={(e) => setEditNextDate(e.target.value)}
+                    onBlur={() => {
+                      if (!editNextDate) return;
+                      saveFrequency(
+                        editFrequency === 'custom'
+                          ? {
+                              frequency: 'custom',
+                              intervalDays: parseInt(editIntervalDays, 10) || 30,
+                              nextDate: editNextDate,
+                            }
+                          : { frequency: editFrequency, nextDate: editNextDate }
+                      );
+                    }}
+                    className="px-2 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs"
+                  />
+                </div>
+              )}
             </div>
             <button
               type="button"
