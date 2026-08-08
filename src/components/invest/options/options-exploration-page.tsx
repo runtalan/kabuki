@@ -8,6 +8,7 @@ import {
 } from './skeleton-loaders';
 import { cache } from '@/lib/cache';
 import type { OptionChain } from '@/lib/yahoo-finance-client';
+import { ExpiryDatePicker } from './expiry-date-picker';
 
 interface OptionsExplorationPageProps {
   initialTicker?: string;
@@ -36,6 +37,7 @@ export function OptionsExplorationPage({
   );
   const [selectedStrike, setSelectedStrike] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<'call' | 'put'>('call');
+  const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
 
   const [watchlistData, setWatchlistData] = useState<WatchlistItem[]>([]);
   const [watchlistLoading, setWatchlistLoading] = useState(true);
@@ -160,6 +162,7 @@ export function OptionsExplorationPage({
         console.log('Final chains loaded:', chains.size);
         setChainDataByExpiry(chains);
         setSelectedStrike(null);
+        setSelectedExpiry(null);
         if (chains.size === 0) {
           setError('No option chains available');
           setTimeout(() => setError(null), 5000);
@@ -181,9 +184,10 @@ export function OptionsExplorationPage({
     setSelectedTicker(ticker);
   };
 
-  const handleStrikeClick = (strike: number, isCall: boolean) => {
+  const handleStrikeClick = (strike: number, isCall: boolean, expiry: string) => {
     setSelectedStrike(strike);
     setSelectedType(isCall ? 'call' : 'put');
+    setSelectedExpiry(expiry);
   };
 
   // Get all strikes from all chains
@@ -218,12 +222,17 @@ export function OptionsExplorationPage({
       });
     }
   });
-  // Only show strikes quoted in every loaded expiration — strikes that exist
+  // Only show strikes quoted in most loaded expirations — strikes that exist
   // in just one or two chains (e.g. a LEAP's $1 increments vs $2.50/$5
-  // elsewhere) render as almost all "—" and aren't worth a column. Fall back
-  // to showing everything if no strike clears that bar.
+  // elsewhere) render as almost all "—" and aren't worth a column. Requiring
+  // *every* chain (rather than a majority) let a single thinly-listed expiry
+  // (e.g. a near-term chain with only a couple dozen strikes) wipe out whole
+  // strike ranges — like a stock's far ITM strikes — that most other loaded
+  // expiries did have data for. Fall back to showing everything if no strike
+  // clears the bar.
+  const coverageThreshold = Math.ceil(allChains.length / 2);
   const fullyCoveredStrikes = allStrikes.filter(
-    (s) => chainCoverageByStrike.get(s) === allChains.length
+    (s) => (chainCoverageByStrike.get(s) || 0) >= coverageThreshold
   );
   const atmCandidates = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
 
@@ -245,33 +254,36 @@ export function OptionsExplorationPage({
 
   const filteredStrikes = fullyCoveredStrikes.length > 0 ? fullyCoveredStrikes : allStrikes;
   const atmIndexInFiltered = atmStrike ? filteredStrikes.indexOf(atmStrike) : -1;
-
-  // Self-healing window: if the stored strikeScrollIndex (set by an effect,
-  // possibly stale from a prior ticker/type with a differently-sized strike
-  // list) no longer contains the ATM strike, recenter on it directly at
-  // render time instead of relying on the effect to catch up first.
   const maxScrollIndex = Math.max(0, filteredStrikes.length - 12);
-  const atmInWindow =
-    atmIndexInFiltered >= 0 &&
-    atmIndexInFiltered >= strikeScrollIndex &&
-    atmIndexInFiltered < strikeScrollIndex + 12;
-  const displayScrollIndex = atmInWindow
-    ? Math.min(strikeScrollIndex, maxScrollIndex)
-    : atmIndexInFiltered >= 0
-      ? Math.max(0, Math.min(atmIndexInFiltered - 6, maxScrollIndex))
-      : Math.min(strikeScrollIndex, maxScrollIndex);
 
-  // Reset strike scroll index when call/put changes or chains load
-  useEffect(() => {
-    if (atmIndexInFiltered >= 0) {
-      const centered = Math.max(0, Math.min(atmIndexInFiltered - 6, filteredStrikes.length - 12));
-      setStrikeScrollIndex(centered);
+  // Track the strike list this scroll index was computed for. When the list
+  // changes shape (ticker/type switch, chains finish loading), the stored
+  // strikeScrollIndex is stale and needs to be recentered on ATM. But once
+  // it's valid for the current list, leave it alone — clamping to "must
+  // contain ATM" on every render was undoing the ITM/OTM jump buttons the
+  // instant they moved the window away from ATM.
+  const strikeListKey = `${selectedTicker}-${selectedType}-${filteredStrikes.length}`;
+  const [lastStrikeListKey, setLastStrikeListKey] = useState<string | null>(null);
+  const isStaleWindow = lastStrikeListKey !== strikeListKey;
+  const recenteredIndex = atmIndexInFiltered >= 0
+    ? Math.max(0, Math.min(atmIndexInFiltered - 6, maxScrollIndex))
+    : 0;
+  if (isStaleWindow) {
+    setLastStrikeListKey(strikeListKey);
+    if (atmIndexInFiltered >= 0 && strikeScrollIndex !== recenteredIndex) {
+      setStrikeScrollIndex(recenteredIndex);
     }
-  }, [selectedType, atmIndexInFiltered, filteredStrikes.length]);
+  }
+  const displayScrollIndex = isStaleWindow
+    ? recenteredIndex
+    : Math.min(Math.max(0, strikeScrollIndex), maxScrollIndex);
 
   // Scroll container to center the ATM column horizontally on load or when
-  // ticker/chains change. Depends on displayScrollIndex too, since the ATM
-  // `<th>` only exists in the DOM once the self-healed window includes it.
+  // ticker/chains change. Keyed on strikeListKey (not displayScrollIndex) so
+  // this only fires when a genuinely new list loads — tying it to
+  // displayScrollIndex meant every manual pagination (ITM/OTM/Lower/Higher)
+  // that happened to leave the ATM column still onscreen got forcibly
+  // re-centered back on ATM, undoing the very navigation the user requested.
   useEffect(() => {
     if (atmStrike === null) return;
     requestAnimationFrame(() => {
@@ -282,7 +294,8 @@ export function OptionsExplorationPage({
       const target = el.offsetLeft + el.offsetWidth / 2 - container.clientWidth / 2;
       container.scrollLeft = Math.max(0, target);
     });
-  }, [atmStrike, displayScrollIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atmStrike, strikeListKey]);
 
   const handleJumpToATM = () => {
     if (atmIndexInFiltered < 0 || atmStrike === null) return;
@@ -489,6 +502,7 @@ export function OptionsExplorationPage({
               <div
                 ref={tableContainerRef}
                 className="w-full overflow-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 max-h-[68vh]"
+                style={{ overscrollBehaviorX: 'contain' }}
               >
                 <table className="border-collapse text-xs w-full">
                   <thead>
@@ -542,7 +556,7 @@ export function OptionsExplorationPage({
                               className={`px-3 py-2 text-center cursor-pointer transition hover:shadow-md ${
                                 metrics ? getCellColor(metrics.profitPercent) : 'bg-gray-50 dark:bg-gray-800'
                               } ${isATM ? 'border-l-4 border-l-black dark:border-l-white border-r-4 border-r-black dark:border-r-white' : 'border-r border-gray-200 dark:border-gray-700'}`}
-                              onClick={() => option && handleStrikeClick(strike, selectedType === 'call')}
+                              onClick={() => option && handleStrikeClick(strike, selectedType === 'call', item.expiry)}
                               title={
                                 option
                                   ? `${selectedType === 'call' ? 'Call' : 'Put'} @ $${strike}\nMid: $${metrics?.midPrice.toFixed(2)}\nVol: ${option.volume} | OI: ${option.openInterest}\nBid: $${option.bid?.toFixed(2) || 'N/A'} | Ask: $${option.ask?.toFixed(2) || 'N/A'}`
@@ -635,12 +649,15 @@ export function OptionsExplorationPage({
             </h2>
           </div>
 
-          {selectedTicker && selectedStrike && currentPrice ? (
+          {selectedTicker && selectedStrike && selectedExpiry && currentPrice ? (
             <div className="flex-1 space-y-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
               {/* Ticker & Expiry Summary */}
               <div className="text-sm">
                 <div className="font-bold text-gray-900 dark:text-gray-100">
                   {selectedTicker} @ ${currentPrice.toFixed(2)}
+                </div>
+                <div className="text-gray-600 dark:text-gray-400">
+                  Exp {new Date(selectedExpiry + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
               </div>
 
@@ -671,6 +688,21 @@ export function OptionsExplorationPage({
                     Put
                   </button>
                 </div>
+              </div>
+
+              {/* Expiry */}
+              <div>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">
+                  Expiration
+                </label>
+                <ExpiryDatePicker
+                  value={selectedExpiry}
+                  options={allChains.map((item) => ({
+                    expiry: item.expiry,
+                    daysToExpiry: item.daysToExpiry,
+                  }))}
+                  onChange={setSelectedExpiry}
+                />
               </div>
 
               {/* Strike Input */}
