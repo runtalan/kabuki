@@ -3,7 +3,7 @@ import { encode } from "next-auth/jwt";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { HOUSEHOLD_USERNAMES } from "@/lib/household";
+import { householdByUsername } from "@/lib/households";
 
 // Local-dev-only bypass for the real household accounts, so an assistant
 // (or a developer) working on localhost can exercise write paths without a
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   const { username } = await request.json();
-  if (!HOUSEHOLD_USERNAMES.includes(username)) {
+  if (!householdByUsername(username)) {
     return NextResponse.json({ error: "Invalid username" }, { status: 400 });
   }
 

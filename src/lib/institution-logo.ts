@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { plaidClient, plaidConfig } from "./plaid";
+import { PlaidApi, CountryCode } from "plaid";
 
 const BUCKET = "institution-logos";
 
@@ -31,10 +31,16 @@ async function uploadLogo(institutionId: string, base64Png: string) {
 
 // Fetches an institution's logo from Plaid and caches it in Supabase Storage,
 // keyed by Plaid's institution_id so every household/user linking the same
-// bank shares one cached image instead of re-fetching per plaid_item. Safe to
+// bank shares one cached image instead of re-fetching per plaid_item (a
+// deliberate cross-household exception: institution logos are bank identity
+// data, not financial data, so shared caching is safe and efficient). Safe to
 // call repeatedly — reuses the cached URL from any other plaid_item that
 // already has this institution's logo before hitting Plaid again.
-export async function cacheInstitutionLogo(institutionId: string): Promise<string | null> {
+export async function cacheInstitutionLogo(
+  plaidClient: PlaidApi,
+  countryCodes: CountryCode[],
+  institutionId: string
+): Promise<string | null> {
   const alreadyCached = await db.query.plaidItems.findFirst({
     where: and(eq(plaidItems.institutionId, institutionId), isNotNull(plaidItems.institutionLogoUrl)),
   });
@@ -44,7 +50,7 @@ export async function cacheInstitutionLogo(institutionId: string): Promise<strin
 
   const response = await plaidClient.institutionsGetById({
     institution_id: institutionId,
-    country_codes: plaidConfig.countryCodes,
+    country_codes: countryCodes,
     options: { include_optional_metadata: true },
   });
 

@@ -90,3 +90,29 @@ env:
     secret: APCA_API_SECRET_KEY
     availability:
       - RUNTIME
+
+  # Mom & Pop household — independent Plaid credentials
+  - variable: PLAID_CLIENT_ID_MOMPOP
+    secret: PLAID_CLIENT_ID_MOMPOP
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_SECRET_MOMPOP
+    secret: PLAID_SECRET_MOMPOP
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_ENV_MOMPOP
+    secret: PLAID_ENV_MOMPOP
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_PRODUCTS_MOMPOP
+    value: "transactions"
+    availability:
+      - RUNTIME
+
+  - variable: PLAID_COUNTRY_CODES_MOMPOP
+    value: "US"
+    availability:
+      - RUNTIME

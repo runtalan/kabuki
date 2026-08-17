@@ -7,12 +7,6 @@ import { generateToken, hashToken } from '@/lib/integration-tokens';
 import { getOrCreateManualPlaidItem } from '@/lib/manual-accounts';
 
 const PROVIDER = 'apple_card';
-// Renato and Claudia each carry their own physical Apple Card — the
-// integration is tied to whichever of them a token is generated for, not
-// necessarily whoever is logged in generating it (either can manage both
-// from a shared Settings page).
-const OWNERS = ['renato', 'claudia'] as const;
-type Owner = (typeof OWNERS)[number];
 
 // Hard cap on this table regardless of how many owners/providers it grows
 // to cover later — evicts the oldest rows first, keeping the newest under
@@ -35,13 +29,9 @@ async function pruneOldTokens() {
   }
 }
 
-function isOwner(value: unknown): value is Owner {
-  return OWNERS.includes(value as Owner);
-}
-
-// Status for both Renato and Claudia at once — the plaintext token itself
-// is never retrievable after creation, only whether one exists and when it
-// was last used.
+// Status for all individual household members (Apple Card is per-individual, not joint).
+// The plaintext token itself is never retrievable after creation, only whether one exists
+// and when it was last used.
 export async function GET() {
   try {
     const user = await getUser();
@@ -49,8 +39,9 @@ export async function GET() {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const owners = user.household.usernames.filter(u => u !== 'joint');
     const ownerUsers = await db.query.users.findMany({
-      where: inArray(users.username, OWNERS),
+      where: inArray(users.username, owners),
     });
 
     const results = await Promise.all(
@@ -75,10 +66,10 @@ export async function GET() {
   }
 }
 
-// Generates (or rotates) the token for the selected owner (Renato or
-// Claudia — chosen via the `owner` field, independent of who's logged in).
-// Rotating immediately invalidates whatever Shortcut was using the old one
-// — there's only ever one live token per owner.
+// Generates (or rotates) the token for the selected owner (chosen via the `owner` field,
+// independent of who's logged in). Apple Card is per-individual, not joint. Rotating
+// immediately invalidates whatever Shortcut was using the old one — there's only ever
+// one live token per owner.
 export async function POST(request: Request) {
   try {
     const user = await getUser();
@@ -88,9 +79,10 @@ export async function POST(request: Request) {
     const demoBlock = assertWriteAccess(user);
     if (demoBlock) return demoBlock;
 
+    const owners = user.household.usernames.filter(u => u !== 'joint');
     const { owner } = await request.json().catch(() => ({}));
-    if (!isOwner(owner)) {
-      return Response.json({ error: 'owner must be "renato" or "claudia"' }, { status: 400 });
+    if (!owners.includes(owner)) {
+      return Response.json({ error: `owner must be one of: ${owners.join(', ')}` }, { status: 400 });
     }
 
     const ownerUser = await db.query.users.findFirst({ where: eq(users.username, owner) });
@@ -175,12 +167,13 @@ export async function DELETE(request: Request) {
     const demoBlock = assertWriteAccess(user);
     if (demoBlock) return demoBlock;
 
+    const owners = user.household.usernames.filter(u => u !== 'joint');
     const owner = new URL(request.url).searchParams.get('owner');
-    if (!isOwner(owner)) {
-      return Response.json({ error: 'owner must be "renato" or "claudia"' }, { status: 400 });
+    if (!owner || !owners.includes(owner)) {
+      return Response.json({ error: `owner must be one of: ${owners.join(', ')}` }, { status: 400 });
     }
 
-    const ownerUser = await db.query.users.findFirst({ where: eq(users.username, owner) });
+    const ownerUser = await db.query.users.findFirst({ where: eq(users.username, owner as string) });
     if (!ownerUser) {
       return Response.json({ error: `No account found for ${owner}` }, { status: 404 });
     }

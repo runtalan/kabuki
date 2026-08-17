@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, assertWriteAccess } from "@/lib/auth";
-import { plaidClient } from "@/lib/plaid";
+import { getPlaidClient, getPlaidConfig } from "@/lib/plaid";
 import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { generateId } from "@/lib/id";
@@ -8,6 +8,7 @@ import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
 import { cacheInstitutionLogo } from "@/lib/institution-logo";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { householdByUsername } from "@/lib/households";
 
 const ExchangeTokenSchema = z.object({
   public_token: z.string(),
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
     if (demoBlock) return demoBlock;
     const body = await req.json();
     const { public_token, institution_name, institution_id } = ExchangeTokenSchema.parse(body);
+
+    const household = householdByUsername(user.username);
+    const suffix = household?.plaidEnvSuffix ?? "";
+    const plaidClient = getPlaidClient(suffix);
+    const plaidConfig = getPlaidConfig(suffix);
 
     // Exchange public_token for access_token
     const exchangeResponse = await plaidClient.itemPublicTokenExchange({
@@ -46,13 +52,13 @@ export async function POST(req: NextRequest) {
 
     // Sync accounts and transactions immediately after linking — new
     // accounts default to whoever linked them, not a generic "joint" label.
-    await syncAccounts(plaidItemId, accessToken, user.username);
-    await syncTransactions(plaidItemId, accessToken, user.id);
+    await syncAccounts(plaidClient, plaidItemId, accessToken, user.username);
+    await syncTransactions(plaidClient, plaidItemId, accessToken, user.id);
 
     // Best-effort: cache the institution's logo. Never block linking on this.
     if (institution_id) {
       try {
-        const logoUrl = await cacheInstitutionLogo(institution_id);
+        const logoUrl = await cacheInstitutionLogo(plaidClient, plaidConfig.countryCodes, institution_id);
         if (logoUrl) {
           await db
             .update(plaidItems)

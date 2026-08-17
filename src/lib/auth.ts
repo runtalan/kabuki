@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getHouseholdUserIds } from "./household";
 import { refreshMonthlyBalances } from "./monthly-balance";
+import { householdByUsername, HOUSEHOLDS, type HouseholdDefinition } from "./households";
 
 export interface AuthUser {
   id: string;
@@ -11,6 +12,7 @@ export interface AuthUser {
   username: string;
   isDemo: boolean;
   householdUserIds: string[];
+  household: HouseholdDefinition;
 }
 
 export interface AuthSession {
@@ -50,6 +52,7 @@ export async function getUser(): Promise<AuthUser | null> {
     username: dbUser.username,
     isDemo: dbUser.isDemo,
     householdUserIds: await getHouseholdUserIds(dbUser.id),
+    household: householdByUsername(dbUser.username) ?? HOUSEHOLDS['renato-claudia'],
   };
 }
 

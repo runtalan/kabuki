@@ -4,7 +4,6 @@ import { accounts, accountBalanceHistory } from '@/db/schema';
 import { generateId } from '@/lib/id';
 import { getOrCreateManualPlaidItem } from '@/lib/manual-accounts';
 
-const VALID_OWNERS = ['renato', 'claudia', 'joint'];
 const VALID_KINDS = ['asset', 'liability'];
 
 export async function POST(request: Request) {
@@ -23,9 +22,10 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Name and a numeric balance are required' }, { status: 400 });
     }
 
+    const validOwners = [...user.household.usernames, 'joint'];
     const finalKind = VALID_KINDS.includes(kind) ? kind : 'liability';
     // Default to whoever's adding it rather than a generic "joint" label.
-    const finalOwner = VALID_OWNERS.includes(owner) ? owner : user.username;
+    const finalOwner = validOwners.includes(owner) ? owner : user.username;
 
     const manualItem = await getOrCreateManualPlaidItem(user.id);
     const accountId = generateId();

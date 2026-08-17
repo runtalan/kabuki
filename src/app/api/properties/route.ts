@@ -1,8 +1,6 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { getAllProperties, createProperty, type PropertyInput } from '@/lib/properties';
 
-const VALID_OWNERS = ['renato', 'claudia', 'joint'];
-
 export async function GET() {
   try {
     const user = await getUser();
@@ -26,10 +24,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, address, owner, estimatedValue, originalLoanAmount, interestRate, loanTermYears, loanStartDate, notes } = body;
 
+    const validOwners = [...user.household.usernames, 'joint'];
+
     if (typeof name !== 'string' || !name.trim()) {
       return Response.json({ error: 'name is required' }, { status: 400 });
     }
-    if (!VALID_OWNERS.includes(owner)) {
+    if (!validOwners.includes(owner)) {
       return Response.json({ error: 'invalid owner' }, { status: 400 });
     }
     if (

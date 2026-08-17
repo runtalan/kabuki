@@ -55,6 +55,7 @@
 | 2026-08-07 | `0026_apple_card_balance_tracking.sql` | `accounts.reset_balance_monthly` + `accounts.balance_month` — lets pay-in-full cards (Apple Card) accumulate a balance through the month and zero out on the 1st |
 | 2026-08-08 | `0027_transaction_recurring.sql` | `transaction_recurring` table — per-transaction recurring override, independent of `recurring_series` |
 | 2026-08-08 | `0028_transaction_recurring_dismissed.sql` | Add `transaction_recurring.dismissed` boolean — lets a user explicitly mark one transaction "not recurring" and have it stick, even when its merchant is still auto-detected as recurring |
+| 2026-08-15 | `0029_household_scoped_categories_tags.sql` | Add `household_slug` to `categories` and `tags`, scoped per household; composite unique index on `(household_slug, name)` |
 
 ## Drift found and closed, 2026-08-07
 

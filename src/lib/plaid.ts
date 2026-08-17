@@ -1,24 +1,11 @@
 import { PlaidApi, Configuration, Products, CountryCode } from "plaid";
 
-const baseUrl = {
+const baseUrlFor = (env: string) => ({
   sandbox: "https://sandbox.plaid.com",
   development: "https://development.plaid.com",
   production: "https://production.plaid.com",
-}[process.env.PLAID_ENV || "sandbox"];
+}[env] || "https://sandbox.plaid.com");
 
-const configuration = new Configuration({
-  basePath: baseUrl,
-  baseOptions: {
-    headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
-      "PLAID-SECRET": process.env.PLAID_SECRET,
-    },
-  },
-});
-
-export const plaidClient = new PlaidApi(configuration);
-
-// Map product and country strings to Plaid enum values
 const productMap: Record<string, Products> = {
   transactions: Products.Transactions,
   auth: Products.Auth,
@@ -39,20 +26,58 @@ const countryMap: Record<string, CountryCode> = {
   NL: CountryCode.Nl,
 };
 
-export const plaidConfig = {
-  clientId: process.env.PLAID_CLIENT_ID || "",
-  secret: process.env.PLAID_SECRET || "",
-  env: (process.env.PLAID_ENV || "sandbox") as
-    | "sandbox"
-    | "development"
-    | "production",
-  products: (process.env.PLAID_PRODUCTS || "transactions")
-    .split(",")
-    .map((p) => p.trim())
-    .map((p) => productMap[p] || Products.Transactions) as Products[],
-  countryCodes: (process.env.PLAID_COUNTRY_CODES || "US")
-    .split(",")
-    .map((c) => c.trim())
-    .map((c) => countryMap[c] || CountryCode.Us) as CountryCode[],
-  redirectUri: process.env.AUTH_URL || "http://localhost:3000",
-};
+export interface PlaidHouseholdConfig {
+  clientId: string;
+  secret: string;
+  env: string;
+  products: Products[];
+  countryCodes: CountryCode[];
+  redirectUri: string;
+}
+
+function envVar(name: string, suffix: string): string {
+  return process.env[`${name}${suffix}`] || "";
+}
+
+const configCache = new Map<string, PlaidHouseholdConfig>();
+const clientCache = new Map<string, PlaidApi>();
+
+export function getPlaidConfig(suffix: string): PlaidHouseholdConfig {
+  if (configCache.has(suffix)) return configCache.get(suffix)!;
+
+  const cfg: PlaidHouseholdConfig = {
+    clientId: envVar("PLAID_CLIENT_ID", suffix),
+    secret: envVar("PLAID_SECRET", suffix),
+    env: envVar("PLAID_ENV", suffix) || "sandbox",
+    products: (envVar("PLAID_PRODUCTS", suffix) || "transactions")
+      .split(",")
+      .map((p) => p.trim())
+      .map((p) => productMap[p] || Products.Transactions) as Products[],
+    countryCodes: (envVar("PLAID_COUNTRY_CODES", suffix) || "US")
+      .split(",")
+      .map((c) => c.trim())
+      .map((c) => countryMap[c] || CountryCode.Us) as CountryCode[],
+    redirectUri: process.env.AUTH_URL || "http://localhost:3000",
+  };
+  configCache.set(suffix, cfg);
+  return cfg;
+}
+
+export function getPlaidClient(suffix: string): PlaidApi {
+  if (clientCache.has(suffix)) return clientCache.get(suffix)!;
+
+  const cfg = getPlaidConfig(suffix);
+  const client = new PlaidApi(
+    new Configuration({
+      basePath: baseUrlFor(cfg.env),
+      baseOptions: {
+        headers: {
+          "PLAID-CLIENT-ID": cfg.clientId,
+          "PLAID-SECRET": cfg.secret,
+        },
+      },
+    })
+  );
+  clientCache.set(suffix, client);
+  return client;
+}

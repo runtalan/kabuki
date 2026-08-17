@@ -5,6 +5,8 @@ import { plaidItems, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
 import { getHouseholdUserIds } from "@/lib/household";
+import { getPlaidClient } from "@/lib/plaid";
+import { householdByUsername } from "@/lib/households";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +45,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
+    const household = householdByUsername(user.username);
+    const suffix = household?.plaidEnvSuffix ?? "";
+    const plaidClient = getPlaidClient(suffix);
+
     // Update sync status
     await db
       .update(plaidItems)
@@ -51,8 +57,8 @@ export async function POST(req: NextRequest) {
 
     try {
       // Sync accounts and transactions
-      await syncAccounts(itemId, item.accessToken, user.username);
-      await syncTransactions(itemId, item.accessToken, user.id);
+      await syncAccounts(plaidClient, itemId, item.accessToken, user.username);
+      await syncTransactions(plaidClient, itemId, item.accessToken, user.id);
 
       // Update sync status to idle
       await db

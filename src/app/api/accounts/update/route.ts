@@ -4,8 +4,6 @@ import { accounts, accountBalanceHistory } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 
-const validOwners = ['renato', 'claudia', 'joint'];
-
 export async function POST(request: Request) {
   try {
     const user = await getUser();
@@ -29,6 +27,8 @@ export async function POST(request: Request) {
     if (!existing || !user.householdUserIds.includes(existing.plaidItem.userId)) {
       return Response.json({ error: 'Account not found' }, { status: 404 });
     }
+
+    const validOwners = [...user.household.usernames, 'joint'];
 
     // Balance is only user-editable on manual accounts — Plaid-linked
     // balances are owned by the sync, not the form. Pay-in-full accounts

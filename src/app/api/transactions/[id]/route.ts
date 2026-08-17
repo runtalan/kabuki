@@ -4,7 +4,6 @@ import { transactions, transactionTags } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 
-const VALID_OWNERS = ['renato', 'claudia', 'joint'];
 const VALID_TRANSFER_TYPES = ['transfer', 'credit_card_payment'];
 const VALID_CATEGORY_SOURCES = ['manual', 'rule', 'smart'];
 
@@ -82,6 +81,7 @@ export async function PATCH(
       notes,
     } = body;
 
+    const validOwners = [...user.household.usernames, 'joint'];
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
@@ -95,7 +95,7 @@ export async function PATCH(
     }
     if (ownerOverride !== undefined) {
       updates.ownerOverride =
-        ownerOverride && VALID_OWNERS.includes(ownerOverride) ? ownerOverride : null;
+        ownerOverride && validOwners.includes(ownerOverride) ? ownerOverride : null;
     }
     if (typeof amount === 'number' && !Number.isNaN(amount) && (type === 'debit' || type === 'credit')) {
       const magnitude = Math.abs(amount);

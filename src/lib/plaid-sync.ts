@@ -7,7 +7,7 @@ import {
   transactionTypeEnum,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { plaidClient } from "./plaid";
+import { PlaidApi } from "plaid";
 import { generateId } from "./id";
 import { autoTagTransaction } from "./auto-tag";
 import { cacheMerchantLogo, slugifyMerchantKey } from "./merchant-logo";
@@ -23,6 +23,7 @@ function deriveKind(plaidType: string): "asset" | "liability" {
 // e.g. "renato") is applied only when a NEW account is first created —
 // existing accounts keep whatever owner assignment was already set.
 export async function syncAccounts(
+  plaidClient: PlaidApi,
   plaidItemId: string,
   accessToken: string,
   defaultOwner?: string
@@ -113,6 +114,7 @@ export async function syncAccounts(
 
 // Sync transactions from Plaid for a given item (all linked accounts).
 export async function syncTransactions(
+  plaidClient: PlaidApi,
   plaidItemId: string,
   accessToken: string,
   userId?: string,

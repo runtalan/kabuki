@@ -3,7 +3,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { plaidClient, plaidConfig } from "@/lib/plaid";
+import { getPlaidClient, getPlaidConfig } from "@/lib/plaid";
+import { householdByUsername } from "@/lib/households";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,11 +45,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Demo account is view-only" }, { status: 403 });
     }
 
+    const household = householdByUsername(user.username);
+    const suffix = household?.plaidEnvSuffix ?? "";
+    const plaidConfig = getPlaidConfig(suffix);
+    const plaidClient = getPlaidClient(suffix);
+
     console.log("Plaid config:", {
       clientId: plaidConfig.clientId ? "set" : "missing",
       secret: plaidConfig.secret ? "set" : "missing",
       env: plaidConfig.env,
       products: plaidConfig.products,
+      suffix,
     });
 
     const response = await plaidClient.linkTokenCreate({

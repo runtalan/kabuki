@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { plaidItems } from "@/db/schema";
 import { inArray } from "drizzle-orm";
 import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
+import { getPlaidClient } from "@/lib/plaid";
+import { householdByUsername } from "@/lib/households";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,13 +25,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const household = householdByUsername(user.username);
+    const suffix = household?.plaidEnvSuffix ?? "";
+    const plaidClient = getPlaidClient(suffix);
+
     const results = [];
 
     // Sync accounts and transactions for each Plaid item
     for (const item of userPlaidItems) {
       try {
-        await syncAccounts(item.id, item.accessToken);
-        await syncTransactions(item.id, item.accessToken);
+        await syncAccounts(plaidClient, item.id, item.accessToken);
+        await syncTransactions(plaidClient, item.id, item.accessToken);
         results.push({
           itemId: item.id,
           status: "success",

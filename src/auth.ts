@@ -4,13 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureDemoDataFresh } from "@/lib/demo-data";
-
-// Token refresh fix: JWT callback now updates email from database on token refresh
-
-// Only these two Google accounts may sign in — this is a shared-household
-// app, not a public signup (see AGENTS.md / ENVIRONMENTS.md). The shared
-// demo account is a separate, non-Google flow (see handleDemoLogin below).
-const ALLOWED_EMAILS = ["renatountalan@gmail.com", "claudiapuente00@outlook.com"];
+import { ALL_ALLOWED_EMAILS } from "@/lib/households";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.AUTH_SECRET,
@@ -26,7 +20,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async signIn({ user }) {
-      if (!user.email || !ALLOWED_EMAILS.includes(user.email)) {
+      if (!user.email || !ALL_ALLOWED_EMAILS.includes(user.email)) {
         return false; // Reject sign-in for anyone not on the allowlist
       }
       return true;

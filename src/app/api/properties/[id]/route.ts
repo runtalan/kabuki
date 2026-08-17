@@ -1,8 +1,6 @@
 import { getUser, assertWriteAccess } from '@/lib/auth';
 import { updateProperty, deleteProperty, type PropertyInput } from '@/lib/properties';
 
-const VALID_OWNERS = ['renato', 'claudia', 'joint'];
-
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -17,10 +15,12 @@ export async function PATCH(
     const body = await request.json();
     const updates: Partial<PropertyInput> = {};
 
+    const validOwners = [...user.household.usernames, 'joint'];
+
     if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim();
     if (body.address !== undefined) updates.address = typeof body.address === 'string' ? body.address.trim() : null;
     if (body.owner !== undefined) {
-      if (!VALID_OWNERS.includes(body.owner)) {
+      if (!validOwners.includes(body.owner)) {
         return Response.json({ error: 'invalid owner' }, { status: 400 });
       }
       updates.owner = body.owner;

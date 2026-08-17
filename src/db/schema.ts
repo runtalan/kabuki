@@ -129,7 +129,8 @@ export const categories = pgTable(
   "categories",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    name: varchar("name", { length: 100 }).notNull().unique(),
+    householdSlug: varchar("household_slug", { length: 20 }).notNull().default("renato-claudia"),
+    name: varchar("name", { length: 100 }).notNull(),
     color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
     icon: varchar("icon", { length: 50 }).default("folder").notNull(),
     isCustom: boolean("is_custom").default(false).notNull(),
@@ -139,7 +140,7 @@ export const categories = pgTable(
     order: integer("order"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [index("idx_categories_name").on(table.name)]
+  (table) => [uniqueIndex("idx_categories_household_name").on(table.householdSlug, table.name)]
 );
 
 // Auto-tagging rules
@@ -258,11 +259,12 @@ export const tags = pgTable(
   "tags",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    name: varchar("name", { length: 100 }).notNull().unique(),
+    householdSlug: varchar("household_slug", { length: 20 }).notNull().default("renato-claudia"),
+    name: varchar("name", { length: 100 }).notNull(),
     color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [index("idx_tags_name").on(table.name)]
+  (table) => [uniqueIndex("idx_tags_household_name").on(table.householdSlug, table.name)]
 );
 
 // Many-to-many join: a transaction can carry several tags, a tag spans many transactions.
