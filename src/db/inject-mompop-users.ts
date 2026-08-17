@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { generateId } from '@/lib/id';
 
 const emailMap = {
-  mom: 'ellie.untalan@yahoo.com',
+  mom: 'ellieuntalan@gmail.com',
   pop: 'nummuber33@hotmail.com',
 };
 

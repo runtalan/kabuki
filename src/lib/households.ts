@@ -43,7 +43,7 @@ export const HOUSEHOLDS: Record<HouseholdSlug, HouseholdDefinition> = {
       joint: { username: 'joint', label: 'Joint', emoji: '🤝', color: '#10b981', avatar: null },
     },
     allowedEmails: {
-      'ellie.untalan@yahoo.com': 'mom',
+      'ellieuntalan@gmail.com': 'mom',
       'nummuber33@hotmail.com': 'pop',
     },
     plaidEnvSuffix: '_MOMPOP',
