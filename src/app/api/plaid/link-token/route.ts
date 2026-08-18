@@ -1,62 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getPlaidClient, getPlaidConfig } from "@/lib/plaid";
-import { householdByUsername } from "@/lib/households";
+import { getUser, assertWriteAccess } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    console.log("Session:", JSON.stringify(session, null, 2));
-
-    if (!session?.user) {
-      console.log("No session user");
-      return NextResponse.json(
-        { error: "No session" },
-        { status: 401 }
-      );
-    }
-
-    const userId = session.user.id;
-    console.log("User id from session:", userId);
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "No user id in session" },
-        { status: 401 }
-      );
-    }
-
-    // Get user from database
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    console.log("User found:", user?.id);
-
+    const user = await getUser();
     if (!user) {
       return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
-    if (user.isDemo) {
-      return NextResponse.json({ error: "Demo account is view-only" }, { status: 403 });
-    }
 
-    const household = householdByUsername(user.username);
-    const suffix = household?.plaidEnvSuffix ?? "";
-    const plaidConfig = getPlaidConfig(suffix);
-    const plaidClient = getPlaidClient(suffix);
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
-    console.log("Plaid config:", {
-      clientId: plaidConfig.clientId ? "set" : "missing",
-      secret: plaidConfig.secret ? "set" : "missing",
-      env: plaidConfig.env,
-      products: plaidConfig.products,
-      suffix,
-    });
+    const plaidConfig = getPlaidConfig(user.household.plaidEnvSuffix);
+    const plaidClient = getPlaidClient(user.household.plaidEnvSuffix);
 
     const response = await plaidClient.linkTokenCreate({
       user: { client_user_id: user.id },
@@ -65,8 +28,6 @@ export async function POST(req: NextRequest) {
       country_codes: plaidConfig.countryCodes,
       language: "en",
     });
-
-    console.log("Plaid response:", response.data);
 
     return NextResponse.json({
       link_token: response.data.link_token,

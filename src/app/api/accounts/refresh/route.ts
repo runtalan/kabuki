@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/db";
-import { plaidItems, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { plaidItems } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { syncAccounts, syncTransactions } from "@/lib/plaid-sync";
-import { getHouseholdUserIds } from "@/lib/household";
+import { getUser, assertWriteAccess } from "@/lib/auth";
 import { getPlaidClient } from "@/lib/plaid";
-import { householdByUsername } from "@/lib/households";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const user = await getUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const demoBlock = assertWriteAccess(user);
+    if (demoBlock) return demoBlock;
 
     const { itemId } = await req.json();
 
@@ -24,30 +25,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    if (user.isDemo) {
-      return NextResponse.json({ error: "Demo account is view-only" }, { status: 403 });
-    }
-
     // Get Plaid item (verify ownership)
     const item = await db.query.plaidItems.findFirst({
       where: eq(plaidItems.id, itemId),
     });
 
-    if (!item || !(await getHouseholdUserIds(user.id)).includes(item.userId)) {
+    if (!item || !user.householdUserIds.includes(item.userId)) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const household = householdByUsername(user.username);
-    const suffix = household?.plaidEnvSuffix ?? "";
-    const plaidClient = getPlaidClient(suffix);
+    const plaidClient = getPlaidClient(user.household.plaidEnvSuffix);
 
     // Update sync status
     await db

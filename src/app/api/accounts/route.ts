@@ -1,30 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/db";
-import { plaidItems, accounts } from "@/db/schema";
-import { users } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
-import { getHouseholdUserIds } from "@/lib/household";
+import { plaidItems } from "@/db/schema";
+import { inArray } from "drizzle-orm";
+import { getUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
+    const user = await getUser();
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get Plaid items with accounts
     const items = await db.query.plaidItems.findMany({
-      where: inArray(plaidItems.userId, await getHouseholdUserIds(user.id)),
+      where: inArray(plaidItems.userId, user.householdUserIds),
       columns: { accessToken: false },
       with: {
         accounts: true,
