@@ -38,6 +38,7 @@ export function PlaidLinkButton() {
 
       if (!response.ok) {
         alert('Error: ' + (data.error || data.details || 'Failed to get link token'));
+        setLoading(false);
         return;
       }
 
@@ -69,11 +70,32 @@ export function PlaidLinkButton() {
               alert('Error: ' + (exchangeData.error || 'Failed to link account'));
             }
           },
-          onExit: (err: any) => {
-            if (err) console.error('Plaid error:', err);
+          onExit: (err: any, metadata: any) => {
+            // Plaid reports the real failure here. Without surfacing it the
+            // user only sees a generic "something went wrong" — the
+            // error_code and request_id are what Plaid support needs to
+            // diagnose an institution-side outage.
+            if (err) {
+              console.error('Plaid error:', err, metadata);
+              const parts = [
+                err.display_message || err.error_message,
+                err.error_code ? `(${err.error_code})` : null,
+                metadata?.institution?.name
+                  ? `Institution: ${metadata.institution.name}`
+                  : null,
+                metadata?.request_id ? `Request ID: ${metadata.request_id}` : null,
+              ].filter(Boolean);
+              alert('Plaid could not link this account.\n\n' + parts.join('\n'));
+            }
             setLoading(false);
           },
         }).open();
+      } else {
+        alert(
+          'Plaid Link failed to load. Check your network connection or any ' +
+            'ad/script blockers, then try again.'
+        );
+        setLoading(false);
       }
     } catch (error) {
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
