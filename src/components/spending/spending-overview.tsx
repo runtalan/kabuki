@@ -1,5 +1,6 @@
 'use client';
 
+import type { OwnerFilter } from '@/lib/owner-filter';
 import {
   CartesianGrid,
   Line,
@@ -67,7 +68,7 @@ export function SpendingOverview({
   topMerchants: Merchant[];
   isCurrentMonth?: boolean;
   refDate: string;
-  ownerFilter?: 'renato' | 'claudia' | 'all';
+  ownerFilter?: OwnerFilter;
 }) {
   const { spentThisMonth, monthlyAverage, daysElapsed, daysInMonth, velocity } = overview;
 

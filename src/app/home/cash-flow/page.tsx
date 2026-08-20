@@ -39,7 +39,7 @@ export default async function CashFlowPage({
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h1 className="text-3xl font-bold text-foreground">Home</h1>
           <div className="flex items-center gap-3 flex-wrap">
-            <OwnerToggle value={ownerFilter} />
+            <OwnerToggle value={ownerFilter} owners={user?.household.usernames} />
             <MonthToggle refDate={refDate.toISOString()} isCurrentMonth={isCurrentMonth} />
           </div>
         </div>

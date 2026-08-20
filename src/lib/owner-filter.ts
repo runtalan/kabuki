@@ -1,13 +1,23 @@
-// Shared "Renato / Claudia / All" household filter used across Home,
+import { HOUSEHOLDS } from './households';
+
+// Shared "member / member / All" household filter used across Home,
 // Spending, and Transactions. "All" means no filtering at all — the sum of
-// renato + claudia + joint, i.e. today's default behavior. Selecting an
+// each member + joint, i.e. today's default behavior. Selecting an
 // individual excludes joint accounts/transactions too (strictly that
 // person's own), it does not fold joint into either person's view.
-export type OwnerFilter = 'renato' | 'claudia' | 'all';
+//
+// 'all' or any configured household member username. Cross-household values
+// aren't a data risk: account/transaction queries are already scoped to the
+// session user's household, so a foreign username just filters to nothing.
+export type OwnerFilter = string;
+
+const MEMBER_USERNAMES = new Set<string>(
+  Object.values(HOUSEHOLDS).flatMap((hh) => [...hh.usernames])
+);
 
 export function parseOwnerFilter(value?: string | string[]): OwnerFilter {
   const v = Array.isArray(value) ? value[0] : value;
-  return v === 'renato' || v === 'claudia' ? v : 'all';
+  return v && MEMBER_USERNAMES.has(v) ? v : 'all';
 }
 
 // A transaction's effective owner: its own manual override if set, else the

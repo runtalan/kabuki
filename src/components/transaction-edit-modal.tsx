@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Loader, Search, Check, Eye, EyeOff, ChevronRight, Pencil, Wand2, Repeat } from 'lucide-react';
 import { CategoryIcon } from './category-icon';
 import { OWNERS, OwnerAvatar } from './owner-badge';
+import { householdMemberEntries } from '@/lib/households';
+import { useHousehold } from '@/hooks/use-household';
 import { formatCurrency } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FREQUENCY_LABELS, type Frequency } from '@/lib/recurring-shared';
@@ -58,6 +60,7 @@ export function TransactionEditModal({
   onSaved,
 }: TransactionEditModalProps) {
   const router = useRouter();
+  const household = useHousehold();
   const [name, setName] = useState(transaction.name);
   const [type, setType] = useState<'debit' | 'credit'>(transaction.type);
   const [amount, setAmount] = useState(Math.abs(parseFloat(transaction.amount)).toString());
@@ -940,7 +943,7 @@ export function TransactionEditModal({
                 >
                   Default
                 </button>
-                {(Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
+                {(household ? householdMemberEntries(household) : []).map(
                   ([value, info]) => (
                     <button
                       type="button"

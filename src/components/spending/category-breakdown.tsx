@@ -1,5 +1,6 @@
 'use client';
 
+import type { OwnerFilter } from '@/lib/owner-filter';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Pie, PieChart, Cell, ResponsiveContainer } from 'recharts';
@@ -49,7 +50,7 @@ export function CategoryBreakdown({
   spendingByCategory: SpendingData[];
   budgetCategories: BudgetCategory[];
   refDate: string;
-  ownerFilter?: 'renato' | 'claudia' | 'all';
+  ownerFilter?: OwnerFilter;
 }) {
   const [tab, setTab] = useState<'expenses' | 'budget'>('expenses');
   const [expanded, setExpanded] = useState(false);

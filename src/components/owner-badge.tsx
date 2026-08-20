@@ -1,16 +1,17 @@
-// Single source of truth for owner avatar/emoji + color across accounts,
-// transactions, and reports — keep any owner-related UI wired through here
-// so "Renato = photo, blue" / "Claudia = photo, purple" never drifts
-// between pages. `emoji` remains as the fallback for `joint` (no photo of
-// "both of them" makes sense) and for any plain-text context — a native
-// `<select><option>` can't render an `<img>`, so those keep using it.
-export const OWNERS = {
-  renato: { label: 'Renato', emoji: '👦', color: '#3b82f6', avatar: '/avatars/renato.png' }, // blue
-  claudia: { label: 'Claudia', emoji: '👧', color: '#8b5cf6', avatar: '/avatars/claudia.png' }, // purple
-  joint: { label: 'Joint', emoji: '🤝', color: '#10b981', avatar: null }, // green
-} as const;
+import { HOUSEHOLDS, type HouseholdMember } from '@/lib/households';
 
-export type OwnerKey = keyof typeof OWNERS;
+// LOOKUP-ONLY map of every known owner username across ALL households
+// (usernames are globally unique; 'joint' is identical in each), flattened
+// from the HOUSEHOLDS config so member identity never drifts between pages.
+// Never ITERATE this to build an owner picker — that would offer one
+// household's people to the other. Pickers use useHousehold() +
+// householdMemberEntries() instead.
+export const OWNERS: Record<string, HouseholdMember> = Object.assign(
+  {},
+  ...Object.values(HOUSEHOLDS).map((hh) => hh.members)
+);
+
+export type OwnerKey = string;
 
 export function getOwner(owner?: string | null) {
   return OWNERS[(owner as OwnerKey) || 'joint'] || OWNERS.joint;

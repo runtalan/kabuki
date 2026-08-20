@@ -3,28 +3,36 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { OwnerFilter } from '@/lib/owner-filter';
 import { OWNERS, OwnerAvatar } from '@/components/owner-badge';
-
-const SEGMENTS: { value: OwnerFilter; label: string }[] = [
-  { value: 'renato', label: 'Renato' },
-  { value: 'claudia', label: 'Claudia' },
-  { value: 'all', label: 'All' },
-];
+import { useHousehold } from '@/hooks/use-household';
 
 // Household-wide "who's spending" filter shown top-right on Home, Spending,
 // and Transactions. Defaults to driving the `?owner=` URL search param (so
 // server-rendered pages just read searchParams) — pass `onChange` to run it
 // in controlled mode instead, for pages (like Transactions) that already own
 // their filter state client-side.
+//
+// Segments come from the signed-in user's household: server pages pass
+// `owners` (user.household.usernames) so the right names render immediately;
+// client-only pages omit it and the household is resolved from the session.
+// Until it's known, only "All" renders — never another household's names.
 export function OwnerToggle({
   value,
   onChange,
+  owners,
 }: {
   value: OwnerFilter;
   onChange?: (next: OwnerFilter) => void;
+  owners?: readonly string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const household = useHousehold(owners === undefined);
+  const memberNames = owners ?? household?.usernames ?? [];
+  const segments: { value: OwnerFilter; label: string }[] = [
+    ...memberNames.map((u) => ({ value: u, label: OWNERS[u]?.label ?? u })),
+    { value: 'all', label: 'All' },
+  ];
 
   const setOwner = (next: OwnerFilter) => {
     if (onChange) {
@@ -43,8 +51,8 @@ export function OwnerToggle({
 
   return (
     <div className="flex items-center gap-1.5 bg-muted/40 rounded-full p-1.5">
-      {SEGMENTS.map((seg) => {
-        const hasPhoto = seg.value !== 'all' && !!OWNERS[seg.value].avatar;
+      {segments.map((seg) => {
+        const hasPhoto = seg.value !== 'all' && !!OWNERS[seg.value]?.avatar;
         return (
           <div key={seg.value} className={hasPhoto ? 'relative group/avatar' : 'relative'}>
             <button

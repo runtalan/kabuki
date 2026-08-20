@@ -9,7 +9,8 @@ import { useIsDemo } from '@/hooks/use-is-demo';
 import { formatFullCurrency } from '@/lib/format';
 import type { PropertyWithComputed } from '@/lib/properties';
 
-const OWNER_OPTIONS = Object.entries(OWNERS) as [OwnerKey, (typeof OWNERS)[OwnerKey]][];
+import { householdMemberEntries } from '@/lib/households';
+import { useHousehold } from '@/hooks/use-household';
 
 interface FormState {
   name: string;
@@ -56,6 +57,8 @@ interface PropertyFormModalProps {
 
 function PropertyFormModal({ property, onClose, onSaved }: PropertyFormModalProps) {
   const isEditing = property !== null;
+  const household = useHousehold();
+  const OWNER_OPTIONS = household ? householdMemberEntries(household) : [];
   const [form, setForm] = useState<FormState>(() => (property ? formFor(property) : emptyForm()));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

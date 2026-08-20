@@ -501,9 +501,7 @@ function TransactionsPageContent() {
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h1 className="text-3xl font-bold text-foreground">Spending</h1>
           <OwnerToggle
-            value={(selectedOwner === 'renato' || selectedOwner === 'claudia'
-              ? selectedOwner
-              : 'all') as OwnerFilter}
+            value={selectedOwner as OwnerFilter}
             onChange={(next) => setSelectedOwner(next)}
           />
         </div>

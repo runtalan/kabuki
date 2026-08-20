@@ -64,3 +64,13 @@ export const ALL_ALLOWED_EMAILS: string[] =
 export function getHouseholdSlugForUsername(username: string): HouseholdSlug {
   return householdByUsername(username)?.slug ?? 'renato-claudia';
 }
+
+// Picker-facing entries for one household: its members in declared order,
+// then joint. Owner pickers must iterate THIS (via useHousehold on the
+// client), never the flattened OWNERS lookup map in owner-badge.tsx —
+// iterating that would offer one household's people to the other.
+export function householdMemberEntries(
+  hh: HouseholdDefinition
+): [string, HouseholdMember][] {
+  return [...hh.usernames, 'joint'].map((u) => [u, hh.members[u]]);
+}

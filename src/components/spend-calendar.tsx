@@ -1,5 +1,6 @@
 'use client';
 
+import type { OwnerFilter } from '@/lib/owner-filter';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
@@ -50,7 +51,7 @@ export function SpendCalendar({
 }: {
   bare?: boolean;
   onSelectTransaction?: (id: string) => void;
-  ownerFilter?: 'renato' | 'claudia' | 'all';
+  ownerFilter?: OwnerFilter;
 } = {}) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);

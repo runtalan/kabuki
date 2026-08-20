@@ -30,8 +30,8 @@ import { PlaidLinkButton } from '@/components/plaid-link-button';
 import { OWNERS, OwnerAvatar, type OwnerKey } from '@/components/owner-badge';
 import { formatRelativeTime } from '@/lib/format';
 
-// Display order for the collapsible owner sections on the accounts overview.
-const OWNER_ORDER: OwnerKey[] = ['joint', 'claudia', 'renato'];
+import { householdMemberEntries } from '@/lib/households';
+import { useHousehold } from '@/hooks/use-household';
 import { LIABILITY_TYPES, ASSET_TYPES, getTypeBadge, suggestIcon } from '@/lib/account-types';
 import { useEscapeKey } from '@/hooks/use-escape-key';
 import { FetchErrorBanner } from '@/components/fetch-error-banner';
@@ -56,9 +56,6 @@ interface Account {
   mask?: string | null;
 }
 
-const OWNER_OPTIONS = (Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
-  ([value, info]) => ({ value, label: info.label, emoji: info.emoji })
-);
 
 interface PlaidItem {
   id: string;
@@ -127,6 +124,15 @@ const ICON_OPTIONS = [
 export default function AccountsPage() {
   const isDemo = useIsDemo();
   const router = useRouter();
+  const household = useHousehold();
+  // Owner picker options (members then joint) and the display order for the
+  // collapsible owner sections — both scoped to the signed-in household.
+  const OWNER_OPTIONS = (household ? householdMemberEntries(household) : []).map(
+    ([value, info]) => ({ value, label: info.label, emoji: info.emoji })
+  );
+  const OWNER_ORDER: OwnerKey[] = household
+    ? ['joint', ...[...household.usernames].reverse()]
+    : [];
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);

@@ -30,7 +30,7 @@ export default async function NetWorthPage({
       <div className="p-4 md:p-8">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h1 className="text-3xl font-bold text-foreground">Home</h1>
-          <OwnerToggle value={ownerFilter} />
+          <OwnerToggle value={ownerFilter} owners={user?.household.usernames} />
         </div>
         <PageTabs tabs={HOME_TABS} />
         <NetWorthView

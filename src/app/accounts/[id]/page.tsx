@@ -29,6 +29,8 @@ import { AppLayout } from '@/components/app-layout';
 import { CategoryIcon } from '@/components/category-icon';
 import { MerchantAvatar } from '@/components/merchant-avatar';
 import { OWNERS, OwnerAvatar } from '@/components/owner-badge';
+import { householdMemberEntries } from '@/lib/households';
+import { useHousehold } from '@/hooks/use-household';
 import { getTypeBadge, LIABILITY_TYPES } from '@/lib/account-types';
 import { formatNumber } from '@/lib/format';
 import { ChartTooltip } from '@/components/charts/chart-tooltip';
@@ -93,6 +95,7 @@ const ICON_OPTIONS = [
 export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const household = useHousehold();
 
   const [account, setAccount] = useState<AccountDetail | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -559,7 +562,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                 ))}
               </div>
               <div className="flex gap-2">
-                {(Object.entries(OWNERS) as [string, (typeof OWNERS)[keyof typeof OWNERS]][]).map(
+                {(household ? householdMemberEntries(household) : []).map(
                   ([value, info]) => (
                     <button
                       key={value}
