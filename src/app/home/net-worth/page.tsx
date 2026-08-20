@@ -4,7 +4,7 @@ import { NetWorthView } from '@/components/home/net-worth-view';
 import { OwnerToggle } from '@/components/owner-toggle';
 import { getUser } from '@/lib/auth';
 import { getUserAccounts } from '@/lib/queries';
-import { getNetWorthSeries } from '@/lib/net-worth';
+import { getAccountFlows, getNetWorthSeries } from '@/lib/net-worth';
 import { parseOwnerFilter } from '@/lib/owner-filter';
 
 export const dynamic = 'force-dynamic';
@@ -17,12 +17,13 @@ export default async function NetWorthPage({
   const user = await getUser();
   const ownerFilter = parseOwnerFilter((await searchParams).owner);
 
-  const [series, userAccounts] = user
+  const [series, userAccounts, accountFlows] = user
     ? await Promise.all([
         getNetWorthSeries(user.id, 'all', ownerFilter),
         getUserAccounts(user.id, ownerFilter),
+        getAccountFlows(user.id, 30, ownerFilter),
       ])
-    : [[], []];
+    : [[], [], {} as Record<string, number>];
 
   return (
     <AppLayout>
@@ -45,6 +46,7 @@ export default async function NetWorthPage({
             mask: acc.mask,
             liabilityType: acc.liabilityType,
             assetType: acc.assetType,
+            flow30d: accountFlows[acc.id],
           }))}
         />
       </div>
