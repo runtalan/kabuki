@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Loader } from 'lucide-react';
 import { useIsDemo } from '@/hooks/use-is-demo';
 
@@ -14,6 +14,11 @@ export function PlaidLinkButton() {
   const isDemo = useIsDemo();
   const [linkToken, setLinkToken] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  // Guards against firing a second link/exchange while one is still in
+  // flight. Linking is slow (accounts + 30 days of transactions + logo
+  // caching all happen before the response), and a second attempt against the
+  // same institution is what produced duplicate accounts.
+  const inFlight = useRef(false);
 
   // Load Plaid script once per page
   useEffect(() => {
@@ -26,6 +31,8 @@ export function PlaidLinkButton() {
   }, []);
 
   const handleClick = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
     try {
       // Get link token
@@ -38,6 +45,7 @@ export function PlaidLinkButton() {
 
       if (!response.ok) {
         alert('Error: ' + (data.error || data.details || 'Failed to get link token'));
+        inFlight.current = false;
         setLoading(false);
         return;
       }
@@ -51,23 +59,40 @@ export function PlaidLinkButton() {
           onSuccess: async (publicToken: string, metadata: any) => {
             console.log('Plaid success:', metadata);
 
-            // Exchange public token for access token
-            const exchangeResponse = await fetch('/api/plaid/exchange-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                public_token: publicToken,
-                institution_name: metadata?.institution?.name || null,
-                institution_id: metadata?.institution?.institution_id || null,
-              }),
-            });
+            // Every failure path below has to clear the spinner. Before, a
+            // rejected fetch escaped this callback as an unhandled rejection
+            // and the button span "Linking..." forever — which is exactly
+            // what pushed the user to refresh and link the same institution
+            // again, duplicating its accounts.
+            try {
+              // Exchange public token for access token
+              const exchangeResponse = await fetch('/api/plaid/exchange-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  public_token: publicToken,
+                  institution_name: metadata?.institution?.name || null,
+                  institution_id: metadata?.institution?.institution_id || null,
+                }),
+              });
 
-            const exchangeData = await exchangeResponse.json();
-            if (exchangeResponse.ok) {
-              alert('✅ Bank account linked and synced!');
-              window.location.href = '/accounts';
-            } else {
+              const exchangeData = await exchangeResponse.json().catch(() => ({}));
+              if (exchangeResponse.ok) {
+                alert('✅ Bank account linked and synced!');
+                window.location.href = '/accounts';
+                return; // navigating away — leave the spinner up
+              }
               alert('Error: ' + (exchangeData.error || 'Failed to link account'));
+            } catch (error) {
+              alert(
+                'Linking did not complete: ' +
+                  (error instanceof Error ? error.message : 'Unknown error') +
+                  '\n\nOpen Accounts and refresh before trying again — the ' +
+                  'account may already be linked.'
+              );
+            } finally {
+              inFlight.current = false;
+              setLoading(false);
             }
           },
           onExit: (err: any, metadata: any) => {
@@ -87,6 +112,7 @@ export function PlaidLinkButton() {
               ].filter(Boolean);
               alert('Plaid could not link this account.\n\n' + parts.join('\n'));
             }
+            inFlight.current = false;
             setLoading(false);
           },
         }).open();
@@ -95,10 +121,12 @@ export function PlaidLinkButton() {
           'Plaid Link failed to load. Check your network connection or any ' +
             'ad/script blockers, then try again.'
         );
+        inFlight.current = false;
         setLoading(false);
       }
     } catch (error) {
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      inFlight.current = false;
       setLoading(false);
     }
   }, []);

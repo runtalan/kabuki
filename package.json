@@ -20,7 +20,9 @@
     "env:sandbox": "bash scripts/switch-env.sh sandbox",
     "env:production-limited": "bash scripts/switch-env.sh production-limited",
     "env:production": "bash scripts/switch-env.sh production",
-    "verify:prod-secrets": "bash scripts/verify-prod-secrets.sh"
+    "verify:prod-secrets": "bash scripts/verify-prod-secrets.sh",
+    "accounts:merge-duplicates": "tsx scripts/merge-duplicate-accounts.ts",
+    "verify:account-dedupe": "tsx scripts/verify-account-dedupe.ts"
   },
   "dependencies": {
     "@alpacahq/alpaca-trade-api": "^4.0.1",
